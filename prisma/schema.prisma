@@ -1,0 +1,318 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model DownloadHistory {
+  id           String       @id @default(uuid())
+  userId       String       @map("user_id")
+  documentId   String       @map("document_id")
+  documentType DocumentType @map("document_type")
+  downloadedAt DateTime     @default(now()) @map("downloaded_at")
+  ipAddress    String?      @map("ip_address")
+
+  @@map("download_history")
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  passwordHash  String         @map("password_hash")
+  role          UserRole       @default(PATIENT)
+  status        UserStatus     @default(ACTIVE)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  notifications Notification[]
+  patient       Patient?
+  refreshTokens RefreshToken[]
+  staff         Staff?
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Staff {
+  id             String          @id @default(uuid())
+  userId         String          @unique @map("user_id")
+  firstName      String          @map("first_name")
+  lastName       String          @map("last_name")
+  phone          String?
+  specialization String?
+  department     String?
+  licenseNo      String?         @map("license_no")
+  status         UserStatus      @default(ACTIVE)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  appointments   Appointment[]   @relation("DoctorAppointments")
+  labTestOrders  LabTestOrder[]  @relation("OrderedBy")
+  labTestResults LabTestResult[]
+  medicalRecords MedicalRecord[]
+  prescriptions  Prescription[]
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("staff")
+}
+
+model Patient {
+  uhid             String          @id @default(uuid()) @map("uhid")
+  userId           String?         @unique @map("user_id")
+  firstName        String          @map("first_name")
+  lastName         String          @map("last_name")
+  dateOfBirth      DateTime        @map("date_of_birth")
+  gender           Gender
+  phone            String
+  email            String?
+  address          String?
+  emergencyContact String?         @map("emergency_contact")
+  bloodGroup       String?         @map("blood_group")
+  allergies        String?
+  registrationDate DateTime        @default(now()) @map("registration_date")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  appointments     Appointment[]
+  bills            Bill[]
+  labTestOrders    LabTestOrder[]
+  medicalRecords   MedicalRecord[]
+  user             User?           @relation(fields: [userId], references: [id])
+  prescriptions    Prescription[]
+
+  @@index([registrationDate])
+  @@map("patients")
+}
+
+
+model Appointment {
+  id          String            @id @default(uuid())
+  patientId   String            @map("patient_id")
+  doctorId    String            @map("doctor_id")
+  scheduledAt DateTime          @map("scheduled_at")
+  duration    Int               @default(30)
+  status      AppointmentStatus @default(SCHEDULED)
+  reason      String?
+  notes       String?
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+  doctor      Staff             @relation("DoctorAppointments", fields: [doctorId], references: [id], onDelete: Cascade)
+  patient     Patient           @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
+
+  @@map("appointments")
+}
+
+model MedicalRecord {
+  id            String   @id @default(uuid())
+  patientId     String   @map("patient_id")
+  doctorId      String   @map("doctor_id")
+  diagnosis     String
+  treatment     String?
+  notes         String?
+  vitalSigns    Json?    @map("vital_signs")
+  prescriptions Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  doctor        Staff    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient       Patient  @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
+
+  @@map("medical_records")
+}
+
+model Prescription {
+  id        String   @id @default(uuid())
+  patientId String   @map("patient_id")
+  doctorId  String   @map("doctor_id")
+  notes     String?
+  medicines Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  doctor    Staff    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient   Patient  @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
+
+  @@map("prescriptions")
+}
+
+model Medicine {
+  id            String     @id @default(uuid())
+  name          String
+  genericName   String?    @map("generic_name")
+  manufacturer  String?
+  category      String?
+  unit          String     @default("tablet")
+  pricePerUnit  Decimal    @map("price_per_unit") @db.Decimal(10, 2)
+  stockQuantity Int        @default(0) @map("stock_quantity")
+  reorderLevel  Int        @default(10) @map("reorder_level")
+  expiryDate    DateTime?  @map("expiry_date")
+  isActive      Boolean    @default(true) @map("is_active")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+  billItems     BillItem[]
+
+  @@map("medicines")
+}
+
+model Bill {
+  id           String               @id @default(uuid())
+  patientId    String               @map("patient_id")
+  billNumber   String               @unique @map("bill_number")
+  subtotal     Decimal              @db.Decimal(10, 2)
+  discount     Decimal              @default(0) @db.Decimal(10, 2)
+  gstPercent   Decimal              @default(18) @map("gst_percent") @db.Decimal(5, 2)
+  gstAmount    Decimal              @map("gst_amount") @db.Decimal(10, 2)
+  grandTotal   Decimal              @map("grand_total") @db.Decimal(10, 2)
+  status       BillStatus           @default(PENDING)
+  paidAmount   Decimal              @default(0) @map("paid_amount") @db.Decimal(10, 2)
+  notes        String?
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+  items        BillItem[]
+  patient      Patient              @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
+  labOrders    LabTestOrder[]
+  transactions PaymentTransaction[]
+
+  @@map("bills")
+}
+
+model BillItem {
+  id          String    @id @default(uuid())
+  billId      String    @map("bill_id")
+  medicineId  String?   @map("medicine_id")
+  description String
+  quantity    Int
+  unitPrice   Decimal   @map("unit_price") @db.Decimal(10, 2)
+  total       Decimal   @db.Decimal(10, 2)
+  bill        Bill      @relation(fields: [billId], references: [id], onDelete: Cascade)
+  medicine    Medicine? @relation(fields: [medicineId], references: [id])
+
+  @@map("bill_items")
+}
+
+model LabTestOrder {
+  id          String         @id @default(uuid())
+  patientId   String         @map("patient_id")
+  orderedById String         @map("ordered_by_id")
+  testName    String         @map("test_name")
+  testCode    String?        @map("test_code")
+  priority    String         @default("normal")
+  status      LabTestStatus  @default(ORDERED)
+  notes       String?
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  billId      String?        @map("bill_id")
+  bill        Bill?          @relation(fields: [billId], references: [id])
+  orderedBy   Staff          @relation("OrderedBy", fields: [orderedById], references: [id], onDelete: Cascade)
+  patient     Patient        @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
+  result      LabTestResult?
+
+  @@map("lab_test_orders")
+}
+
+model LabTestResult {
+  id             String       @id @default(uuid())
+  orderId        String       @unique @map("order_id")
+  technicianId   String       @map("technician_id")
+  result         Json
+  interpretation String?
+  attachments    Json?
+  completedAt    DateTime     @default(now()) @map("completed_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  order          LabTestOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  technician     Staff        @relation(fields: [technicianId], references: [id], onDelete: Cascade)
+
+  @@map("lab_test_results")
+}
+
+model PaymentTransaction {
+  id          String   @id @default(uuid())
+  billId      String   @map("bill_id")
+  amount      Decimal  @db.Decimal(10, 2)
+  paymentMode String   @map("payment_mode")
+  referenceNo String?  @map("reference_no")
+  createdBy   String?  @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  bill        Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@map("payment_transactions")
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  recipientId String   @map("recipient_id")
+  title       String
+  message     String
+  type        String   @default("info")
+  read        Boolean  @default(false)
+  actionUrl   String?  @map("action_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+  recipient   User     @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId])
+  @@map("notifications")
+}
+
+enum UserRole {
+  ADMIN
+  DOCTOR
+  RECEPTIONIST
+  PHARMACIST
+  LAB_TECHNICIAN
+  PATIENT
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+  PENDING
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  PENDING
+}
+
+enum BillStatus {
+  PENDING
+  PAID
+  PARTIALLY_PAID
+  CANCELLED
+}
+
+enum LabTestStatus {
+  ORDERED
+  SAMPLE_COLLECTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  PAYMENT_PENDING
+  READY_FOR_SAMPLE_COLLECTION
+}
+
+enum DocumentType {
+  PRESCRIPTION
+  LAB_REPORT
+  MEDICAL_RECORD
+}

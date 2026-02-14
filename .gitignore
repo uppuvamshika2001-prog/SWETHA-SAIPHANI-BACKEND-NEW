@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Prisma
+prisma/*.db
+prisma/*.db-journal
+
+# Uploads
+
+# Temporary and Debug Scripts
+*.ts
+!src/**/*.ts
+!*.example.ts
+!seed-demo-data.ts
+!seed_doctors.ts
+!verify_doctors.ts
+
+# User/Demo Data
+token.txt
+demo_ids.txt
+*_log.txt
