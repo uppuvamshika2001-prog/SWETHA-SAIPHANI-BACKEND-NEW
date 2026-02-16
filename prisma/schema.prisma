@@ -71,16 +71,33 @@ model Staff {
 model Patient {
   uhid             String          @id @default(uuid()) @map("uhid")
   userId           String?         @unique @map("user_id")
+  title            String?         // Mr, Mrs, Ms, Dr
   firstName        String          @map("first_name")
   lastName         String          @map("last_name")
   dateOfBirth      DateTime        @map("date_of_birth")
   gender           Gender
   phone            String
+  altPhone         String?         @map("alt_phone")
   email            String?
   address          String?
+  state            String?
+  district         String?
+  mandal           String?
+  village          String?
+  pincode          String?
   emergencyContact String?         @map("emergency_contact")
+  emergencyName    String?         @map("emergency_name")
+  emergencyRelation String?        @map("emergency_relation")
   bloodGroup       String?         @map("blood_group")
   allergies        String?
+  idType           String?         @map("id_type")    // aadhaar, pan, passport
+  idNumber         String?         @map("id_number")
+  referredBy       String?         @map("referred_by")
+  referredPerson   String?         @map("referred_person")
+  consultingDoctor String?         @map("consulting_doctor")
+  department       String?
+  paymentMode      String?         @map("payment_mode") // cash, card, upi
+  registrationFee  Decimal?        @map("registration_fee") @db.Decimal(10, 2)
   registrationDate DateTime        @default(now()) @map("registration_date")
   createdAt        DateTime        @default(now()) @map("created_at")
   updatedAt        DateTime        @updatedAt @map("updated_at")
@@ -92,6 +109,7 @@ model Patient {
   prescriptions    Prescription[]
 
   @@index([registrationDate])
+  @@index([phone])
   @@map("patients")
 }
 
@@ -114,34 +132,58 @@ model Appointment {
 }
 
 model MedicalRecord {
-  id            String   @id @default(uuid())
-  patientId     String   @map("patient_id")
-  doctorId      String   @map("doctor_id")
-  diagnosis     String
-  treatment     String?
-  notes         String?
-  vitalSigns    Json?    @map("vital_signs")
-  prescriptions Json?
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-  doctor        Staff    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  patient       Patient  @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
+  id                 String              @id @default(uuid())
+  patientId          String              @map("patient_id")
+  doctorId           String              @map("doctor_id")
+  appointmentId      String?             @map("appointment_id")
+  chiefComplaint     String?             @map("chief_complaint")
+  diagnosis          String
+  icdCode            String?             @map("icd_code")
+  treatment          String?
+  treatmentNotes     String?             @map("treatment_notes")
+  notes              String?
+  vitalSigns         Json?               @map("vital_signs")
+  prescriptions      Json?
+  prescriptionStatus PrescriptionStatus? @default(PENDING) @map("prescription_status")
+  followUpDate       DateTime?           @map("follow_up_date")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  doctor             Staff               @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient            Patient             @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
 
+  @@index([patientId])
+  @@index([doctorId])
   @@map("medical_records")
 }
 
 model Prescription {
-  id        String   @id @default(uuid())
-  patientId String   @map("patient_id")
-  doctorId  String   @map("doctor_id")
+  id        String             @id @default(uuid())
+  patientId String             @map("patient_id")
+  doctorId  String             @map("doctor_id")
   notes     String?
-  medicines Json
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  doctor    Staff    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  patient   Patient  @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
+  medicines Json               // Kept for backward compatibility
+  items     PrescriptionItem[] // New: normalized medicine items
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+  doctor    Staff              @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient   Patient            @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
 
   @@map("prescriptions")
+}
+
+model PrescriptionItem {
+  id             String       @id @default(uuid())
+  prescriptionId String       @map("prescription_id")
+  medicineName   String       @map("medicine_name")
+  dosage         String
+  frequency      String
+  duration       String
+  instructions   String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  @@index([prescriptionId])
+  @@map("prescription_items")
 }
 
 model Medicine {
@@ -315,4 +357,10 @@ enum DocumentType {
   PRESCRIPTION
   LAB_REPORT
   MEDICAL_RECORD
+}
+
+enum PrescriptionStatus {
+  PENDING
+  DISPENSED
+  CANCELLED
 }

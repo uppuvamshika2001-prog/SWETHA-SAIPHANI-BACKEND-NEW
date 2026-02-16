@@ -20,15 +20,16 @@ export class DoctorsService {
             data: {
                 patientId: input.patientId,
                 doctorId: doctor.id,
+                appointmentId: input.appointmentId,
+                chiefComplaint: input.chiefComplaint,
                 diagnosis: input.diagnosis,
+                icdCode: input.icdCode,
                 treatment: input.treatment || input.treatmentNotes,
-                notes: input.notes || input.chiefComplaint,
-                // Workaround: Store prescriptions in vitalSigns JSON to avoid schema mismatch if db push failed
-                vitalSigns: {
-                    ...(input.vitalSigns || {}),
-                    prescriptions: input.prescriptions || []
-                },
-                // Also store in the actual prescriptions field if it exists in schema
+                treatmentNotes: input.treatmentNotes,
+                notes: input.notes,
+                followUpDate: input.followUpDate,
+                prescriptionStatus: 'PENDING',
+                vitalSigns: input.vitalSigns || {},
                 prescriptions: input.prescriptions || []
             },
             include: {
@@ -37,7 +38,7 @@ export class DoctorsService {
             },
         });
 
-        return this.formatMedicalRecord(record);
+        return this.formatMedicalRecord(record as any);
     }
 
     async createPrescription(doctorUserId: string, input: CreatePrescriptionInput): Promise<PrescriptionResponse> {
@@ -160,11 +161,9 @@ export class DoctorsService {
             throw new NotFoundError('Medical record not found');
         }
 
-        const currentVitals = record.vitalSigns as Record<string, any> || {};
-
         // If dispensing, deduct stock for each medicine in prescriptions
         if (status === 'DISPENSED') {
-            const prescriptions = currentVitals.prescriptions || (record as any).prescriptions || [];
+            const prescriptions = (record.prescriptions as any[]) || [];
 
             for (const prescription of prescriptions) {
                 if (prescription.medicineName) {
@@ -176,8 +175,6 @@ export class DoctorsService {
                     });
 
                     if (medicine && medicine.stockQuantity > 0) {
-                        // Deduct 1 unit per prescription item 
-                        // (In a real system, you'd parse dosage/quantity from prescription)
                         const deductQty = 1;
                         await prisma.medicine.update({
                             where: { id: medicine.id },
@@ -189,16 +186,10 @@ export class DoctorsService {
             }
         }
 
-        const updatedVitals = {
-            ...currentVitals,
-            prescriptionStatus: status,
-            dispensedAt: status === 'DISPENSED' ? new Date().toISOString() : undefined
-        };
-
         const updatedRecord = await prisma.medicalRecord.update({
             where: { id: recordId },
             data: {
-                vitalSigns: updatedVitals,
+                prescriptionStatus: status as any,
             },
             include: {
                 patient: { select: { firstName: true, lastName: true } },
@@ -206,7 +197,7 @@ export class DoctorsService {
             },
         });
 
-        return this.formatMedicalRecord(updatedRecord);
+        return this.formatMedicalRecord(updatedRecord as any);
     }
 
     async getAllMedicalRecords(search?: string) {
@@ -252,27 +243,25 @@ export class DoctorsService {
     }
 
     async getPendingPrescriptions() {
-        // Fetch recent records and filter for PENDING status
-        // Since status is in JSON, we filter in code to ensure compatibility
+        // Now we can filter by the proper prescriptionStatus column
         const records = await prisma.medicalRecord.findMany({
             where: {
-                // Ensure record has prescriptions (workaround check if possible, or just fetch all)
-                // We'll rely on in-memory filter for the JSON fields
+                prescriptionStatus: 'PENDING',
             },
             include: {
                 patient: true,
                 doctor: true,
             },
             orderBy: { createdAt: 'desc' },
-            take: 20 // Limit to recent 20 to avoid showing old test data
+            take: 20
         });
 
-        const formatted = records.map(record => this.formatMedicalRecord(record));
+        // Still filter for records that actually have prescriptions
+        const formatted = records.map(record => this.formatMedicalRecord(record as any));
 
         return formatted.filter(r =>
             r.prescriptions &&
-            r.prescriptions.length > 0 &&
-            (r.prescriptionStatus === 'PENDING' || !r.prescriptionStatus) // Default to Pending if field missing but has prescriptions
+            r.prescriptions.length > 0
         );
     }
 
@@ -280,31 +269,43 @@ export class DoctorsService {
         id: string;
         patientId: string;
         doctorId: string;
+        appointmentId?: string | null;
+        chiefComplaint?: string | null;
         diagnosis: string;
+        icdCode?: string | null;
         treatment: string | null;
+        treatmentNotes?: string | null;
         notes: string | null;
         vitalSigns: unknown;
+        prescriptions: unknown;
+        prescriptionStatus?: string | null;
+        followUpDate?: Date | null;
         patient: { firstName: string; lastName: string };
         doctor: { firstName: string; lastName: string };
         createdAt: Date;
     }): MedicalRecordResponse {
         const vitals = record.vitalSigns as Record<string, any> || {};
-        const prescriptions = vitals.prescriptions || (record as any).prescriptions || []; // Check both locations
+        // Read prescriptions from JSON column (backward compatible)
+        const prescriptions = (record.prescriptions as any[]) || [];
 
-        // Remove prescriptions from vitals to keep it clean
-        const { prescriptions: _, ...cleanVitals } = vitals;
+        // Remove any leftover prescriptions from vitals (legacy cleanup)
+        const { prescriptions: _, prescriptionStatus: __, dispensedAt: ___, ...cleanVitals } = vitals;
 
         return {
             id: record.id,
             patientId: record.patientId,
             doctorId: record.doctorId,
+            appointmentId: record.appointmentId || null,
+            chiefComplaint: record.chiefComplaint || record.notes || null,
             diagnosis: record.diagnosis,
+            icdCode: record.icdCode || null,
             treatment: record.treatment,
+            treatmentNotes: record.treatmentNotes || null,
             notes: record.notes,
             vitalSigns: Object.keys(cleanVitals).length > 0 ? cleanVitals : null,
             prescriptions: prescriptions as MedicalRecordResponse['prescriptions'],
-            prescriptionStatus: (vitals.prescriptionStatus as any) || 'PENDING',
-            dispensedAt: vitals.dispensedAt as string | undefined,
+            prescriptionStatus: (record.prescriptionStatus as any) || 'PENDING',
+            followUpDate: record.followUpDate || null,
             patient: record.patient,
             doctor: record.doctor,
             createdAt: record.createdAt,

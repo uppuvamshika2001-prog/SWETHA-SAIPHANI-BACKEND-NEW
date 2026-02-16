@@ -2,15 +2,21 @@ import { z } from 'zod';
 
 export const createMedicalRecordSchema = z.object({
     patientId: z.string().min(1, 'Patient ID is required'),
+    appointmentId: z.string().optional(),
+    chiefComplaint: z.string().optional(),
     diagnosis: z.string().min(1, 'Diagnosis is required'),
+    icdCode: z.string().optional(),
     treatment: z.string().optional(),
     treatmentNotes: z.string().optional(),
     notes: z.string().optional(),
-    chiefComplaint: z.string().optional(),
+    followUpDate: z.string().optional().transform(s => s ? new Date(s) : undefined),
     vitalSigns: z.object({
-        bloodPressure: z.string().optional(),
+        bloodPressureSystolic: z.number().optional(),
+        bloodPressureDiastolic: z.number().optional(),
+        heartRate: z.number().optional(),
         temperature: z.number().optional(),
-        pulse: z.number().optional(),
+        respiratoryRate: z.number().optional(),
+        oxygenSaturation: z.number().optional(),
         weight: z.number().optional(),
         height: z.number().optional(),
     }).optional(),
@@ -21,6 +27,7 @@ export const createMedicalRecordSchema = z.object({
         duration: z.string(),
         instructions: z.string().optional(),
     })).optional(),
+    labOrders: z.array(z.string()).optional(),
 });
 
 export const createPrescriptionSchema = z.object({
@@ -43,8 +50,12 @@ export interface MedicalRecordResponse {
     id: string;
     patientId: string;
     doctorId: string;
+    appointmentId: string | null;
+    chiefComplaint: string | null;
     diagnosis: string;
+    icdCode: string | null;
     treatment: string | null;
+    treatmentNotes: string | null;
     notes: string | null;
     vitalSigns: Record<string, unknown> | null;
     prescriptions?: Array<{
@@ -55,6 +66,8 @@ export interface MedicalRecordResponse {
         instructions?: string;
     }> | null;
     prescriptionStatus?: 'DISPENSED' | 'PENDING' | 'CANCELLED';
+    followUpDate: Date | null;
+    labOrders?: string[];
     dispensedAt?: string;
     patient: { firstName: string; lastName: string };
     doctor: { firstName: string; lastName: string };

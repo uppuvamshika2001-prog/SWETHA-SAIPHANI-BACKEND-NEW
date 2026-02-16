@@ -13,7 +13,7 @@ router.use(authGuard);
 // Medical Records
 router.get('/medical-records', medicalReadAccess, getAllMedicalRecords);  // List all records (Admin/Pharmacist search)
 router.post('/medical-records', medicalStaff, createMedicalRecord);
-router.get('/medical-records/patient/:patientId', patientAccessGuard('patientId', [UserRole.ADMIN, UserRole.DOCTOR, UserRole.PHARMACIST]), getMedicalRecords);
+router.get('/medical-records/patient/:patientId', patientAccessGuard('patientId', [UserRole.ADMIN, UserRole.DOCTOR, UserRole.PHARMACIST, UserRole.RECEPTIONIST]), getMedicalRecords);
 router.get('/medical-records/:id', medicalReadAccess, getMedicalRecordById); // Specific ID route last
 
 // Prescriptions

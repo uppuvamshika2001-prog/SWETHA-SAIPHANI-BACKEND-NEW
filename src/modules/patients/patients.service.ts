@@ -75,16 +75,33 @@ export class PatientsService {
                 data: {
                     uhid: uhidToUse,
                     userId: user.id,
+                    title: input.title,
                     firstName: input.firstName,
                     lastName: input.lastName,
                     dateOfBirth: input.dateOfBirth,
                     gender: input.gender,
                     phone: input.phone,
+                    altPhone: input.altPhone,
                     email: input.email,
                     address: input.address,
+                    state: input.state,
+                    district: input.district,
+                    mandal: input.mandal,
+                    village: input.village,
+                    pincode: input.pincode,
                     emergencyContact: input.emergencyContact,
+                    emergencyName: input.emergencyName,
+                    emergencyRelation: input.emergencyRelation,
                     bloodGroup: input.bloodGroup,
                     allergies: input.allergies,
+                    idType: input.idType,
+                    idNumber: input.idNumber,
+                    referredBy: input.referredBy,
+                    referredPerson: input.referredPerson,
+                    consultingDoctor: input.consultingDoctor,
+                    department: input.department,
+                    paymentMode: input.paymentMode,
+                    registrationFee: input.registrationFee,
                 },
             });
 
@@ -420,16 +437,33 @@ export class PatientsService {
     private formatPatient(patient: {
         uhid: string;
         userId: string | null;
+        title: string | null;
         firstName: string;
         lastName: string;
         dateOfBirth: Date;
         gender: string;
         phone: string;
+        altPhone: string | null;
         email: string | null;
         address: string | null;
+        state: string | null;
+        district: string | null;
+        mandal: string | null;
+        village: string | null;
+        pincode: string | null;
         emergencyContact: string | null;
+        emergencyName: string | null;
+        emergencyRelation: string | null;
         bloodGroup: string | null;
         allergies: string | null;
+        idType: string | null;
+        idNumber: string | null;
+        referredBy: string | null;
+        referredPerson: string | null;
+        consultingDoctor: string | null;
+        department: string | null;
+        paymentMode: string | null;
+        registrationFee: any;
         createdAt: Date;
         updatedAt: Date;
     }): PatientResponse {
@@ -437,16 +471,33 @@ export class PatientsService {
             id: patient.uhid,
             uhid: patient.uhid,
             userId: patient.userId,
+            title: patient.title,
             firstName: patient.firstName,
             lastName: patient.lastName,
             dateOfBirth: patient.dateOfBirth,
             gender: patient.gender as PatientResponse['gender'],
             phone: patient.phone,
+            altPhone: patient.altPhone,
             email: patient.email,
             address: patient.address,
+            state: patient.state,
+            district: patient.district,
+            mandal: patient.mandal,
+            village: patient.village,
+            pincode: patient.pincode,
             emergencyContact: patient.emergencyContact,
+            emergencyName: patient.emergencyName,
+            emergencyRelation: patient.emergencyRelation,
             bloodGroup: patient.bloodGroup,
             allergies: patient.allergies,
+            idType: patient.idType,
+            idNumber: patient.idNumber,
+            referredBy: patient.referredBy,
+            referredPerson: patient.referredPerson,
+            consultingDoctor: patient.consultingDoctor,
+            department: patient.department,
+            paymentMode: patient.paymentMode,
+            registrationFee: patient.registrationFee ? Number(patient.registrationFee) : null,
             createdAt: patient.createdAt,
             updatedAt: patient.updatedAt,
         };
