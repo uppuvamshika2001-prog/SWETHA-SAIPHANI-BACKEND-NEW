@@ -105,6 +105,23 @@ export class PatientsService {
                 },
             });
 
+            // 4. Notify all Doctors about new patient
+            const doctors = await tx.user.findMany({
+                where: { role: UserRole.DOCTOR, status: 'ACTIVE' }
+            });
+
+            if (doctors.length > 0) {
+                await tx.notification.createMany({
+                    data: doctors.map(doc => ({
+                        recipientId: doc.id,
+                        title: 'New Patient Registration',
+                        message: `New patient ${newPatient.firstName} ${newPatient.lastName} (${newPatient.uhid}) has been registered.`,
+                        actionUrl: `/doctor/patients?q=${newPatient.uhid}`,
+                        type: 'info'
+                    }))
+                });
+            }
+
             return newPatient;
         });
 
@@ -115,7 +132,7 @@ export class PatientsService {
         // 3. Send Welcome Email (Non-blocking)
         emailService.sendWelcomeEmail(
             patient.email!,
-            `${patient.firstName} ${patient.lastName}`,
+            `${patient.firstName} ${patient.lastName} `,
             patient.uhid || 'Pending',
             resetToken
         ).catch(err => console.error('Failed to send welcome email:', err));
@@ -161,7 +178,7 @@ export class PatientsService {
             });
 
             if (orphan) {
-                console.log(`[Proactive Linking] Linking orphan ${orphan.uhid} to user ${user.email}`);
+                console.log(`[Proactive Linking] Linking orphan ${orphan.uhid} to user ${user.email} `);
                 patient = await prisma.patient.update({
                     where: { uhid: orphan.uhid as string },
                     data: { userId: user.id }
@@ -173,7 +190,7 @@ export class PatientsService {
             throw new NotFoundError('Patient profile not found. Please contact reception to register.');
         }
 
-        console.log(`[findByUserId] User ${userId} (${user.email}) => Patient ${patient.uhid}`);
+        console.log(`[findByUserId] User ${userId} (${user.email}) => Patient ${patient.uhid} `);
 
         return this.formatPatient(patient as any);
     }
@@ -326,7 +343,7 @@ export class PatientsService {
     private async getLinkedPatientIds(startingPatient: { uhid: string, phone: string, email: string | null }): Promise<string[]> {
         const linked = await this.getLinkedPatients(startingPatient);
         const allIds = Array.from(new Set(linked.map(p => p.uhid as string)));
-        console.log(`[Smart Linking] Patient ${startingPatient.uhid} linked to profiles: ${allIds.join(', ')}`);
+        console.log(`[Smart Linking] Patient ${startingPatient.uhid} linked to profiles: ${allIds.join(', ')} `);
         return allIds;
     }
 

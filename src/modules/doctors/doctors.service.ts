@@ -30,13 +30,29 @@ export class DoctorsService {
                 followUpDate: input.followUpDate,
                 prescriptionStatus: 'PENDING',
                 vitalSigns: input.vitalSigns || {},
-                prescriptions: input.prescriptions || []
+                prescriptions: input.prescriptions || [],
+                labOrders: input.labOrders || []
             },
             include: {
                 patient: { select: { firstName: true, lastName: true } },
                 doctor: { select: { firstName: true, lastName: true } },
             },
         });
+
+        // Automatically create Lab Test Orders
+        if (input.labOrders && input.labOrders.length > 0) {
+            await Promise.all(input.labOrders.map(testName =>
+                prisma.labTestOrder.create({
+                    data: {
+                        patientId: input.patientId,
+                        orderedById: doctor.id,
+                        testName: testName,
+                        status: 'READY_FOR_SAMPLE_COLLECTION',
+                        priority: 'normal'
+                    }
+                })
+            ));
+        }
 
         return this.formatMedicalRecord(record as any);
     }
@@ -86,46 +102,10 @@ export class DoctorsService {
 
     async getMedicalRecords(patientId: string) {
         console.log(`[getMedicalRecords] Fetching for Patient UHID: ${patientId}`);
-        const patient = await prisma.patient.findUnique({
-            where: { uhid: patientId }
-        });
 
-        if (!patient) {
-            throw new NotFoundError('Patient not found');
-        }
-
-        // 2-Pass Smart Linking
-        const whereClause: any[] = [{ phone: patient.phone }];
-        if (patient.email) {
-            whereClause.push({ email: patient.email });
-        }
-
-        const pass1 = await prisma.patient.findMany({
-            where: { OR: whereClause },
-            select: { uhid: true, phone: true, email: true }
-        });
-
-        const phones = new Set<string>();
-        const emails = new Set<string>();
-        pass1.forEach(p => {
-            if (p.phone) phones.add(p.phone);
-            if (p.email) emails.add(p.email);
-        });
-
-        const finalCriteria: any[] = [];
-        phones.forEach(p => finalCriteria.push({ phone: p }));
-        emails.forEach(e => finalCriteria.push({ email: e }));
-
-        const finalResults = await prisma.patient.findMany({
-            where: { OR: finalCriteria },
-            select: { uhid: true }
-        });
-
-        const patientIds = Array.from(new Set(finalResults.map(p => p.uhid as string)));
-        console.log(`[getMedicalRecords] Smart Linked Patient UHIDs: ${patientIds.join(', ')}`);
-
+        // Removed "Smart Linking" - fetching strictly by Patient UHID
         const records = await prisma.medicalRecord.findMany({
-            where: { patientId: { in: patientIds } },
+            where: { patientId: patientId },
             include: {
                 patient: { select: { firstName: true, lastName: true } },
                 doctor: { select: { firstName: true, lastName: true } },
@@ -133,7 +113,7 @@ export class DoctorsService {
             orderBy: { createdAt: 'desc' },
         });
 
-        return records.map(record => this.formatMedicalRecord(record as any));
+        return records.map((record: any) => this.formatMedicalRecord(record as any));
     }
 
     async getMedicalRecordById(id: string): Promise<MedicalRecordResponse> {
@@ -239,7 +219,7 @@ export class DoctorsService {
             orderBy: { createdAt: 'desc' },
         });
 
-        return records.map(record => this.formatMedicalRecord(record));
+        return records.map((record: any) => this.formatMedicalRecord(record));
     }
 
     async getPendingPrescriptions() {
@@ -257,9 +237,9 @@ export class DoctorsService {
         });
 
         // Still filter for records that actually have prescriptions
-        const formatted = records.map(record => this.formatMedicalRecord(record as any));
+        const formatted = records.map((record: any) => this.formatMedicalRecord(record as any));
 
-        return formatted.filter(r =>
+        return formatted.filter((r: MedicalRecordResponse) =>
             r.prescriptions &&
             r.prescriptions.length > 0
         );
@@ -278,6 +258,7 @@ export class DoctorsService {
         notes: string | null;
         vitalSigns: unknown;
         prescriptions: unknown;
+        labOrders?: unknown;
         prescriptionStatus?: string | null;
         followUpDate?: Date | null;
         patient: { firstName: string; lastName: string };
@@ -304,6 +285,7 @@ export class DoctorsService {
             notes: record.notes,
             vitalSigns: Object.keys(cleanVitals).length > 0 ? cleanVitals : null,
             prescriptions: prescriptions as MedicalRecordResponse['prescriptions'],
+            labOrders: (record.labOrders as string[]) || [],
             prescriptionStatus: (record.prescriptionStatus as any) || 'PENDING',
             followUpDate: record.followUpDate || null,
             patient: record.patient,

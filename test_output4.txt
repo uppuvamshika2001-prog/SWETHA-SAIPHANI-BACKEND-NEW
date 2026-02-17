@@ -1,0 +1,10 @@
+﻿Testing: Invalid Email
+Status Code: 401
+Response Body: {"status":"error","message":"Invalid email","code":401,"errorCode":"AUTH_INVALID_CREDENTIALS","requestId":"req_1771334662489_zt0ohcsxi","stack":"InvalidCredentialsError: Invalid email\n    at AuthService.login (C:\\Users\\admin\\Desktop\\complete_swetha_saiphani_backend-main\\src\\modules\\auth\\auth.service.ts:144:23)\n    at async <anonymous> (C:\\Users\\admin\\Desktop\\complete_swetha_saiphani_backend-main\\src\\modules\\auth\\auth.controller.ts:127:20)"}
+------------------------------
+Registering temp user...
+Registration Status: 409
+Testing: Invalid Password
+Status Code: 401
+Response Body: {"status":"error","message":"Invalid password","code":401,"errorCode":"AUTH_INVALID_CREDENTIALS","requestId":"req_1771334662822_xy8blle6e","stack":"InvalidCredentialsError: Invalid password\n    at AuthService.login (C:\\Users\\admin\\Desktop\\complete_swetha_saiphani_backend-main\\src\\modules\\auth\\auth.service.ts:167:23)\n    at async <anonymous> (C:\\Users\\admin\\Desktop\\complete_swetha_saiphani_backend-main\\src\\modules\\auth\\auth.controller.ts:127:20)"}
+------------------------------

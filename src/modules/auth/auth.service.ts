@@ -141,7 +141,7 @@ export class AuthService {
             // Use generic "Invalid credentials" message for both cases
             if (!user) {
                 logger.warn({ email: input.email }, 'Login attempt for non-existent user');
-                throw new InvalidCredentialsError();
+                throw new InvalidCredentialsError('Invalid email');
             }
 
             // Check if account is active
@@ -164,7 +164,7 @@ export class AuthService {
 
             if (!isValidPassword) {
                 logger.warn({ userId: user.id }, 'Failed login - invalid password');
-                throw new InvalidCredentialsError();
+                throw new InvalidCredentialsError('Invalid password');
             }
 
             // Generate tokens - wrapped in try-catch
