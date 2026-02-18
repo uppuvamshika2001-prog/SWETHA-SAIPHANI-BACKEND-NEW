@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { labService } from '@/modules/lab/lab.service.js';
-import { createLabOrderSchema, createLabResultSchema, labOrderQuerySchema } from '@/modules/lab/lab.types.js';
+import { createLabOrderSchema, createLabResultSchema, labOrderQuerySchema, createLabTestSchema, updateLabTestSchema } from '@/modules/lab/lab.types.js';
 import { sendSuccess, sendCreated } from '@/utils/response.js';
 import { z } from 'zod';
 
@@ -293,6 +293,46 @@ export async function getLabResult(
     try {
         const result = await labService.getResult(req.params.id as string);
         sendSuccess(res, result);
+    } catch (error) {
+        next(error);
+    }
+}
+
+// Lab Test Catalog Handlers
+
+export async function createLabTest(req: Request, res: Response, next: NextFunction) {
+    try {
+        const input = createLabTestSchema.parse(req.body);
+        const test = await labService.createTest(input);
+        sendCreated(res, test, 'Lab test created successfully');
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getLabTests(req: Request, res: Response, next: NextFunction) {
+    try {
+        const tests = await labService.getAllTests();
+        sendSuccess(res, tests);
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function updateLabTest(req: Request, res: Response, next: NextFunction) {
+    try {
+        const input = updateLabTestSchema.parse(req.body);
+        const test = await labService.updateTest(req.params.id as string, input);
+        sendSuccess(res, test, 'Lab test updated successfully');
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function deleteLabTest(req: Request, res: Response, next: NextFunction) {
+    try {
+        await labService.deleteTest(req.params.id as string);
+        sendSuccess(res, null, 'Lab test deleted successfully');
     } catch (error) {
         next(error);
     }

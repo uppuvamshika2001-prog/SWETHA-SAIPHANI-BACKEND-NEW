@@ -1,6 +1,6 @@
 import { prisma } from '../../config/database.js';
 import { NotFoundError, ValidationError } from '../../middleware/errorHandler.js';
-import { CreateLabOrderInput, CreateLabResultInput, LabOrderQueryInput, LabOrderResponse, LabResultResponse } from './lab.types.js';
+import { CreateLabOrderInput, CreateLabResultInput, LabOrderQueryInput, LabOrderResponse, LabResultResponse, CreateLabTestInput, UpdateLabTestInput } from './lab.types.js';
 import { PaginatedResponse } from '../users/users.types.js';
 
 export class LabService {
@@ -38,13 +38,29 @@ export class LabService {
     }
 
     async getOrders(query: LabOrderQueryInput): Promise<PaginatedResponse<LabOrderResponse>> {
-        const { page, limit, patientId, status, priority } = query;
+        const { page, limit, patientId, status, priority, startDate, endDate } = query;
         const skip = (page - 1) * limit;
 
         const where: Record<string, unknown> = {};
         if (patientId) where.patientId = patientId;
         if (status) where.status = status;
         if (priority) where.priority = priority;
+
+        // Date Range Filtering
+        if (startDate || endDate) {
+            const createdAtFilter: any = {};
+            if (startDate) {
+                const start = new Date(startDate);
+                start.setHours(0, 0, 0, 0);
+                createdAtFilter.gte = start;
+            }
+            if (endDate) {
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                createdAtFilter.lte = end;
+            }
+            where.createdAt = createdAtFilter;
+        }
 
         const [orders, total] = await Promise.all([
             prisma.labTestOrder.findMany({
@@ -250,6 +266,48 @@ export class LabService {
             attachments: result.attachments as string[] | null,
             completedAt: result.completedAt,
         };
+    }
+
+
+    // Lab Test Catalog Management
+    async createTest(input: CreateLabTestInput) {
+        const existingTest = await prisma.labTest.findUnique({ where: { code: input.code } });
+        if (existingTest) {
+            throw new ValidationError('Test with this code already exists');
+        }
+        return prisma.labTest.create({ data: input });
+    }
+
+    async getAllTests() {
+        return prisma.labTest.findMany({
+            where: { isActive: true },
+            orderBy: { name: 'asc' }
+        });
+    }
+
+    async updateTest(id: string, input: UpdateLabTestInput) {
+        const test = await prisma.labTest.findUnique({ where: { id } });
+        if (!test) throw new NotFoundError('Test not found');
+
+        if (input.code && input.code !== test.code) {
+            const existingTest = await prisma.labTest.findUnique({ where: { code: input.code } });
+            if (existingTest) throw new ValidationError('Test with this code already exists');
+        }
+
+        return prisma.labTest.update({
+            where: { id },
+            data: input
+        });
+    }
+
+    async deleteTest(id: string) {
+        const test = await prisma.labTest.findUnique({ where: { id } });
+        if (!test) throw new NotFoundError('Test not found');
+
+        return prisma.labTest.update({
+            where: { id },
+            data: { isActive: false }
+        });
     }
 }
 

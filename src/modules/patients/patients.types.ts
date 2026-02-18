@@ -76,6 +76,7 @@ export const updatePatientSchema = z.object({
     title: z.string().optional(),
     firstName: z.string().min(1).optional(),
     lastName: z.string().min(1).optional(),
+    email: z.string().email().optional().or(z.literal('')),
     phone: z.string().min(10).optional(),
     altPhone: z.string().optional(),
     address: z.string().optional(),
@@ -104,6 +105,8 @@ export const patientQuerySchema = z.object({
     limit: z.coerce.number().int().positive().max(100).default(10),
     search: z.string().optional(),
     date: z.string().optional(), // YYYY-MM-DD
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
 });
 
 export type CreatePatientInput = z.infer<typeof createPatientSchema>;

@@ -365,3 +365,17 @@ enum PrescriptionStatus {
   DISPENSED
   CANCELLED
 }
+
+model LabTest {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  department  String
+  price       Decimal  @db.Decimal(10, 2)
+  turnaround  String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("lab_tests")
+}

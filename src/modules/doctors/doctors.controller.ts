@@ -116,7 +116,9 @@ export async function getAllMedicalRecords(
 ): Promise<void> {
     try {
         const search = req.query.search ? String(req.query.search) : undefined;
-        const records = await doctorsService.getAllMedicalRecords(search);
+        const startDate = req.query.startDate ? String(req.query.startDate) : undefined;
+        const endDate = req.query.endDate ? String(req.query.endDate) : undefined;
+        const records = await doctorsService.getAllMedicalRecords(search, startDate, endDate);
         sendSuccess(res, records);
     } catch (error) {
         next(error);

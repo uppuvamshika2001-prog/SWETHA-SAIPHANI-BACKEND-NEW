@@ -29,11 +29,27 @@ export const labOrderQuerySchema = z.object({
     patientId: z.string().optional(),
     status: z.nativeEnum(LabTestStatus).optional(),
     priority: z.enum(['normal', 'urgent', 'stat']).optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
 });
+
+// Lab Test Management Schemas
+export const createLabTestSchema = z.object({
+    code: z.string().min(1, 'Test code is required'),
+    name: z.string().min(1, 'Test name is required'),
+    department: z.string().min(1, 'Department is required'),
+    price: z.number().positive('Price must be positive'),
+    turnaround: z.string().optional(),
+    isActive: z.boolean().default(true),
+});
+
+export const updateLabTestSchema = createLabTestSchema.partial();
 
 export type CreateLabOrderInput = z.infer<typeof createLabOrderSchema>;
 export type CreateLabResultInput = z.infer<typeof createLabResultSchema>;
 export type LabOrderQueryInput = z.infer<typeof labOrderQuerySchema>;
+export type CreateLabTestInput = z.infer<typeof createLabTestSchema>;
+export type UpdateLabTestInput = z.infer<typeof updateLabTestSchema>;
 
 export interface LabOrderResponse {
     id: string;

@@ -30,8 +30,8 @@ export const billQuerySchema = z.object({
     limit: z.coerce.number().int().positive().max(100).default(10),
     patientId: z.string().optional(),
     status: z.nativeEnum(BillStatus).optional(),
-    startDate: z.string().datetime().optional(),
-    endDate: z.string().datetime().optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
     search: z.string().optional(),
 });
 

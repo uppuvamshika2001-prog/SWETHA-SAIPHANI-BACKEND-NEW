@@ -196,51 +196,70 @@ export class PatientsService {
     }
 
     async findAll(query: PatientQueryInput): Promise<PaginatedResponse<PatientResponse>> {
-        const { page, limit, search, date } = query;
+        const { page, limit, search, date, startDate, endDate } = query;
         const skip = (page - 1) * limit;
 
-        const where: Record<string, unknown> = {};
-
-        // Date Filtering
-        if (date) {
-            const startOfDay = new Date(date);
-            startOfDay.setHours(0, 0, 0, 0);
-
-            const endOfDay = new Date(date);
-            endOfDay.setHours(23, 59, 59, 999);
-
-            where.registrationDate = {
-                gte: startOfDay,
-                lte: endOfDay
-            };
-        }
-
+        const where: any = {};
+        const AND: any[] = [];
 
         if (search) {
             const searchTerms = search.trim().split(/\s+/);
-
             if (searchTerms.length > 1) {
-                // Multi-word search: Each term must match at least one field
-                // This allows searching "John Doe" (John matches First, Doe matches Last)
-                where.AND = searchTerms.map(term => ({
-                    OR: [
-                        { firstName: { contains: term, mode: 'insensitive' } },
-                        { lastName: { contains: term, mode: 'insensitive' } },
-                        { phone: { contains: term } },
-                        { email: { contains: term, mode: 'insensitive' } },
-                        { uhid: { contains: term, mode: 'insensitive' } },
-                    ]
-                }));
+                AND.push({
+                    OR: searchTerms.map(term => ({
+                        OR: [
+                            { firstName: { contains: term, mode: 'insensitive' } },
+                            { lastName: { contains: term, mode: 'insensitive' } },
+                            { phone: { contains: term } },
+                            { uhid: { contains: term, mode: 'insensitive' } },
+                            { email: { contains: term, mode: 'insensitive' } }
+                        ]
+                    }))
+                });
             } else {
-                // Single term search
-                where.OR = [
-                    { firstName: { contains: search, mode: 'insensitive' } },
-                    { lastName: { contains: search, mode: 'insensitive' } },
-                    { phone: { contains: search } },
-                    { email: { contains: search, mode: 'insensitive' } },
-                    { uhid: { contains: search, mode: 'insensitive' } },
-                ];
+                AND.push({
+                    OR: [
+                        { firstName: { contains: search, mode: 'insensitive' } },
+                        { lastName: { contains: search, mode: 'insensitive' } },
+                        { phone: { contains: search } },
+                        { uhid: { contains: search, mode: 'insensitive' } },
+                        { email: { contains: search, mode: 'insensitive' } }
+                    ]
+                });
             }
+        }
+
+        if (date) {
+            const startOfDay = new Date(date);
+            startOfDay.setHours(0, 0, 0, 0);
+            const endOfDay = new Date(date);
+            endOfDay.setHours(23, 59, 59, 999);
+
+            AND.push({
+                createdAt: {
+                    gte: startOfDay,
+                    lte: endOfDay
+                }
+            });
+        }
+
+        if (startDate || endDate) {
+            const createdAtFilter: any = {};
+            if (startDate) {
+                const start = new Date(startDate);
+                start.setHours(0, 0, 0, 0);
+                createdAtFilter.gte = start;
+            }
+            if (endDate) {
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                createdAtFilter.lte = end;
+            }
+            AND.push({ createdAt: createdAtFilter });
+        }
+
+        if (AND.length > 0) {
+            where.AND = AND;
         }
 
         const [patients, total] = await Promise.all([
@@ -248,17 +267,17 @@ export class PatientsService {
                 where,
                 skip,
                 take: limit,
-                orderBy: { createdAt: 'desc' },
+                orderBy: { createdAt: 'desc' }
             }),
-            prisma.patient.count({ where }),
+            prisma.patient.count({ where })
         ]);
 
         return {
-            items: patients.map((p) => this.formatPatient(p as any)),
+            items: patients.map(p => this.formatPatient(p as any)),
             total,
             page,
             limit,
-            totalPages: Math.ceil(total / limit),
+            totalPages: Math.ceil(total / limit)
         };
     }
 

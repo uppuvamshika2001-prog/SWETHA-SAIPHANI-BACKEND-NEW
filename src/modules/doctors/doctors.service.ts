@@ -180,8 +180,25 @@ export class DoctorsService {
         return this.formatMedicalRecord(updatedRecord as any);
     }
 
-    async getAllMedicalRecords(search?: string) {
-        const where: Record<string, unknown> = {};
+    async getAllMedicalRecords(search?: string, startDate?: string, endDate?: string) {
+        const where: any = {};
+
+        // Date Range Filtering
+        if (startDate || endDate) {
+            const createdAtFilter: any = {};
+            if (startDate) {
+                const start = new Date(startDate);
+                start.setHours(0, 0, 0, 0);
+                createdAtFilter.gte = start;
+            }
+            if (endDate) {
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                createdAtFilter.lte = end;
+            }
+            where.createdAt = createdAtFilter;
+        }
+
         if (search) {
             const searchTerms = search.trim().split(/\s+/);
             if (searchTerms.length > 1) {
@@ -194,7 +211,7 @@ export class DoctorsService {
                         { doctor: { firstName: { contains: term, mode: 'insensitive' } } },
                         { doctor: { lastName: { contains: term, mode: 'insensitive' } } },
                         { diagnosis: { contains: term, mode: 'insensitive' } },
-                        { id: term }, // UUID likely single term but lenient matching
+                        { id: term },
                     ]
                 }));
             } else {
