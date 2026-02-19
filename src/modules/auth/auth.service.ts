@@ -29,6 +29,11 @@ import { UserRole, Gender } from '@prisma/client';
 
 export class AuthService {
     async register(input: RegisterInput): Promise<AuthResponse> {
+        // Prevent Admin registration via public API
+        if (input.role === UserRole.ADMIN) {
+            throw new UnauthorizedError('Admin registration is not allowed');
+        }
+
         // Check if user already exists
         const existingUser = await prisma.user.findUnique({
             where: { email: input.email },

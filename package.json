@@ -16,7 +16,8 @@
     "seed:doctors": "tsx seed_doctors.ts",
     "verify:doctors": "tsx verify_doctors.ts",
     "cleanup:doctors": "tsx cleanup_doctors.ts",
-    "verify:patients": "tsx verify_patients.ts"
+    "verify:patients": "tsx verify_patients.ts",
+    "seed:admin": "tsx prisma/seed-admin.ts"
   },
   "keywords": [
     "hospital",

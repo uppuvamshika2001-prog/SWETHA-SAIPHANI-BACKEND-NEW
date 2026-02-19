@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { createMedicalRecord, getMedicalRecords, getAllMedicalRecords, getMedicalRecordById, createPrescription, getPrescription, dispensePrescription, getPendingPrescriptions } from './doctors.controller.js';
 import { authGuard } from '../../middleware/authGuard.js';
-import { medicalStaff, medicalReadAccess } from '../../middleware/roleGuard.js';
+import { medicalStaff, medicalReadAccess, clinicalStaff } from '../../middleware/roleGuard.js';
 
 import { UserRole } from '@prisma/client';
 import { patientAccessGuard } from '../../middleware/patientAuth.js';
@@ -12,7 +12,8 @@ router.use(authGuard);
 
 // Medical Records
 router.get('/medical-records', medicalReadAccess, getAllMedicalRecords);  // List all records (Admin/Pharmacist search)
-router.post('/medical-records', medicalStaff, createMedicalRecord);
+// Allow Receptionists to create records (clinicalStaff includes: ADMIN, DOCTOR, RECEPTIONIST)
+router.post('/medical-records', clinicalStaff, createMedicalRecord);
 router.get('/medical-records/patient/:patientId', patientAccessGuard('patientId', [UserRole.ADMIN, UserRole.DOCTOR, UserRole.PHARMACIST, UserRole.RECEPTIONIST]), getMedicalRecords);
 router.get('/medical-records/:id', medicalReadAccess, getMedicalRecordById); // Specific ID route last
 

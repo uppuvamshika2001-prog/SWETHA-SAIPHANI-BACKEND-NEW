@@ -111,7 +111,15 @@ export class LabService {
         // Get staff ID from user ID
         const staff = await prisma.staff.findUnique({ where: { userId } });
         if (!staff) {
-            throw new NotFoundError('Staff profile not found');
+            // If no staff profile, return empty list instead of error
+            // This prevents frontend from breaking or looping if user is Admin without staff profile
+            return {
+                items: [],
+                total: 0,
+                page: query.page || 1,
+                limit: query.limit || 10,
+                totalPages: 0,
+            };
         }
 
         const { page, limit, status, priority } = query;
