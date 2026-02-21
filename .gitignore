@@ -31,6 +31,7 @@ prisma/*.db-journal
 # Temporary and Debug Scripts
 *.ts
 !src/**/*.ts
+!prisma/**/*.ts
 !*.example.ts
 !seed-demo-data.ts
 !seed_doctors.ts
