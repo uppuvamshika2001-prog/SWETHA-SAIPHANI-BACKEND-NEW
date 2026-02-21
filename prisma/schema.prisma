@@ -379,3 +379,25 @@ model LabTest {
 
   @@map("lab_tests")
 }
+
+model HospitalSettings {
+  id               String   @id @default(uuid())
+  hospitalName     String   @map("hospital_name")
+  address          String?
+  contactNumber    String?  @map("contact_number")
+  email            String?
+  website          String?
+  logoUrl          String?  @map("logo_url")
+  // Bank Details
+  bankName         String?  @map("bank_name")
+  accountName      String?  @map("account_name")
+  accountNumber    String?  @map("account_number")
+  ifscCode         String?  @map("ifsc_code")
+  branchName       String?  @map("branch_name")
+  upiId            String?  @map("upi_id")
+  // Metadata
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("hospital_settings")
+}

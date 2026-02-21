@@ -379,7 +379,8 @@ export class PatientsService {
     }
 
     async getPrescriptions(patientId: string) {
-        const patientIds = await this.resolvePatientIds(patientId);
+        // Strictly fetch by specific patient ID only
+        const patientIds = [patientId];
 
         const [standalonePrescriptions, medicalRecords] = await Promise.all([
             prisma.prescription.findMany({
@@ -432,7 +433,8 @@ export class PatientsService {
     }
 
     async getBills(patientId: string) {
-        const patientIds = await this.resolvePatientIds(patientId);
+        // Strictly fetch by specific patient ID only
+        const patientIds = [patientId];
 
         const bills = await prisma.bill.findMany({
             where: { patientId: { in: patientIds as string[] } },
@@ -461,7 +463,8 @@ export class PatientsService {
     }
 
     async getLabResults(patientId: string) {
-        const patientIds = await this.resolvePatientIds(patientId);
+        // Strictly fetch by specific patient ID only
+        const patientIds = [patientId];
 
         return prisma.labTestOrder.findMany({
             where: { patientId: { in: patientIds } },

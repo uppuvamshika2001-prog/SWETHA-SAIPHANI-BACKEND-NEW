@@ -39,19 +39,32 @@ export class DoctorsService {
             },
         });
 
-        // Automatically create Lab Test Orders
+        // Automatically create Lab Test Orders (with deduplication)
         if (input.labOrders && input.labOrders.length > 0) {
-            await Promise.all(input.labOrders.map(testName =>
-                prisma.labTestOrder.create({
-                    data: {
+            await Promise.all(input.labOrders.map(async (testName) => {
+                // Check if an order for this test already exists for this patient and is NOT completed/cancelled
+                const existingOrder = await prisma.labTestOrder.findFirst({
+                    where: {
                         patientId: input.patientId,
-                        orderedById: doctor.id,
                         testName: testName,
-                        status: 'READY_FOR_SAMPLE_COLLECTION',
-                        priority: 'normal'
+                        status: {
+                            in: ['ORDERED', 'READY_FOR_SAMPLE_COLLECTION', 'SAMPLE_COLLECTED', 'IN_PROGRESS']
+                        }
                     }
-                })
-            ));
+                });
+
+                if (!existingOrder) {
+                    return prisma.labTestOrder.create({
+                        data: {
+                            patientId: input.patientId,
+                            orderedById: doctor.id,
+                            testName: testName,
+                            status: 'READY_FOR_SAMPLE_COLLECTION',
+                            priority: 'normal'
+                        }
+                    });
+                }
+            }));
         }
 
         return this.formatMedicalRecord(record as any);
