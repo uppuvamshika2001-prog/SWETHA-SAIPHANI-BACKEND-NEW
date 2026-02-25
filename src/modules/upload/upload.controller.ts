@@ -35,7 +35,7 @@ export async function uploadFile(
         }
 
         const baseUrl = config.nodeEnv === 'production'
-            ? 'https://api.swethasaiphani.com'
+            ? 'https://api.swethasaiphani.clinic'
             : `http://localhost:${config.port}`;
 
         // Return full URL
