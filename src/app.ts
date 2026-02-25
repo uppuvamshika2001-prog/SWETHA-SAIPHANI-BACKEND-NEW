@@ -54,7 +54,7 @@ export function createApp(): Application {
     app.use(express.urlencoded({ extended: true }));
 
     // Serve uploaded files statically
-    const uploadsPath = path.resolve(__dirname, '../../uploads');
+    const uploadsPath = path.resolve(__dirname, '../uploads');
     app.use('/uploads', express.static(uploadsPath));
 
     // Request logging
