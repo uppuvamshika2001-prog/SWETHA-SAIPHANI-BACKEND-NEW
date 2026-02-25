@@ -24,6 +24,10 @@ import { uploadRoutes } from './modules/upload/index.js';
 import { downloadRoutes } from './modules/downloads/download.routes.js';
 import { notificationRoutes } from './modules/notification/notification.routes.js';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export function createApp(): Application {
     const app = express();
@@ -50,7 +54,7 @@ export function createApp(): Application {
     app.use(express.urlencoded({ extended: true }));
 
     // Serve uploaded files statically
-    app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+    app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
     // Request logging
     app.use(requestLogger);
