@@ -122,12 +122,28 @@ export class LabService {
             };
         }
 
-        const { page, limit, status, priority } = query;
+        const { page, limit, status, priority, startDate, endDate } = query;
         const skip = (page - 1) * limit;
 
         const where: Record<string, unknown> = { orderedById: staff.id };
         if (status) where.status = status;
         if (priority) where.priority = priority;
+
+        // Date Range Filtering
+        if (startDate || endDate) {
+            const createdAtFilter: any = {};
+            if (startDate) {
+                const start = new Date(startDate);
+                start.setHours(0, 0, 0, 0);
+                createdAtFilter.gte = start;
+            }
+            if (endDate) {
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                createdAtFilter.lte = end;
+            }
+            where.createdAt = createdAtFilter;
+        }
 
         const [orders, total] = await Promise.all([
             prisma.labTestOrder.findMany({
@@ -202,6 +218,21 @@ export class LabService {
             throw new NotFoundError('Lab result not found');
         }
         return this.formatResult(result);
+    }
+
+    async deleteResult(id: string): Promise<void> {
+        const result = await prisma.labTestResult.findUnique({ where: { id } });
+        if (!result) {
+            throw new NotFoundError('Lab result not found');
+        }
+
+        await prisma.$transaction([
+            prisma.labTestResult.delete({ where: { id } }),
+            prisma.labTestOrder.update({
+                where: { id: result.orderId },
+                data: { status: 'IN_PROGRESS' }
+            })
+        ]);
     }
 
     async updateOrderStatus(id: string, status: string): Promise<LabOrderResponse> {

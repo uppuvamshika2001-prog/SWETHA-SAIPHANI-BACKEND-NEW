@@ -298,6 +298,37 @@ export async function getLabResult(
     }
 }
 
+/**
+ * @swagger
+ * /api/lab/results/{id}:
+ *   delete:
+ *     tags: [Lab]
+ *     summary: Delete a lab result
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Lab result deleted successfully
+ */
+export async function deleteLabResult(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        await labService.deleteResult(req.params.id as string);
+        sendSuccess(res, null, 'Lab result deleted successfully');
+    } catch (error) {
+        next(error);
+    }
+}
+
 // Lab Test Catalog Handlers
 
 export async function createLabTest(req: Request, res: Response, next: NextFunction) {
