@@ -4,7 +4,7 @@ import { hashPassword } from '../src/utils/crypto.js';
 const prisma = new PrismaClient();
 
 async function main() {
-    const email = 'Drsaiphanib@gmail.com';
+    const email = 'drsaiphanib@gmail.com';
     const password = 'Ssclinics@2025';
 
     console.log(`Seeding admin user: ${email}`);
