@@ -35,6 +35,8 @@ export const billQuerySchema = z.object({
     search: z.string().optional(),
 });
 
-export type CreateBillInput = z.infer<typeof createBillSchema>;
+export type CreateBillInput = z.infer<typeof createBillSchema> & {
+    creatorId?: string;
+};
 export type UpdateBillStatusInput = z.infer<typeof updateBillStatusSchema>;
 export type BillQueryInput = z.infer<typeof billQuerySchema>;

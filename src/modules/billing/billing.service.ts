@@ -5,7 +5,7 @@ import { Prisma } from '@prisma/client';
 
 export class BillingService {
     async create(input: CreateBillInput) {
-        const { items, labOrderIds, ...billData } = input;
+        const { items, labOrderIds, creatorId, ...billData } = input;
 
         // Calculate totals
         let subtotal = 0;
@@ -72,7 +72,7 @@ export class BillingService {
                     await tx.labTestOrder.create({
                         data: {
                             patientId: billData.patientId,
-                            orderedById: billData.patientId, // Defaulting to patient ID since orderedBy is required but we only know reception created it
+                            orderedById: creatorId || billData.patientId,
                             testName,
                             priority: 'normal',
                             status: 'PAYMENT_PENDING',

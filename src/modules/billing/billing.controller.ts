@@ -6,7 +6,10 @@ import { sendSuccess } from '../../utils/response.js';
 export async function createBill(req: Request, res: Response, next: NextFunction) {
     try {
         const input = createBillSchema.parse(req.body);
-        const bill = await billingService.create(input);
+        const bill = await billingService.create({
+            ...input,
+            creatorId: (req as any).user?.id
+        });
         sendSuccess(res, bill, 'Bill created successfully', 201);
     } catch (error) {
         next(error);
