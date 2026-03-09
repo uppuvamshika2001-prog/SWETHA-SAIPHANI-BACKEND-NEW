@@ -46,11 +46,39 @@ export class BillingService {
 
         // Link Lab Orders if provided
         if (labOrderIds && labOrderIds.length > 0) {
-            await prisma.labTestOrder.updateMany({
-                where: { id: { in: labOrderIds } },
-                data: {
-                    billId: bill.id,
-                    status: 'PAYMENT_PENDING' // Update status to pending payment
+            await prisma.$transaction(async (tx) => {
+                await tx.labTestOrder.updateMany({
+                    where: { id: { in: labOrderIds } },
+                    data: {
+                        billId: bill.id,
+                        status: 'PAYMENT_PENDING' // Update status to pending payment
+                    }
+                });
+            });
+        }
+
+        // Auto-create lab orders for lab items NOT linked to existing orders
+        const labItems = billItems.filter(item =>
+            item.description.trim().toLowerCase().startsWith('lab:')
+        );
+
+        if (labItems.length > 0) {
+            await prisma.$transaction(async (tx) => {
+                for (const labItem of labItems) {
+                    // Extract test name from "Lab: CBC" format
+                    const testName = labItem.description.replace(/^Lab:\s*/i, '').trim();
+                    if (!testName) continue;
+
+                    await tx.labTestOrder.create({
+                        data: {
+                            patientId: billData.patientId,
+                            orderedById: billData.patientId, // Defaulting to patient ID since orderedBy is required but we only know reception created it
+                            testName,
+                            priority: 'normal',
+                            status: 'PAYMENT_PENDING',
+                            billId: bill.id,
+                        }
+                    });
                 }
             });
         }
