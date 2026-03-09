@@ -63,6 +63,23 @@ export class BillingService {
         );
 
         if (labItems.length > 0) {
+            let staffIdForOrder: string;
+
+            if (creatorId) {
+                const staff = await prisma.staff.findUnique({ where: { userId: creatorId } });
+                if (staff) {
+                    staffIdForOrder = staff.id;
+                } else {
+                    const fallbackStaff = await prisma.staff.findFirst();
+                    if (!fallbackStaff) throw new Error('No staff found in system to assign as test orderer.');
+                    staffIdForOrder = fallbackStaff.id;
+                }
+            } else {
+                const fallbackStaff = await prisma.staff.findFirst();
+                if (!fallbackStaff) throw new Error('No staff found in system to assign as test orderer.');
+                staffIdForOrder = fallbackStaff.id;
+            }
+
             await prisma.$transaction(async (tx) => {
                 for (const labItem of labItems) {
                     // Extract test name from "Lab: CBC" format
@@ -72,7 +89,7 @@ export class BillingService {
                     await tx.labTestOrder.create({
                         data: {
                             patientId: billData.patientId,
-                            orderedById: creatorId || billData.patientId,
+                            orderedById: staffIdForOrder,
                             testName,
                             priority: 'normal',
                             status: 'PAYMENT_PENDING',
