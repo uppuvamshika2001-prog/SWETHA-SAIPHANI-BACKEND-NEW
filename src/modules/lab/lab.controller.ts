@@ -368,3 +368,30 @@ export async function deleteLabTest(req: Request, res: Response, next: NextFunct
         next(error);
     }
 }
+
+/**
+ * @swagger
+ * /api/lab/orders/{id}:
+ *   delete:
+ *     summary: Delete a lab order by ID
+ *     tags: [Lab]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Lab order deleted successfully
+ */
+export async function deleteLabOrder(req: Request, res: Response, next: NextFunction) {
+    try {
+        await labService.deleteTestOrder(req.params.id as string);
+        sendSuccess(res, null, 'Lab order deleted successfully');
+    } catch (error) {
+        next(error);
+    }
+}

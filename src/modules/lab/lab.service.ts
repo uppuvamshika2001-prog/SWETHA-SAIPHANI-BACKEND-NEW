@@ -348,6 +348,24 @@ export class LabService {
             data: { isActive: false }
         });
     }
+
+    async deleteTestOrder(id: string) {
+        const order = await prisma.labTestOrder.findUnique({
+            where: { id },
+            include: { result: true }
+        });
+
+        if (!order) throw new NotFoundError('Lab order not found');
+
+        if (order.result) {
+            throw new ValidationError('Cannot delete a lab order that already has results. Please delete the result first.');
+        }
+
+        // Delete the order itself (cascade handles it if setup properly, but we established no relations block it)
+        await prisma.labTestOrder.delete({
+            where: { id }
+        });
+    }
 }
 
 export const labService = new LabService();
