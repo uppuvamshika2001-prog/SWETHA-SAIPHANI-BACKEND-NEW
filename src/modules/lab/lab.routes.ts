@@ -38,9 +38,9 @@ router.get('/results/:id', roleGuard(UserRole.ADMIN, UserRole.DOCTOR, UserRole.L
 router.delete('/results/:id', roleGuard(UserRole.ADMIN, UserRole.LAB_TECHNICIAN), deleteLabResult);
 
 // Lab Test Catalog Management
-router.post('/tests', roleGuard(UserRole.ADMIN, UserRole.LAB_TECHNICIAN, UserRole.RECEPTIONIST), createLabTest);
+router.post('/tests', roleGuard(UserRole.ADMIN, UserRole.LAB_TECHNICIAN), createLabTest);
 router.get('/tests', roleGuard(UserRole.ADMIN, UserRole.DOCTOR, UserRole.LAB_TECHNICIAN, UserRole.RECEPTIONIST), getLabTests);
-router.put('/tests/:id', roleGuard(UserRole.ADMIN, UserRole.LAB_TECHNICIAN, UserRole.RECEPTIONIST), updateLabTest);
+router.put('/tests/:id', roleGuard(UserRole.ADMIN, UserRole.LAB_TECHNICIAN), updateLabTest);
 router.delete('/tests/:id', roleGuard(UserRole.ADMIN, UserRole.LAB_TECHNICIAN), deleteLabTest);
 
 export default router;
