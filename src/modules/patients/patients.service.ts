@@ -11,9 +11,9 @@ import { config } from '../../config/index.js';
 
 export class PatientsService {
     async create(input: CreatePatientInput): Promise<PatientResponse> {
-        // Validate Email Requirement
+        // If no email provided, create walk-in patient (no user account needed)
         if (!input.email) {
-            throw new ConflictError('Email is required for patient registration');
+            return this.createWalkInPatient(input);
         }
 
         // Check for existing User or Patient with this email
@@ -540,6 +540,45 @@ export class PatientsService {
             createdAt: patient.createdAt,
             updatedAt: patient.updatedAt,
         };
+    }
+
+    /**
+     * Create a walk-in patient record without a User account.
+     * Walk-in patients only need a Patient record for billing/lab orders.
+     * They do not get login credentials or welcome emails.
+     */
+    private async createWalkInPatient(input: CreatePatientInput): Promise<PatientResponse> {
+        // Check for existing patient with same phone to avoid duplicates
+        const existingByPhone = await prisma.patient.findFirst({
+            where: { phone: input.phone }
+        });
+        if (existingByPhone) {
+            // Return existing patient instead of creating duplicate
+            return this.formatPatient(existingByPhone as any);
+        }
+
+        const uhidToUse = input.uhid || `P-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+        const patient = await prisma.patient.create({
+            data: {
+                uhid: uhidToUse,
+                userId: null,
+                title: input.title,
+                firstName: input.firstName,
+                lastName: input.lastName,
+                dateOfBirth: input.dateOfBirth,
+                gender: input.gender,
+                phone: input.phone,
+                altPhone: input.altPhone,
+                address: input.address,
+                referredBy: input.referredBy,
+                referredPerson: input.referredPerson,
+                consultingDoctor: input.consultingDoctor,
+                department: input.department,
+            },
+        });
+
+        return this.formatPatient(patient as any);
     }
 }
 
