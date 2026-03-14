@@ -13,10 +13,12 @@ export const createLabResultSchema = z.object({
     orderId: z.string().min(1),
     result: z.object({
         parameters: z.array(z.object({
+            parameterId: z.string().optional(),
             name: z.string().min(1),
             value: z.string().min(1),
             unit: z.string().optional(),
             normalRange: z.string().optional(),
+            flag: z.string().optional(),
         })),
     }),
     interpretation: z.string().optional(),
@@ -72,10 +74,12 @@ export interface LabResultResponse {
     technicianId: string;
     result: {
         parameters: Array<{
+            parameterId?: string;
             name: string;
             value: string;
             unit?: string;
             normalRange?: string;
+            flag?: string;
         }>;
     };
     interpretation: string | null;

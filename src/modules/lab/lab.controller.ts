@@ -166,6 +166,19 @@ export async function getLabOrder(
     }
 }
 
+export async function getOrderParameters(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const parameters = await labService.getOrderParameters(req.params.id as string);
+        sendSuccess(res, parameters);
+    } catch (error) {
+        next(error);
+    }
+}
+
 /**
  * @swagger
  * /api/lab/orders/{id}/status:

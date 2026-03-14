@@ -172,6 +172,39 @@ export class LabService {
         };
     }
 
+    async getOrderParameters(orderId: string) {
+        // Find the order to get the test name/code
+        const order = await prisma.labTestOrder.findUnique({
+            where: { id: orderId },
+            select: { testCode: true, testName: true }
+        });
+
+        if (!order) {
+            throw new NotFoundError('Lab order not found');
+        }
+
+        // Find the test catalog entry
+        const test = await prisma.labTest.findFirst({
+            where: {
+                OR: [
+                    { code: order.testCode || undefined },
+                    { name: order.testName }
+                ]
+            },
+            include: {
+                parameters: {
+                    orderBy: { displayOrder: 'asc' }
+                }
+            }
+        });
+
+        if (!test) {
+            return [];
+        }
+
+        return test.parameters;
+    }
+
     async submitResult(technicianUserId: string, input: CreateLabResultInput): Promise<LabResultResponse> {
         // Get technician staff ID
         const technician = await prisma.staff.findUnique({ where: { userId: technicianUserId } });
@@ -192,9 +225,10 @@ export class LabService {
             throw new ValidationError('Result already submitted for this order');
         }
 
-        // Create result and update order status
-        const [result] = await prisma.$transaction([
-            prisma.labTestResult.create({
+        // Create result and update order status in a transaction
+        const result = await prisma.$transaction(async (tx) => {
+            // 1. Create the main LabTestResult entry (maintaining JSON for compatibility)
+            const labResult = await tx.labTestResult.create({
                 data: {
                     orderId: input.orderId,
                     technicianId: technician.id,
@@ -202,12 +236,34 @@ export class LabService {
                     interpretation: input.interpretation,
                     attachments: input.attachments || [],
                 },
-            }),
-            prisma.labTestOrder.update({
+            });
+
+            // 2. Create individual LabResult entries for structured data
+            if (input.result.parameters && input.result.parameters.length > 0) {
+                const resultsData = input.result.parameters
+                    .filter(p => p.parameterId) // Only save if we have a parameterId
+                    .map(p => ({
+                        orderId: input.orderId,
+                        parameterId: p.parameterId!,
+                        resultValue: p.value,
+                        flag: p.flag || 'NORMAL'
+                    }));
+
+                if (resultsData.length > 0) {
+                    await tx.labResult.createMany({
+                        data: resultsData
+                    });
+                }
+            }
+
+            // 3. Update order status
+            await tx.labTestOrder.update({
                 where: { id: input.orderId },
                 data: { status: 'COMPLETED' },
-            }),
-        ]);
+            });
+
+            return labResult;
+        });
 
         return this.formatResult(result);
     }
