@@ -175,6 +175,7 @@ export async function getOrderParameters(
         const parameters = await labService.getOrderParameters(req.params.id as string);
         sendSuccess(res, parameters);
     } catch (error) {
+        console.error(`[LabController] Error fetching parameters for order ${req.params.id}:`, error);
         next(error);
     }
 }

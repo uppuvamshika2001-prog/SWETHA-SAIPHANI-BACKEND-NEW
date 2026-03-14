@@ -183,13 +183,16 @@ export class LabService {
             throw new NotFoundError('Lab order not found');
         }
 
+        // Build search conditions
+        const searchConditions: any[] = [{ name: order.testName }];
+        if (order.testCode) {
+            searchConditions.push({ code: order.testCode });
+        }
+
         // Find the test catalog entry
         const test = await prisma.labTest.findFirst({
             where: {
-                OR: [
-                    { code: order.testCode || undefined },
-                    { name: order.testName }
-                ]
+                OR: searchConditions
             },
             include: {
                 parameters: {
@@ -199,6 +202,7 @@ export class LabService {
         });
 
         if (!test) {
+            console.log(`[LabService] No test catalog entry found for "${order.testName}" (${order.testCode})`);
             return [];
         }
 
