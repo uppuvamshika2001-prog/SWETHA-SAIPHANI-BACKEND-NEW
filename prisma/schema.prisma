@@ -258,6 +258,7 @@ model LabTestOrder {
   orderedBy   Staff          @relation("OrderedBy", fields: [orderedById], references: [id], onDelete: Cascade)
   patient     Patient        @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
   result      LabTestResult?
+  labResults  LabResult[]
 
   @@map("lab_test_orders")
 }
@@ -367,17 +368,49 @@ enum PrescriptionStatus {
 }
 
 model LabTest {
-  id          String   @id @default(uuid())
-  code        String   @unique
+  id          String             @id @default(uuid())
+  code        String             @unique
   name        String
   department  String
-  price       Decimal  @db.Decimal(10, 2)
+  price       Decimal            @db.Decimal(10, 2)
   turnaround  String?
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  isActive    Boolean            @default(true) @map("is_active")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  parameters  LabTestParameter[]
 
   @@map("lab_tests")
+}
+
+model LabTestParameter {
+  id             String      @id @default(uuid())
+  testId         String      @map("test_id")
+  parameterName  String      @map("parameter_name")
+  unit           String?
+  normalMin      Float?      @map("normal_min")
+  normalMax      Float?      @map("normal_max")
+  normalRange    String?     @map("normal_range")
+  displayOrder   Int         @default(0) @map("display_order")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  test           LabTest     @relation(fields: [testId], references: [id], onDelete: Cascade)
+  results        LabResult[]
+
+  @@map("lab_test_parameters")
+}
+
+model LabResult {
+  id          String           @id @default(uuid())
+  orderId     String           @map("order_id")
+  parameterId String           @map("parameter_id")
+  resultValue String           @map("result_value")
+  flag        String?          @default("NORMAL") // NORMAL, LOW, HIGH
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  order       LabTestOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  parameter   LabTestParameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
+
+  @@map("lab_results")
 }
 
 model HospitalSettings {
