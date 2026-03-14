@@ -190,7 +190,7 @@ export class LabService {
         }
 
         // Find the test catalog entry
-        const test = await prisma.labTest.findFirst({
+        const test = await (prisma.labTest as any).findFirst({
             where: {
                 OR: searchConditions
             },
@@ -254,7 +254,7 @@ export class LabService {
                     }));
 
                 if (resultsData.length > 0) {
-                    await tx.labResult.createMany({
+                    await (tx as any).labResult.createMany({
                         data: resultsData
                     });
                 }
