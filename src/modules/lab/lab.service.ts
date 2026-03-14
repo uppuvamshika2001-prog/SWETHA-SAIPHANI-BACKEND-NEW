@@ -1,4 +1,4 @@
-import { prisma } from '../../config/database.js';
+import { prisma } from '../../config/database.js'; // Prisma client instance
 import { NotFoundError, ValidationError } from '../../middleware/errorHandler.js';
 import { CreateLabOrderInput, CreateLabResultInput, LabOrderQueryInput, LabOrderResponse, LabResultResponse, CreateLabTestInput, UpdateLabTestInput } from './lab.types.js';
 import { PaginatedResponse } from '../users/users.types.js';
