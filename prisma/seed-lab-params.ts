@@ -37,15 +37,15 @@ async function main() {
         { name: 'RBC Count', unit: 'Millions/cumm', min: 4.0, max: 6.2, range: '4.0-6.2', order: 2 },
         { name: 'PCV', unit: '%', min: 37, max: 54, range: '37-54', order: 3 },
         { name: 'WBC Count', unit: '/cumm', min: 4000, max: 10000, range: '4000-10000', order: 4 },
-        { name: 'Neutrophils', unit: '%', min: 40, max: 75, range: '40-75', order: 5 },
-        { name: 'Lymphocytes', unit: '%', min: 20, max: 40, range: '20-40', order: 6 },
-        { name: 'Eosinophils', unit: '%', min: 1, max: 6, range: '1-6', order: 7 },
-        { name: 'Monocytes', unit: '%', min: 2, max: 10, range: '2-10', order: 8 },
-        { name: 'Basophils', unit: '%', min: 0, max: 1, range: '0-1', order: 9 },
+        { name: 'Neutrophils', group: 'DIFFERENTIAL COUNT', unit: '%', min: 40, max: 75, range: '40-75', order: 5 },
+        { name: 'Lymphocytes', group: 'DIFFERENTIAL COUNT', unit: '%', min: 20, max: 40, range: '20-40', order: 6 },
+        { name: 'Eosinophils', group: 'DIFFERENTIAL COUNT', unit: '%', min: 1, max: 6, range: '1-6', order: 7 },
+        { name: 'Monocytes', group: 'DIFFERENTIAL COUNT', unit: '%', min: 2, max: 10, range: '2-10', order: 8 },
+        { name: 'Basophils', group: 'DIFFERENTIAL COUNT', unit: '%', min: 0, max: 1, range: '0-1', order: 9 },
         { name: 'Platelet Count', unit: 'Lakhs/cumm', min: 1.5, max: 4.5, range: '1.5-4.5', order: 10 },
-        { name: 'Peripheral Smear - RBC', unit: '', min: null, max: null, range: 'Normal', order: 11 },
-        { name: 'Peripheral Smear - WBC', unit: '', min: null, max: null, range: 'Normal', order: 12 },
-        { name: 'Peripheral Smear - Platelets', unit: '', min: null, max: null, range: 'Normal', order: 13 },
+        { name: 'RBC', group: 'PERIPHERAL SMEAR', unit: '', min: null, max: null, range: 'Normal', order: 11 },
+        { name: 'WBC', group: 'PERIPHERAL SMEAR', unit: '', min: null, max: null, range: 'Normal', order: 12 },
+        { name: 'Platelets', group: 'PERIPHERAL SMEAR', unit: '', min: null, max: null, range: 'Normal', order: 13 },
       ];
     } else if (t.code === 'LFT') {
       params = [
@@ -66,29 +66,29 @@ async function main() {
       ];
     } else if (t.code === 'WIDAL') {
       params = [
-        { name: 'Salmonella typhi O Antigen', unit: 'Titre', min: null, max: null, range: '< 1:80', order: 1 },
-        { name: 'Salmonella typhi H Antigen', unit: 'Titre', min: null, max: null, range: '< 1:80', order: 2 },
-        { name: 'Salmonella paratyphi AH Antigen', unit: 'Titre', min: null, max: null, range: '< 1:80', order: 3 },
-        { name: 'Salmonella paratyphi BH Antigen', unit: 'Titre', min: null, max: null, range: '< 1:80', order: 4 },
+        { name: 'Salmonella typhi O Antigen', unit: 'Dilutions', min: null, max: null, range: '< 1:80', order: 1 },
+        { name: 'Salmonella typhi H Antigen', unit: 'Dilutions', min: null, max: null, range: '< 1:80', order: 2 },
+        { name: 'Salmonella paratyphi AH Antigen', unit: 'Dilutions', min: null, max: null, range: '< 1:80', order: 3 },
+        { name: 'Salmonella paratyphi BH Antigen', unit: 'Dilutions', min: null, max: null, range: '< 1:80', order: 4 },
       ];
     } else if (t.code === 'URINE') {
       params = [
-        { name: 'Colour', unit: '', min: null, max: null, range: 'Pale Yellow', order: 1 },
-        { name: 'Appearance', unit: '', min: null, max: null, range: 'Clear', order: 2 },
-        { name: 'pH', unit: '', min: 4.5, max: 8.0, range: '4.5-8.0', order: 3 },
-        { name: 'Specific Gravity', unit: '', min: 1.005, max: 1.030, range: '1.005-1.030', order: 4 },
-        { name: 'Protein (Albumin)', unit: '', min: null, max: null, range: 'Negative', order: 5 },
-        { name: 'Sugar (Glucose)', unit: '', min: null, max: null, range: 'Negative', order: 6 },
-        { name: 'Ketone Bodies', unit: '', min: null, max: null, range: 'Negative', order: 7 },
-        { name: 'Bile Salts', unit: '', min: null, max: null, range: 'Negative', order: 8 },
-        { name: 'Bile Pigments', unit: '', min: null, max: null, range: 'Negative', order: 9 },
-        { name: 'Urobilinogen', unit: '', min: null, max: null, range: 'Normal', order: 10 },
-        { name: 'RBC (Microscopic)', unit: '/hpf', min: 0, max: 2, range: '0-2', order: 11 },
-        { name: 'Pus Cells', unit: '/hpf', min: 0, max: 5, range: '0-5', order: 12 },
-        { name: 'Epithelial Cells', unit: '/hpf', min: 0, max: 5, range: '0-5', order: 13 },
-        { name: 'Casts', unit: '', min: null, max: null, range: 'Nil', order: 14 },
-        { name: 'Crystals', unit: '', min: null, max: null, range: 'Nil', order: 15 },
-        { name: 'Mucus', unit: '', min: null, max: null, range: 'Nil', order: 16 },
+        { name: 'Colour', group: 'PHYSICAL EXAMINATION', unit: '', min: null, max: null, range: 'Pale Yellow', order: 1 },
+        { name: 'Appearance', group: 'PHYSICAL EXAMINATION', unit: '', min: null, max: null, range: 'Clear', order: 2 },
+        { name: 'pH', group: 'PHYSICAL EXAMINATION', unit: '', min: 4.5, max: 8.0, range: '4.5-8.0', order: 3 },
+        { name: 'Specific Gravity', group: 'PHYSICAL EXAMINATION', unit: '', min: 1.005, max: 1.030, range: '1.005-1.030', order: 4 },
+        { name: 'Proteins (Albumin)', group: 'CHEMICAL EXAMINATION', unit: '', min: null, max: null, range: 'Negative', order: 5 },
+        { name: 'Sugar (Glucose)', group: 'CHEMICAL EXAMINATION', unit: '', min: null, max: null, range: 'Negative', order: 6 },
+        { name: 'Ketone Bodies', group: 'CHEMICAL EXAMINATION', unit: '', min: null, max: null, range: 'Negative', order: 7 },
+        { name: 'Bile Salts', group: 'CHEMICAL EXAMINATION', unit: '', min: null, max: null, range: 'Negative', order: 8 },
+        { name: 'Bile Pigments', group: 'CHEMICAL EXAMINATION', unit: '', min: null, max: null, range: 'Negative', order: 9 },
+        { name: 'Urobilinogen', group: 'CHEMICAL EXAMINATION', unit: '', min: null, max: null, range: 'Normal', order: 10 },
+        { name: 'R.B.C', group: 'MICROSCOPIC EXAMINATION', unit: '/hpf', min: 0, max: 2, range: '0-2', order: 11 },
+        { name: 'Pus Cells', group: 'MICROSCOPIC EXAMINATION', unit: '/hpf', min: 0, max: 5, range: '0-5', order: 12 },
+        { name: 'Epithelial Cells', group: 'MICROSCOPIC EXAMINATION', unit: '/hpf', min: 0, max: 5, range: '0-5', order: 13 },
+        { name: 'Casts', group: 'MICROSCOPIC EXAMINATION', unit: '', min: null, max: null, range: 'Nil', order: 14 },
+        { name: 'Crystals', group: 'MICROSCOPIC EXAMINATION', unit: '', min: null, max: null, range: 'Nil', order: 15 },
+        { name: 'Mucus', group: 'MICROSCOPIC EXAMINATION', unit: '', min: null, max: null, range: 'Nil', order: 16 },
       ];
     }
 
@@ -97,6 +97,7 @@ async function main() {
         where: { id: `${test.id}-${p.name}` },
         update: {
           parameterName: p.name,
+          groupName: p.group || null,
           unit: p.unit,
           normalMin: p.min,
           normalMax: p.max,
@@ -104,9 +105,10 @@ async function main() {
           displayOrder: p.order,
         },
         create: {
-          id: `${test.id}-${p.name}`, // Fixed ID for upsert consistency
+          id: `${test.id}-${p.name}`,
           testId: test.id,
           parameterName: p.name,
+          groupName: p.group || null,
           unit: p.unit,
           normalMin: p.min,
           normalMax: p.max,

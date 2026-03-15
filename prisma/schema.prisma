@@ -386,6 +386,7 @@ model LabTestParameter {
   id             String      @id @default(uuid())
   testId         String      @map("test_id")
   parameterName  String      @map("parameter_name")
+  groupName      String?     @map("group_name")
   unit           String?
   normalMin      Float?      @map("normal_min")
   normalMax      Float?      @map("normal_max")
