@@ -47,21 +47,27 @@ export class LabService {
         if (patientId) where.patientId = patientId;
         if (status) where.status = status;
         if (priority) where.priority = priority;
-
         // Date Range Filtering
         if (startDate || endDate) {
-            const createdAtFilter: any = {};
+            where.createdAt = {}; // Initialize the object
             if (startDate) {
                 const start = new Date(startDate);
-                start.setHours(0, 0, 0, 0);
-                createdAtFilter.gte = start;
+                if (!isNaN(start.getTime())) {
+                    start.setHours(0, 0, 0, 0);
+                    (where.createdAt as any).gte = start;
+                }
             }
             if (endDate) {
                 const end = new Date(endDate);
-                end.setHours(23, 59, 59, 999);
-                createdAtFilter.lte = end;
+                if (!isNaN(end.getTime())) {
+                    end.setHours(23, 59, 59, 999);
+                    (where.createdAt as any).lte = end;
+                }
             }
-            where.createdAt = createdAtFilter;
+            // Cleanup empty object to prevent Prisma errors
+            if (Object.keys(where.createdAt as any).length === 0) {
+                delete where.createdAt;
+            }
         }
 
         const [orders, total] = await Promise.all([
@@ -133,18 +139,25 @@ export class LabService {
 
         // Date Range Filtering
         if (startDate || endDate) {
-            const createdAtFilter: any = {};
+            where.createdAt = {}; // Initialize the object
             if (startDate) {
                 const start = new Date(startDate);
-                start.setHours(0, 0, 0, 0);
-                createdAtFilter.gte = start;
+                if (!isNaN(start.getTime())) {
+                    start.setHours(0, 0, 0, 0);
+                    (where.createdAt as any).gte = start;
+                }
             }
             if (endDate) {
                 const end = new Date(endDate);
-                end.setHours(23, 59, 59, 999);
-                createdAtFilter.lte = end;
+                if (!isNaN(end.getTime())) {
+                    end.setHours(23, 59, 59, 999);
+                    (where.createdAt as any).lte = end;
+                }
             }
-            where.createdAt = createdAtFilter;
+            // Cleanup empty object to prevent Prisma errors
+            if (Object.keys(where.createdAt as any).length === 0) {
+                delete where.createdAt;
+            }
         }
 
         const [orders, total] = await Promise.all([
@@ -177,7 +190,7 @@ export class LabService {
     async getOrderParameters(orderId: string) {
         try {
             // Find the order with patient and test relations
-            const order = await prisma.labTestOrder.findUnique({
+            const order = await (prisma.labTestOrder as any).findUnique({
                 where: { id: orderId },
                 include: {
                     patient: { select: { firstName: true, lastName: true, gender: true } },
@@ -196,7 +209,7 @@ export class LabService {
             }
 
             const patientName = `${order.patient.firstName} ${order.patient.lastName}`;
-            const patientGender = order.patient.gender;
+            const patientGender = (order as any).patient.gender;
             
             // Helper to get correct normal range based on gender
             const getRange = (p: any) => {
@@ -206,13 +219,13 @@ export class LabService {
             };
 
             // If we have a direct test relation, use it
-            if (order.test) {
+            if ((order as any).test) {
                 return {
-                    orderId: order.id,
+                    orderId: (order as any).id,
                     patientName,
                     patientGender,
-                    testName: order.testName,
-                    parameters: order.test.parameters.map(p => ({
+                    testName: (order as any).testName,
+                    parameters: (order as any).test.parameters.map((p: any) => ({
                         id: p.id,
                         parameter: p.parameterName,
                         unit: p.unit || '',
@@ -225,9 +238,9 @@ export class LabService {
 
             // Fallback: Search by name/code if relation is missing (for older orders)
             console.log(`[LabService] Falling back to name search for order ${orderId}`);
-            const searchConditions: any[] = [{ name: order.testName }];
-            if (order.testCode) {
-                searchConditions.push({ code: order.testCode });
+            const searchConditions: any[] = [{ name: (order as any).testName }];
+            if ((order as any).testCode) {
+                searchConditions.push({ code: (order as any).testCode });
             }
 
             const test = await (prisma.labTest as any).findFirst({

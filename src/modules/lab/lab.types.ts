@@ -32,8 +32,8 @@ export const labOrderQuerySchema = z.object({
     patientId: z.string().optional(),
     status: z.nativeEnum(LabTestStatus).optional(),
     priority: z.enum(['normal', 'urgent', 'stat']).optional(),
-    startDate: z.string().optional(),
-    endDate: z.string().optional(),
+    startDate: z.coerce.date().optional(),
+    endDate: z.coerce.date().optional(),
 });
 
 // Lab Test Management Schemas
