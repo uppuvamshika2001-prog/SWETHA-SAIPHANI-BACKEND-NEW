@@ -31,7 +31,7 @@ router.get('/orders/my-orders', roleGuard(UserRole.ADMIN, UserRole.DOCTOR), getM
 router.post('/orders', roleGuard(UserRole.ADMIN, UserRole.RECEPTIONIST, UserRole.DOCTOR), createLabOrder);
 router.get('/orders', roleGuard(UserRole.ADMIN, UserRole.DOCTOR, UserRole.LAB_TECHNICIAN, UserRole.RECEPTIONIST), getLabOrders);
 router.get('/orders/:id', roleGuard(UserRole.ADMIN, UserRole.DOCTOR, UserRole.LAB_TECHNICIAN, UserRole.RECEPTIONIST), getLabOrder);
-router.get('/orders/:id/parameters', roleGuard(UserRole.ADMIN, UserRole.LAB_TECHNICIAN), getOrderParameters);
+router.get('/orders/:orderId/parameters', roleGuard(UserRole.ADMIN, UserRole.LAB_TECHNICIAN), getOrderParameters);
 router.patch('/orders/:id/status', roleGuard(UserRole.ADMIN, UserRole.LAB_TECHNICIAN, UserRole.RECEPTIONIST), updateLabOrderStatus);
 router.get('/orders/:id/report', roleGuard(UserRole.ADMIN, UserRole.DOCTOR, UserRole.LAB_TECHNICIAN, UserRole.PATIENT), downloadLabReport);
 router.delete('/orders/:id', roleGuard(UserRole.ADMIN), deleteLabOrder);

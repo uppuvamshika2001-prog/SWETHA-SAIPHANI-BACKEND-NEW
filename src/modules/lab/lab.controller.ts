@@ -172,10 +172,10 @@ export async function getOrderParameters(
     next: NextFunction
 ): Promise<void> {
     try {
-        const parameters = await labService.getOrderParameters(req.params.id as string);
-        sendSuccess(res, parameters);
+        const parameters = await labService.getOrderParameters(req.params.orderId as string);
+        res.status(200).json(parameters); // Return direct JSON to match frontend expectations
     } catch (error) {
-        console.error(`[LabController] Error fetching parameters for order ${req.params.id}:`, error);
+        console.error(`[LabController] Error fetching parameters for order ${req.params.orderId}:`, error);
         next(error);
     }
 }
