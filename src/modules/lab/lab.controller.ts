@@ -90,7 +90,8 @@ export async function getLabOrders(
     try {
         const query = labOrderQuerySchema.parse(req.query);
         const result = await labService.getOrders(query);
-        sendSuccess(res, result);
+        // Returning data array directly as requested in senior engineer prompt
+        sendSuccess(res, result.items);
     } catch (error) {
         next(error);
     }
@@ -129,7 +130,8 @@ export async function getMyLabOrders(
     try {
         const query = labOrderQuerySchema.parse(req.query);
         const result = await labService.getMyOrders(req.user!.userId, query);
-        sendSuccess(res, result);
+        // Returning data array directly as requested in senior engineer prompt
+        sendSuccess(res, result.items);
     } catch (error) {
         next(error);
     }

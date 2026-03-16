@@ -1,4 +1,5 @@
 import { prisma } from '../../config/database.js';
+import { logger } from '../../utils/logger.js';
 import { pdfGenerator } from '../../services/pdfGenerator.js';
 import { NotFoundError, ValidationError } from '../../middleware/errorHandler.js';
 import { CreateLabOrderInput, CreateLabResultInput, LabOrderQueryInput, LabOrderResponse, LabResultResponse, CreateLabTestInput, UpdateLabTestInput } from './lab.types.js';
@@ -70,6 +71,8 @@ export class LabService {
                 delete where.createdAt;
             }
         }
+
+        logger.info({ where, query }, 'Fetching all lab orders');
 
         const [orders, total] = await Promise.all([
             prisma.labTestOrder.findMany({
@@ -161,6 +164,8 @@ export class LabService {
                 delete where.createdAt;
             }
         }
+
+        logger.info({ where, query, staffId: staff.id }, 'Fetching my lab orders');
 
         const [orders, total] = await Promise.all([
             prisma.labTestOrder.findMany({
