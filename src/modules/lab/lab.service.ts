@@ -28,7 +28,7 @@ export class LabService {
                 priority: input.priority,
                 notes: input.notes,
                 status: 'PAYMENT_PENDING',
-            },
+            } as any,
             include: {
                 patient: { select: { firstName: true, lastName: true } },
                 orderedBy: { select: { firstName: true, lastName: true } },
@@ -36,7 +36,7 @@ export class LabService {
             },
         });
 
-        return this.formatOrder(order);
+        return this.formatOrder(order as any);
     }
 
     async getOrders(query: LabOrderQueryInput): Promise<PaginatedResponse<LabOrderResponse>> {
