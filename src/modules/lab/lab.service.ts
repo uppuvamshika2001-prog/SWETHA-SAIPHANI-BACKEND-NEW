@@ -23,6 +23,7 @@ export class LabService {
                 orderedById: staff.id,
                 testName: input.testName,
                 testCode: input.testCode,
+                testId: (input as any).testId, // Support testId if provided
                 priority: input.priority,
                 notes: input.notes,
                 status: 'PAYMENT_PENDING',
@@ -173,40 +174,83 @@ export class LabService {
     }
 
     async getOrderParameters(orderId: string) {
-        // Find the order to get the test name/code
-        const order = await prisma.labTestOrder.findUnique({
-            where: { id: orderId },
-            select: { testCode: true, testName: true }
-        });
-
-        if (!order) {
-            throw new NotFoundError('Lab order not found');
-        }
-
-        // Build search conditions
-        const searchConditions: any[] = [{ name: order.testName }];
-        if (order.testCode) {
-            searchConditions.push({ code: order.testCode });
-        }
-
-        // Find the test catalog entry
-        const test = await (prisma.labTest as any).findFirst({
-            where: {
-                OR: searchConditions
-            },
-            include: {
-                parameters: {
-                    orderBy: { displayOrder: 'asc' }
+        try {
+            // Find the order with patient and test relations
+            const order = await prisma.labTestOrder.findUnique({
+                where: { id: orderId },
+                include: {
+                    patient: { select: { firstName: true, lastName: true } },
+                    test: {
+                        include: {
+                            parameters: {
+                                orderBy: { displayOrder: 'asc' }
+                            }
+                        }
+                    }
                 }
+            });
+
+            if (!order) {
+                throw new NotFoundError('Lab order not found');
             }
-        });
 
-        if (!test) {
-            console.log(`[LabService] No test catalog entry found for "${order.testName}" (${order.testCode})`);
-            return [];
+            const patientName = `${order.patient.firstName} ${order.patient.lastName}`;
+            
+            // If we have a direct test relation, use it
+            if (order.test) {
+                return {
+                    orderId: order.id,
+                    patientName,
+                    testName: order.testName,
+                    parameters: order.test.parameters.map(p => ({
+                        id: p.id,
+                        parameter: p.parameterName,
+                        unit: p.unit || '',
+                        normalRange: p.normalRange || (p.normalMin !== null && p.normalMax !== null ? `${p.normalMin} - ${p.normalMax}` : ''),
+                        normalMin: p.normalMin,
+                        normalMax: p.normalMax
+                    }))
+                };
+            }
+
+            // Fallback: Search by name/code if relation is missing (for older orders)
+            console.log(`[LabService] Falling back to name search for order ${orderId}`);
+            const searchConditions: any[] = [{ name: order.testName }];
+            if (order.testCode) {
+                searchConditions.push({ code: order.testCode });
+            }
+
+            const test = await (prisma.labTest as any).findFirst({
+                where: { OR: searchConditions },
+                include: {
+                    parameters: { orderBy: { displayOrder: 'asc' } }
+                }
+            });
+
+            return {
+                orderId: order.id,
+                patientName,
+                testName: order.testName,
+                parameters: test ? test.parameters.map((p: any) => ({
+                    id: p.id,
+                    parameter: p.parameterName,
+                    unit: p.unit || '',
+                    normalRange: p.normalRange || (p.normalMin !== null && p.normalMax !== null ? `${p.normalMin} - ${p.normalMax}` : ''),
+                    normalMin: p.normalMin,
+                    normalMax: p.normalMax
+                })) : []
+            };
+        } catch (error) {
+            console.error(`[LabService] Error in getOrderParameters for ${orderId}:`, error);
+            // Ensure we return an object even on error to prevent frontend crashes, but throw for the controller to handle if needed
+            // However, the requirement says "return empty array instead of throwing error" for parameters
+            return {
+                orderId,
+                patientName: 'Unknown',
+                testName: 'Unknown',
+                parameters: []
+            };
         }
-
-        return test.parameters;
     }
 
     async submitResult(technicianUserId: string, input: CreateLabResultInput): Promise<LabResultResponse> {
