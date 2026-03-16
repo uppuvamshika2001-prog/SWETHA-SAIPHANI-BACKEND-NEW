@@ -69,49 +69,50 @@ model Staff {
 }
 
 model Patient {
-  uhid              String          @id @default(uuid()) @map("uhid")
-  userId            String?         @unique @map("user_id")
-  firstName         String          @map("first_name")
-  lastName          String          @map("last_name")
-  dateOfBirth       DateTime        @map("date_of_birth")
-  gender            Gender
-  phone             String
-  email             String?
-  address           String?
-  emergencyContact  String?         @map("emergency_contact")
-  bloodGroup        String?         @map("blood_group")
-  allergies         String?
-  createdAt         DateTime        @default(now()) @map("created_at")
-  updatedAt         DateTime        @updatedAt @map("updated_at")
-  registrationDate  DateTime        @default(now()) @map("registration_date")
-  altPhone          String?         @map("alt_phone")
-  consultingDoctor  String?         @map("consulting_doctor")
-  department        String?
-  district          String?
-  emergencyName     String?         @map("emergency_name")
-  emergencyRelation String?         @map("emergency_relation")
-  idNumber          String?         @map("id_number")
-  idType            String?         @map("id_type")
-  mandal            String?
-  paymentMode       String?         @map("payment_mode")
-  pincode           String?
-  referredBy        String?         @map("referred_by")
-  referredPerson    String?         @map("referred_person")
-  registrationFee   Decimal?        @map("registration_fee") @db.Decimal(10, 2)
-  state             String?
-  title             String?
-  village           String?
-  appointments      Appointment[]
-  bills             Bill[]
-  labTestOrders     LabTestOrder[]
-  medicalRecords    MedicalRecord[]
-  user              User?           @relation(fields: [userId], references: [id])
-  prescriptions     Prescription[]
+  uhid             String          @id @default(uuid()) @map("uhid")
+  userId           String?         @unique @map("user_id")
+  title            String?         // Mr, Mrs, Ms, Dr
+  firstName        String          @map("first_name")
+  lastName         String          @map("last_name")
+  dateOfBirth      DateTime        @map("date_of_birth")
+  gender           Gender
+  phone            String
+  altPhone         String?         @map("alt_phone")
+  email            String?
+  address          String?
+  state            String?
+  district         String?
+  mandal           String?
+  village          String?
+  pincode          String?
+  emergencyContact String?         @map("emergency_contact")
+  emergencyName    String?         @map("emergency_name")
+  emergencyRelation String?        @map("emergency_relation")
+  bloodGroup       String?         @map("blood_group")
+  allergies        String?
+  idType           String?         @map("id_type")    // aadhaar, pan, passport
+  idNumber         String?         @map("id_number")
+  referredBy       String?         @map("referred_by")
+  referredPerson   String?         @map("referred_person")
+  consultingDoctor String?         @map("consulting_doctor")
+  department       String?
+  paymentMode      String?         @map("payment_mode") // cash, card, upi
+  registrationFee  Decimal?        @map("registration_fee") @db.Decimal(10, 2)
+  registrationDate DateTime        @default(now()) @map("registration_date")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  appointments     Appointment[]
+  bills            Bill[]
+  labTestOrders    LabTestOrder[]
+  medicalRecords   MedicalRecord[]
+  user             User?           @relation(fields: [userId], references: [id])
+  prescriptions    Prescription[]
 
   @@index([registrationDate])
   @@index([phone])
   @@map("patients")
 }
+
 
 model Appointment {
   id          String            @id @default(uuid())
@@ -134,20 +135,20 @@ model MedicalRecord {
   id                 String              @id @default(uuid())
   patientId          String              @map("patient_id")
   doctorId           String              @map("doctor_id")
+  appointmentId      String?             @map("appointment_id")
+  chiefComplaint     String?             @map("chief_complaint")
   diagnosis          String
+  icdCode            String?             @map("icd_code")
   treatment          String?
+  treatmentNotes     String?             @map("treatment_notes")
   notes              String?
   vitalSigns         Json?               @map("vital_signs")
   prescriptions      Json?
+  labOrders          Json?               @map("lab_orders")
+  prescriptionStatus PrescriptionStatus? @default(PENDING) @map("prescription_status")
+  followUpDate       DateTime?           @map("follow_up_date")
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
-  appointmentId      String?             @map("appointment_id")
-  chiefComplaint     String?             @map("chief_complaint")
-  followUpDate       DateTime?           @map("follow_up_date")
-  icdCode            String?             @map("icd_code")
-  prescriptionStatus PrescriptionStatus? @default(PENDING) @map("prescription_status")
-  treatmentNotes     String?             @map("treatment_notes")
-  labOrders          Json?               @map("lab_orders")
   doctor             Staff               @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patient            Patient             @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
 
@@ -161,10 +162,10 @@ model Prescription {
   patientId String             @map("patient_id")
   doctorId  String             @map("doctor_id")
   notes     String?
-  medicines Json
+  medicines Json               // Kept for backward compatibility
+  items     PrescriptionItem[] // New: normalized medicine items
   createdAt DateTime           @default(now()) @map("created_at")
   updatedAt DateTime           @updatedAt @map("updated_at")
-  items     PrescriptionItem[]
   doctor    Staff              @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patient   Patient            @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
 
@@ -252,14 +253,14 @@ model LabTestOrder {
   notes       String?
   createdAt   DateTime       @default(now()) @map("created_at")
   updatedAt   DateTime       @updatedAt @map("updated_at")
-  billId      String?        @map("bill_id")
   testId      String?        @map("test_id")
-  labResults  LabResult[]
   test        LabTest?       @relation(fields: [testId], references: [id])
+  billId      String?        @map("bill_id")
   bill        Bill?          @relation(fields: [billId], references: [id])
   orderedBy   Staff          @relation("OrderedBy", fields: [orderedById], references: [id], onDelete: Cascade)
   patient     Patient        @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
   result      LabTestResult?
+  labResults  LabResult[]
 
   @@map("lab_test_orders")
 }
@@ -306,74 +307,6 @@ model Notification {
 
   @@index([recipientId])
   @@map("notifications")
-}
-
-model LabTest {
-  id         String             @id @default(uuid())
-  code       String             @unique
-  name       String
-  department String
-  price      Decimal            @db.Decimal(10, 2)
-  turnaround String?
-  isActive   Boolean            @default(true) @map("is_active")
-  createdAt  DateTime           @default(now()) @map("created_at")
-  updatedAt  DateTime           @updatedAt @map("updated_at")
-  parameters LabTestParameter[]
-  orders     LabTestOrder[]
-
-  @@map("lab_tests")
-}
-
-model LabTestParameter {
-  id            String      @id @default(uuid())
-  testId        String      @map("test_id")
-  parameterName String      @map("parameter_name")
-  unit          String?
-  normalMin     Float?      @map("normal_min")
-  normalMax     Float?      @map("normal_max")
-  normalRange   String?     @map("normal_range")
-  displayOrder  Int         @default(0) @map("display_order")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
-  groupName     String?     @map("group_name")
-  results       LabResult[]
-  test          LabTest     @relation(fields: [testId], references: [id], onDelete: Cascade)
-
-  @@map("lab_test_parameters")
-}
-
-model LabResult {
-  id          String           @id @default(uuid())
-  orderId     String           @map("order_id")
-  parameterId String           @map("parameter_id")
-  resultValue String           @map("result_value")
-  flag        String?          @default("NORMAL")
-  createdAt   DateTime         @default(now()) @map("created_at")
-  updatedAt   DateTime         @updatedAt @map("updated_at")
-  order       LabTestOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  parameter   LabTestParameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
-
-  @@map("lab_results")
-}
-
-model HospitalSettings {
-  id            String   @id @default(uuid())
-  hospitalName  String   @map("hospital_name")
-  address       String?
-  contactNumber String?  @map("contact_number")
-  email         String?
-  website       String?
-  logoUrl       String?  @map("logo_url")
-  bankName      String?  @map("bank_name")
-  accountName   String?  @map("account_name")
-  accountNumber String?  @map("account_number")
-  ifscCode      String?  @map("ifsc_code")
-  branchName    String?  @map("branch_name")
-  upiId         String?  @map("upi_id")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  @@map("hospital_settings")
 }
 
 enum UserRole {
@@ -434,4 +367,74 @@ enum PrescriptionStatus {
   PENDING
   DISPENSED
   CANCELLED
+}
+
+model LabTest {
+  id          String             @id @default(uuid())
+  code        String             @unique
+  name        String
+  department  String
+  price       Decimal            @db.Decimal(10, 2)
+  turnaround  String?
+  isActive    Boolean            @default(true) @map("is_active")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  parameters  LabTestParameter[]
+  orders      LabTestOrder[]
+
+  @@map("lab_tests")
+}
+
+model LabTestParameter {
+  id             String      @id @default(uuid())
+  testId         String      @map("test_id")
+  parameterName  String      @map("parameter_name")
+  groupName      String?     @map("group_name")
+  unit           String?
+  normalMin      Float?      @map("normal_min")
+  normalMax      Float?      @map("normal_max")
+  normalRange    String?     @map("normal_range")
+  displayOrder   Int         @default(0) @map("display_order")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  test           LabTest     @relation(fields: [testId], references: [id], onDelete: Cascade)
+  results        LabResult[]
+
+  @@map("lab_test_parameters")
+}
+
+model LabResult {
+  id          String           @id @default(uuid())
+  orderId     String           @map("order_id")
+  parameterId String           @map("parameter_id")
+  resultValue String           @map("result_value")
+  flag        String?          @default("NORMAL") // NORMAL, LOW, HIGH
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  order       LabTestOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  parameter   LabTestParameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
+
+  @@map("lab_results")
+}
+
+model HospitalSettings {
+  id               String   @id @default(uuid())
+  hospitalName     String   @map("hospital_name")
+  address          String?
+  contactNumber    String?  @map("contact_number")
+  email            String?
+  website          String?
+  logoUrl          String?  @map("logo_url")
+  // Bank Details
+  bankName         String?  @map("bank_name")
+  accountName      String?  @map("account_name")
+  accountNumber    String?  @map("account_number")
+  ifscCode         String?  @map("ifsc_code")
+  branchName       String?  @map("branch_name")
+  upiId            String?  @map("upi_id")
+  // Metadata
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("hospital_settings")
 }
