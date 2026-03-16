@@ -163,7 +163,6 @@ async function main() {
             pricePerUnit: 5.00,
             stockQuantity: 1000,
             reorderLevel: 100,
-            expiryDate: new Date('2027-12-31'),
         }
     });
 
@@ -177,7 +176,6 @@ async function main() {
             pricePerUnit: 12.50,
             stockQuantity: 500,
             reorderLevel: 50,
-            expiryDate: new Date('2026-06-30'),
         }
     });
     console.log('✅ Medicines created');
