@@ -50,15 +50,16 @@ export class LabService {
         // Date Range Filtering
         if (startDate || endDate) {
             where.createdAt = {}; // Initialize the object
+            // For getOrders: Ensure we handle both strings and existing Date objects safely
             if (startDate) {
-                const start = new Date(startDate);
+                const start = startDate instanceof Date ? new Date(startDate) : new Date(startDate as string);
                 if (!isNaN(start.getTime())) {
                     start.setHours(0, 0, 0, 0);
                     (where.createdAt as any).gte = start;
                 }
             }
             if (endDate) {
-                const end = new Date(endDate);
+                const end = endDate instanceof Date ? new Date(endDate) : new Date(endDate as string);
                 if (!isNaN(end.getTime())) {
                     end.setHours(23, 59, 59, 999);
                     (where.createdAt as any).lte = end;
@@ -140,15 +141,16 @@ export class LabService {
         // Date Range Filtering
         if (startDate || endDate) {
             where.createdAt = {}; // Initialize the object
+            // For getMyOrders: Ensure we handle both strings and existing Date objects safely
             if (startDate) {
-                const start = new Date(startDate);
+                const start = startDate instanceof Date ? new Date(startDate) : new Date(startDate as string);
                 if (!isNaN(start.getTime())) {
                     start.setHours(0, 0, 0, 0);
                     (where.createdAt as any).gte = start;
                 }
             }
             if (endDate) {
-                const end = new Date(endDate);
+                const end = endDate instanceof Date ? new Date(endDate) : new Date(endDate as string);
                 if (!isNaN(end.getTime())) {
                     end.setHours(23, 59, 59, 999);
                     (where.createdAt as any).lte = end;
