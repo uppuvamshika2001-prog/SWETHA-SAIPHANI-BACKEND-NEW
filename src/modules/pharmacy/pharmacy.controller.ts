@@ -373,3 +373,29 @@ export async function getLowStockMedicines(
         next(error);
     }
 }
+
+export async function getPurchases(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const result = await pharmacyService.getPurchases(req.query);
+        sendSuccess(res, result);
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getDistributorReport(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const result = await pharmacyService.getDistributorReport();
+        sendSuccess(res, result);
+    } catch (error) {
+        next(error);
+    }
+}

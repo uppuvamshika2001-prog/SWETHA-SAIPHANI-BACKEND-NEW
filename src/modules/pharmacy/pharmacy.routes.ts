@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createMedicine, getMedicines, getMedicine, updateMedicine, deleteMedicine, createBill, getBills, getBill, updateBill, deleteBill, getLowStockMedicines } from './pharmacy.controller.js';
+import { createMedicine, getMedicines, getMedicine, updateMedicine, deleteMedicine, createBill, getBills, getBill, updateBill, deleteBill, getLowStockMedicines, getMarginReport, getDistributorReport, getPurchases } from './pharmacy.controller.js';
 import { getPendingPrescriptions } from '../doctors/doctors.controller.js';
 import { authGuard } from '../../middleware/authGuard.js';
 import { roleGuard } from '../../middleware/roleGuard.js';
@@ -27,5 +27,12 @@ router.get('/bills', getBills);
 router.get('/bills/:id', getBill);
 router.patch('/bills/:id', updateBill);
 router.delete('/bills/:id', deleteBill);
+
+// Reports
+router.get('/margin-report', getMarginReport);
+router.get('/distributor-report', getDistributorReport);
+
+// Purchases
+router.get('/purchases', getPurchases);
 
 export default router;

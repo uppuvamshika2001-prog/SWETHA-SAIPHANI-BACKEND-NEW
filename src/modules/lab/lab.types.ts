@@ -23,6 +23,7 @@ export const createLabResultSchema = z.object({
     }),
     interpretation: z.string().optional(),
     attachments: z.array(z.string()).optional(),
+    isReportVisibleToPatient: z.boolean().optional().default(true),
 });
 
 export const labOrderQuerySchema = z.object({

@@ -409,3 +409,16 @@ export async function deleteLabOrder(req: Request, res: Response, next: NextFunc
         next(error);
     }
 }
+
+export async function downloadLabReport(req: Request, res: Response, next: NextFunction) {
+    try {
+        const id = req.params.id as string;
+        const pdfBuffer = await labService.generateReportPDF(id);
+        
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=Lab_Report_${id}.pdf`);
+        res.send(pdfBuffer);
+    } catch (error) {
+        next(error);
+    }
+}

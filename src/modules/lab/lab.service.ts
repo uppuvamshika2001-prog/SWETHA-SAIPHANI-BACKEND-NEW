@@ -1,4 +1,5 @@
-import { prisma } from '../../config/database.js'; // Prisma client instance
+import { prisma } from '../../config/database.js';
+import { pdfGenerator } from '../../services/pdfGenerator.js';
 import { NotFoundError, ValidationError } from '../../middleware/errorHandler.js';
 import { CreateLabOrderInput, CreateLabResultInput, LabOrderQueryInput, LabOrderResponse, LabResultResponse, CreateLabTestInput, UpdateLabTestInput } from './lab.types.js';
 import { PaginatedResponse } from '../users/users.types.js';
@@ -179,7 +180,7 @@ export class LabService {
             const order = await prisma.labTestOrder.findUnique({
                 where: { id: orderId },
                 include: {
-                    patient: { select: { firstName: true, lastName: true } },
+                    patient: { select: { firstName: true, lastName: true, gender: true } },
                     test: {
                         include: {
                             parameters: {
@@ -195,18 +196,27 @@ export class LabService {
             }
 
             const patientName = `${order.patient.firstName} ${order.patient.lastName}`;
+            const patientGender = order.patient.gender;
             
+            // Helper to get correct normal range based on gender
+            const getRange = (p: any) => {
+                if (patientGender === 'MALE' && p.referenceRangeMale) return p.referenceRangeMale;
+                if (patientGender === 'FEMALE' && p.referenceRangeFemale) return p.referenceRangeFemale;
+                return p.normalRange || (p.normalMin !== null && p.normalMax !== null ? `${p.normalMin} - ${p.normalMax}` : '');
+            };
+
             // If we have a direct test relation, use it
             if (order.test) {
                 return {
                     orderId: order.id,
                     patientName,
+                    patientGender,
                     testName: order.testName,
                     parameters: order.test.parameters.map(p => ({
                         id: p.id,
                         parameter: p.parameterName,
                         unit: p.unit || '',
-                        normalRange: p.normalRange || (p.normalMin !== null && p.normalMax !== null ? `${p.normalMin} - ${p.normalMax}` : ''),
+                        normalRange: getRange(p),
                         normalMin: p.normalMin,
                         normalMax: p.normalMax
                     }))
@@ -230,20 +240,19 @@ export class LabService {
             return {
                 orderId: order.id,
                 patientName,
+                patientGender,
                 testName: order.testName,
                 parameters: test ? test.parameters.map((p: any) => ({
                     id: p.id,
                     parameter: p.parameterName,
                     unit: p.unit || '',
-                    normalRange: p.normalRange || (p.normalMin !== null && p.normalMax !== null ? `${p.normalMin} - ${p.normalMax}` : ''),
+                    normalRange: getRange(p),
                     normalMin: p.normalMin,
                     normalMax: p.normalMax
                 })) : []
             };
         } catch (error) {
             console.error(`[LabService] Error in getOrderParameters for ${orderId}:`, error);
-            // Ensure we return an object even on error to prevent frontend crashes, but throw for the controller to handle if needed
-            // However, the requirement says "return empty array instead of throwing error" for parameters
             return {
                 orderId,
                 patientName: 'Unknown',
@@ -304,10 +313,13 @@ export class LabService {
                 }
             }
 
-            // 3. Update order status
+            // 3. Update order status and visibility
             await tx.labTestOrder.update({
                 where: { id: input.orderId },
-                data: { status: 'COMPLETED' },
+                data: { 
+                    status: 'COMPLETED',
+                    isReportVisibleToPatient: (input as any).isReportVisibleToPatient !== undefined ? (input as any).isReportVisibleToPatient : true
+                } as any,
             });
 
             return labResult;
@@ -455,7 +467,7 @@ export class LabService {
 
     async deleteTestOrder(id: string) {
         const order = await prisma.labTestOrder.findUnique({
-            where: { id },
+            where: { id: id },
             include: { result: true }
         });
 
@@ -465,10 +477,52 @@ export class LabService {
             throw new ValidationError('Cannot delete a lab order that already has results. Please delete the result first.');
         }
 
-        // Delete the order itself (cascade handles it if setup properly, but we established no relations block it)
+        // Delete the order itself
         await prisma.labTestOrder.delete({
             where: { id }
         });
+    }
+
+    async generateReportPDF(orderId: string): Promise<Buffer> {
+        const order = await prisma.labTestOrder.findUnique({
+            where: { id: orderId },
+            include: {
+                patient: true,
+                orderedBy: true,
+                result: true,
+            }
+        });
+
+        if (!order || !order.result) {
+            throw new NotFoundError('Lab order or results not found');
+        }
+
+        const resultData = order.result.result as any;
+        
+        const reportData = {
+            orderId: order.id,
+            patientName: `${order.patient.firstName} ${order.patient.lastName}`,
+            patientId: order.patient.uhid,
+            gender: order.patient.gender,
+            age: this.calculateAge(order.patient.dateOfBirth),
+            doctorName: `Dr. ${order.orderedBy.firstName} ${order.orderedBy.lastName}`,
+            date: order.createdAt,
+            results: resultData,
+            interpretation: order.result.interpretation
+        };
+
+        return await pdfGenerator.generateLabReportPDF(reportData, true);
+    }
+
+    private calculateAge(dob: Date): string {
+        const today = new Date();
+        const birthDate = new Date(dob);
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+        return `${age}Y`;
     }
 }
 
