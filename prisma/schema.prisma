@@ -415,18 +415,35 @@ model LabTest {
   isActive    Boolean            @default(true) @map("is_active")
   createdAt   DateTime           @default(now()) @map("created_at")
   updatedAt   DateTime           @updatedAt @map("updated_at")
+  categories  LabTestCategory[]
   parameters  LabTestParameter[]
   orders      LabTestOrder[]
 
   @@map("lab_tests")
 }
 
+model LabTestCategory {
+  id           String             @id @default(uuid())
+  testId       String             @map("test_id")
+  name         String
+  displayOrder Int                @default(0) @map("display_order")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+  test         LabTest            @relation(fields: [testId], references: [id], onDelete: Cascade)
+  parameters   LabTestParameter[]
+
+  @@map("lab_test_categories")
+}
+
 model LabTestParameter {
   id             String      @id @default(uuid())
   testId         String      @map("test_id")
+  categoryId     String?     @map("category_id")
   parameterName  String      @map("parameter_name")
-  groupName      String?     @map("group_name")
+  inputType      String      @default("number") @map("input_type") // number, text, select
   unit           String?
+  referenceRange Json?       @map("reference_range")
+  options        Json?       // For input_type select
   normalMin      Float?      @map("normal_min")
   normalMax      Float?      @map("normal_max")
   normalRange    String?     @map("normal_range")
@@ -436,6 +453,7 @@ model LabTestParameter {
   createdAt      DateTime    @default(now()) @map("created_at")
   updatedAt      DateTime    @updatedAt @map("updated_at")
   test           LabTest     @relation(fields: [testId], references: [id], onDelete: Cascade)
+  category       LabTestCategory? @relation(fields: [categoryId], references: [id])
   results        LabResult[]
 
   @@map("lab_test_parameters")

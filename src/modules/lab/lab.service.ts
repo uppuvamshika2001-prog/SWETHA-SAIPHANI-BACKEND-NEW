@@ -238,11 +238,16 @@ export class LabService {
             const order = await (prisma.labTestOrder as any).findUnique({
                 where: { id: orderId },
                 include: {
-                    patient: { select: { firstName: true, lastName: true, gender: true } },
+                    patient: { select: { firstName: true, lastName: true, gender: true, dateOfBirth: true } },
                     test: {
                         include: {
-                            parameters: {
-                                orderBy: { displayOrder: 'asc' }
+                            categories: {
+                                orderBy: { displayOrder: 'asc' },
+                                include: {
+                                    parameters: {
+                                        orderBy: { displayOrder: 'asc' }
+                                    }
+                                }
                             }
                         }
                     }
@@ -255,59 +260,82 @@ export class LabService {
 
             const patientName = `${order.patient.firstName} ${order.patient.lastName}`;
             const patientGender = (order as any).patient.gender;
+            const patientAgeStr = this.calculateAge(order.patient.dateOfBirth);
+            const patientAgeNum = parseInt(patientAgeStr);
             
-            // Helper to get correct normal range based on gender
+            // Helper to get correct reference range from JSON structure
             const getRange = (p: any) => {
-                if (patientGender === 'MALE' && p.referenceRangeMale) return p.referenceRangeMale;
-                if (patientGender === 'FEMALE' && p.referenceRangeFemale) return p.referenceRangeFemale;
-                return p.normalRange || (p.normalMin !== null && p.normalMax !== null ? `${p.normalMin} - ${p.normalMax}` : '');
+                const range = p.referenceRange;
+                if (!range || typeof range !== 'object') {
+                    // Fallback to legacy fields
+                    if (patientGender === 'MALE' && p.referenceRangeMale) return p.referenceRangeMale;
+                    if (patientGender === 'FEMALE' && p.referenceRangeFemale) return p.referenceRangeFemale;
+                    return p.normalRange || (p.normalMin !== null && p.normalMax !== null ? `${p.normalMin} - ${p.normalMax}` : '');
+                }
+
+                // New JSON logic
+                if (patientGender === 'MALE' && range.male) return range.male;
+                if (patientGender === 'FEMALE' && range.female) return range.female;
+                
+                // Age based ranges (e.g. for Alkaline Phosphatase)
+                if (range.ageBased && Array.isArray(range.ageBased)) {
+                    // This is a simplified check, can be expanded if needed
+                    // For now, let's just return the first one that matches or all for manual selection
+                }
+
+                if (range.adults && patientAgeNum >= 18) return range.adults;
+                if (range.newborn && patientAgeNum < 1) return range.newborn;
+
+                return range.default || range.general || Object.values(range)[0] || '';
             };
 
-            // If we have a direct test relation, use it
-            if ((order as any).test) {
+            const testData = (order as any).test;
+            
+            // If we have a direct test relation with categories
+            if (testData && testData.categories && testData.categories.length > 0) {
                 return {
-                    orderId: (order as any).id,
+                    orderId: order.id,
                     patientName,
                     patientGender,
-                    testName: (order as any).testName,
-                    parameters: (order as any).test.parameters.map((p: any) => ({
-                        id: p.id,
-                        name: p.parameterName,
-                        unit: p.unit || '',
-                        referenceRange: getRange(p),
-                        normalMin: p.normalMin,
-                        normalMax: p.normalMax
+                    testName: order.testName,
+                    categories: testData.categories.map((cat: any) => ({
+                        id: cat.id,
+                        name: cat.name,
+                        parameters: cat.parameters.map((p: any) => ({
+                            id: p.id,
+                            name: p.parameterName,
+                            unit: p.unit || '',
+                            inputType: p.inputType || 'number',
+                            options: p.options || null,
+                            referenceRange: getRange(p),
+                            normalMin: p.normalMin,
+                            normalMax: p.normalMax
+                        }))
                     }))
                 };
             }
 
-            // Fallback: Search by name/code if relation is missing (for older orders)
-            console.log(`[LabService] Falling back to name search for order ${orderId}`);
-            const searchConditions: any[] = [{ name: (order as any).testName }];
-            if ((order as any).testCode) {
-                searchConditions.push({ code: (order as any).testCode });
-            }
-
-            const test = await (prisma.labTest as any).findFirst({
-                where: { OR: searchConditions },
-                include: {
-                    parameters: { orderBy: { displayOrder: 'asc' } }
-                }
-            });
-
+            // Fallback for orders without structured categories (legacy support)
+            const parameters = testData ? testData.parameters : [];
             return {
                 orderId: order.id,
                 patientName,
                 patientGender,
                 testName: order.testName,
-                parameters: test ? test.parameters.map((p: any) => ({
-                    id: p.id,
-                    name: p.parameterName,
-                    unit: p.unit || '',
-                    referenceRange: getRange(p),
-                    normalMin: p.normalMin,
-                    normalMax: p.normalMax
-                })) : []
+                categories: [
+                    {
+                        name: 'General',
+                        parameters: parameters.map((p: any) => ({
+                            id: p.id,
+                            name: p.parameterName,
+                            unit: p.unit || '',
+                            inputType: p.inputType || 'number',
+                            referenceRange: getRange(p),
+                            normalMin: p.normalMin,
+                            normalMax: p.normalMax
+                        }))
+                    }
+                ]
             };
         } catch (error) {
             console.error(`[LabService] Error in getOrderParameters for ${orderId}:`, error);
@@ -315,7 +343,7 @@ export class LabService {
                 orderId,
                 patientName: 'Unknown',
                 testName: 'Unknown',
-                parameters: []
+                categories: []
             };
         }
     }
