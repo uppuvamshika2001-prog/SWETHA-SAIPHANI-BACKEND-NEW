@@ -1,13 +1,21 @@
 import { prisma } from '../../config/database.js';
-import { NotFoundError } from '../../middleware/errorHandler.js';
+import { NotFoundError, ValidationError } from '../../middleware/errorHandler.js';
 import { CreateMedicalRecordInput, CreatePrescriptionInput, MedicalRecordResponse, PrescriptionResponse } from './doctors.types.js';
 
 export class DoctorsService {
     async createMedicalRecord(doctorUserId: string, input: CreateMedicalRecordInput): Promise<MedicalRecordResponse> {
-        // Get staff ID from user ID
-        const doctor = await prisma.staff.findUnique({ where: { userId: doctorUserId } });
+        // Get staff ID from user ID and validate role
+        const doctor = await prisma.staff.findUnique({ 
+            where: { userId: doctorUserId },
+            include: { user: true }
+        });
+        
         if (!doctor) {
             throw new NotFoundError('Doctor profile not found');
+        }
+
+        if (doctor.user.role !== 'DOCTOR') {
+            throw new ValidationError('Only doctors can create medical records');
         }
 
         // Validate patient
@@ -71,9 +79,17 @@ export class DoctorsService {
     }
 
     async createPrescription(doctorUserId: string, input: CreatePrescriptionInput): Promise<PrescriptionResponse> {
-        const doctor = await prisma.staff.findUnique({ where: { userId: doctorUserId } });
+        const doctor = await prisma.staff.findUnique({ 
+            where: { userId: doctorUserId },
+            include: { user: true }
+        });
+        
         if (!doctor) {
             throw new NotFoundError('Doctor profile not found');
+        }
+
+        if (doctor.user.role !== 'DOCTOR') {
+            throw new ValidationError('Only doctors can create prescriptions');
         }
 
         const patient = await prisma.patient.findUnique({ where: { uhid: input.patientId } });

@@ -7,10 +7,37 @@ import { PaginatedResponse } from '../users/users.types.js';
 
 export class LabService {
     async createOrder(orderedByUserId: string, input: CreateLabOrderInput): Promise<LabOrderResponse> {
-        // Get staff ID from user ID
-        const staff = await prisma.staff.findUnique({ where: { userId: orderedByUserId } });
-        if (!staff) {
-            throw new NotFoundError('Staff profile not found');
+        // Find orderedBy staff profile (the person logged in, e.g., Doctor, Receptionist, Lab Tech)
+        const orderer = await prisma.staff.findUnique({ 
+            where: { userId: orderedByUserId },
+            include: { user: true }
+        });
+
+        if (!orderer) {
+            throw new NotFoundError('Staff profile not found for current user');
+        }
+
+        let doctorIdForOrder: string;
+
+        // If a specific doctorId is provided (Receptionist flow), prioritize it
+        if (input.doctorId) {
+            const doctor = await prisma.staff.findUnique({
+                where: { id: input.doctorId },
+                include: { user: true }
+            });
+
+            if (!doctor || doctor.user.role !== 'DOCTOR') {
+                throw new ValidationError('Invalid doctor selected for lab order');
+            }
+            doctorIdForOrder = doctor.id;
+        } else {
+            // Default to the current orderer if they are a doctor
+            if (orderer.user.role === 'DOCTOR') {
+                doctorIdForOrder = orderer.id;
+            } else {
+                // Requirement: Reception/Admin/others must provide doctor_id
+                throw new ValidationError('A valid doctor_id is required for this order');
+            }
         }
 
         // Validate patient
@@ -22,10 +49,10 @@ export class LabService {
         const order = await prisma.labTestOrder.create({
             data: {
                 patientId: input.patientId,
-                orderedById: staff.id,
+                orderedById: doctorIdForOrder,
                 testName: input.testName,
                 testCode: input.testCode,
-                testId: (input as any).testId, // Support testId if provided
+                testId: (input as any).testId,
                 priority: input.priority,
                 notes: input.notes,
                 status: 'PAYMENT_PENDING',
