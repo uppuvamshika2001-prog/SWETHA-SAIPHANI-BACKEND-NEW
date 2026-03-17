@@ -55,7 +55,13 @@ export async function createMedicalRecord(
         console.log('Parsed Input with Prescriptions:', JSON.stringify(input.prescriptions, null, 2));
         const record = await doctorsService.createMedicalRecord(req.user!.userId, input);
         sendCreated(res, record, 'Medical record created successfully');
-    } catch (error) {
+    } catch (error: any) {
+        console.error('Create Medical Record Error:', {
+            message: error.message,
+            stack: error.stack,
+            body: req.body,
+            user: req.user ? { userId: req.user.userId, email: req.user.email, role: req.user.role } : 'None'
+        });
         next(error);
     }
 }

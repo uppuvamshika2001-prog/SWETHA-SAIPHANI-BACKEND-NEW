@@ -272,9 +272,9 @@ export class LabService {
                     testName: (order as any).testName,
                     parameters: (order as any).test.parameters.map((p: any) => ({
                         id: p.id,
-                        parameter: p.parameterName,
+                        name: p.parameterName,
                         unit: p.unit || '',
-                        normalRange: getRange(p),
+                        referenceRange: getRange(p),
                         normalMin: p.normalMin,
                         normalMax: p.normalMax
                     }))
@@ -302,9 +302,9 @@ export class LabService {
                 testName: order.testName,
                 parameters: test ? test.parameters.map((p: any) => ({
                     id: p.id,
-                    parameter: p.parameterName,
+                    name: p.parameterName,
                     unit: p.unit || '',
-                    normalRange: getRange(p),
+                    referenceRange: getRange(p),
                     normalMin: p.normalMin,
                     normalMax: p.normalMax
                 })) : []

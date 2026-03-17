@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const createMedicalRecordSchema = z.object({
     patientId: z.string().min(1, 'Patient ID is required'),
+    doctorId: z.string().optional(),
     appointmentId: z.string().optional(),
     chiefComplaint: z.string().optional(),
     diagnosis: z.string().min(1, 'Diagnosis is required'),
@@ -10,6 +11,17 @@ export const createMedicalRecordSchema = z.object({
     treatmentNotes: z.string().optional(),
     notes: z.string().optional(),
     followUpDate: z.string().optional().transform(s => s ? new Date(s) : undefined),
+    // Support both vitalSigns (legacy/correct) and vitals (frontend current)
+    vitals: z.object({
+        bloodPressureSystolic: z.number().optional(),
+        bloodPressureDiastolic: z.number().optional(),
+        heartRate: z.number().optional(),
+        temperature: z.number().optional(),
+        respiratoryRate: z.number().optional(),
+        oxygenSaturation: z.number().optional(),
+        weight: z.number().optional(),
+        height: z.number().optional(),
+    }).optional(),
     vitalSigns: z.object({
         bloodPressureSystolic: z.number().optional(),
         bloodPressureDiastolic: z.number().optional(),

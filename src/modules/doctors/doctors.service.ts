@@ -24,28 +24,34 @@ export class DoctorsService {
             throw new NotFoundError('Patient not found');
         }
 
-        const record = await prisma.medicalRecord.create({
-            data: {
-                patientId: input.patientId,
-                doctorId: doctor.id,
-                appointmentId: input.appointmentId,
-                chiefComplaint: input.chiefComplaint,
-                diagnosis: input.diagnosis,
-                icdCode: input.icdCode,
-                treatment: input.treatment || input.treatmentNotes,
-                treatmentNotes: input.treatmentNotes,
-                notes: input.notes,
-                followUpDate: input.followUpDate,
-                prescriptionStatus: 'PENDING',
-                vitalSigns: input.vitalSigns || {},
-                prescriptions: input.prescriptions || [],
-                labOrders: input.labOrders || []
-            },
-            include: {
-                patient: { select: { firstName: true, lastName: true } },
-                doctor: { select: { firstName: true, lastName: true } },
-            },
-        });
+        let record;
+        try {
+            record = await prisma.medicalRecord.create({
+                data: {
+                    patientId: input.patientId,
+                    doctorId: doctor.id,
+                    appointmentId: input.appointmentId,
+                    chiefComplaint: input.chiefComplaint,
+                    diagnosis: input.diagnosis,
+                    icdCode: input.icdCode,
+                    treatment: input.treatment || input.treatmentNotes,
+                    treatmentNotes: input.treatmentNotes,
+                    notes: input.notes,
+                    followUpDate: input.followUpDate,
+                    prescriptionStatus: 'PENDING',
+                    vitalSigns: input.vitalSigns || input.vitals || {},
+                    prescriptions: input.prescriptions || [],
+                    labOrders: input.labOrders || []
+                },
+                include: {
+                    patient: { select: { firstName: true, lastName: true } },
+                    doctor: { select: { firstName: true, lastName: true } },
+                },
+            });
+        } catch (error: any) {
+            console.error("Prisma MedicalRecord.create Error:", error);
+            throw error;
+        }
 
         // Automatically create Lab Test Orders (with deduplication)
         if (input.labOrders && input.labOrders.length > 0) {
@@ -62,15 +68,20 @@ export class DoctorsService {
                 });
 
                 if (!existingOrder) {
-                    return prisma.labTestOrder.create({
-                        data: {
-                            patientId: input.patientId,
-                            orderedById: doctor.id,
-                            testName: testName,
-                            status: 'PENDING',
-                            priority: 'normal'
-                        }
-                    });
+                    try {
+                        return prisma.labTestOrder.create({
+                            data: {
+                                patientId: input.patientId,
+                                orderedById: doctor.id,
+                                testName: testName,
+                                status: 'PAYMENT_PENDING', // Updated to match new workflow
+                                priority: 'normal'
+                            }
+                        });
+                    } catch (error: any) {
+                        console.error(`Prisma LabTestOrder.create Error for ${testName}:`, error);
+                        // Don't throw here to allow other orders and medical record to succeed, or handle as needed
+                    }
                 }
             }));
         }
