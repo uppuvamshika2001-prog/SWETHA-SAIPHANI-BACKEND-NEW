@@ -41,3 +41,7 @@ prisma/*.db-journal
 token.txt
 demo_ids.txt
 *_log.txt
+receptionists.json
+
+# Test and Debug Scripts
+test_*.js
