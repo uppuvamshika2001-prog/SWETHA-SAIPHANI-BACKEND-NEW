@@ -52,14 +52,20 @@ export class LabService {
             const resolvedTest = await prisma.labTest.findFirst({
                 where: {
                     OR: [
-                        { code: input.testCode || '___NON_EXISTENT___' },
-                        { name: input.testName }
+                        { code: { equals: input.testCode || input.testName, mode: 'insensitive' } },
+                        { name: { equals: input.testName, mode: 'insensitive' } },
+                        { name: { contains: input.testName, mode: 'insensitive' } },
+                        { code: { contains: input.testName, mode: 'insensitive' } }
                     ]
                 }
             });
             if (resolvedTest) {
                 resolvedTestId = resolvedTest.id;
             }
+        }
+
+        if (!resolvedTestId) {
+            throw new ValidationError(`Lab test '${input.testName}' not found in catalog. Please select a valid test.`);
         }
 
         const order = await prisma.labTestOrder.create({
@@ -275,8 +281,10 @@ export class LabService {
                 const resolvedTest = await (prisma.labTest as any).findFirst({
                     where: {
                         OR: [
-                            { code: order.testCode || '___NON_EXISTENT___' },
-                            { name: order.testName }
+                            { code: { equals: order.testCode || order.testName, mode: 'insensitive' } },
+                            { name: { equals: order.testName, mode: 'insensitive' } },
+                            { name: { contains: order.testName, mode: 'insensitive' } },
+                            { code: { contains: order.testName, mode: 'insensitive' } }
                         ]
                     },
                     include: {
@@ -351,6 +359,7 @@ export class LabService {
                     patientName,
                     patientGender,
                     testName: order.testName,
+                    testType: testData.type || 'PANEL',
                     categories: testData.categories.map((cat: any) => ({
                         id: cat.id,
                         name: cat.name,
@@ -368,13 +377,14 @@ export class LabService {
                 };
             }
 
-            // Fallback for orders without structured categories (legacy support)
+            // Fallback for orders without structured categories (legacy support or singles)
             const parameters = testData ? testData.parameters : [];
             return {
                 orderId: order.id,
                 patientName,
                 patientGender,
                 testName: order.testName,
+                testType: testData?.type || 'PANEL',
                 categories: [
                     {
                         name: 'General',

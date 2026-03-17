@@ -56,6 +56,7 @@ export const createLabTestSchema = z.object({
     code: z.string().min(1, 'Test code is required'),
     name: z.string().min(1, 'Test name is required'),
     department: z.string().min(1, 'Department is required'),
+    type: z.enum(['PANEL', 'SINGLE', 'REPORT']).optional().default('PANEL'),
     price: z.number().positive('Price must be positive'),
     turnaround: z.string().optional(),
     isActive: z.boolean().default(true),

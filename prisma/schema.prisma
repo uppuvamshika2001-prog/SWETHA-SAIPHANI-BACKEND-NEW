@@ -405,11 +405,18 @@ enum PrescriptionStatus {
   CANCELLED
 }
 
+enum LabTestType {
+  PANEL
+  SINGLE
+  REPORT
+}
+
 model LabTest {
   id          String             @id @default(uuid())
   code        String             @unique
   name        String
   department  String
+  type        LabTestType        @default(PANEL)
   price       Decimal            @db.Decimal(10, 2)
   turnaround  String?
   isActive    Boolean            @default(true) @map("is_active")
