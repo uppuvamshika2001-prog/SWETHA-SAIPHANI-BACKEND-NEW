@@ -55,7 +55,7 @@ export class LabService {
                 testId: (input as any).testId,
                 priority: input.priority,
                 notes: input.notes,
-                status: 'PAYMENT_PENDING',
+                status: 'PENDING',
             } as any,
             include: {
                 patient: { select: { firstName: true, lastName: true } },
@@ -64,6 +64,7 @@ export class LabService {
             },
         });
 
+        console.log("Created Lab Order:", order);
         return this.formatOrder(order as any);
     }
 
@@ -74,7 +75,7 @@ export class LabService {
 
             const where: any = {};
             if (patientId) where.patientId = patientId;
-            if (status) where.status = status;
+            if (status) where.status = status.toUpperCase();
             if (priority) where.priority = priority;
 
             // Date Range Filtering with robust validation

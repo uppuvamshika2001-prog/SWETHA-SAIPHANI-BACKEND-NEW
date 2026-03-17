@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 // Enum for Lab Test Status (mirroring Prisma schema)
-export type LabTestStatus = 'ORDERED' | 'SAMPLE_COLLECTED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'PAYMENT_PENDING' | 'READY_FOR_SAMPLE_COLLECTION';
+export type LabTestStatus = 'ORDERED' | 'SAMPLE_COLLECTED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'PAYMENT_PENDING' | 'READY_FOR_SAMPLE_COLLECTION' | 'PENDING';
 
 export const LabTestStatus = {
     ORDERED: 'ORDERED',
@@ -10,7 +10,8 @@ export const LabTestStatus = {
     COMPLETED: 'COMPLETED',
     CANCELLED: 'CANCELLED',
     PAYMENT_PENDING: 'PAYMENT_PENDING',
-    READY_FOR_SAMPLE_COLLECTION: 'READY_FOR_SAMPLE_COLLECTION'
+    READY_FOR_SAMPLE_COLLECTION: 'READY_FOR_SAMPLE_COLLECTION',
+    PENDING: 'PENDING'
 } as const;
 
 export const createLabOrderSchema = z.object({

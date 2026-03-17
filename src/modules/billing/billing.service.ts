@@ -5,12 +5,13 @@ import { Prisma } from '@prisma/client';
 
 export class BillingService {
     async create(input: CreateBillInput) {
-        const { items, labOrderIds, creatorId, ...billData } = input;
+        const { items, labOrderIds, creatorId } = input;
+        const billData = input as any;
 
         // Calculate totals
         let subtotal = 0;
-        const billItems = items.map(item => {
-            const total = item.unitPrice * item.quantity;
+        const billItems = (items as any[]).map((item: any) => {
+            const total = Number(item.unitPrice) * Number(item.quantity);
             subtotal += total;
             return {
                 ...item,
@@ -18,8 +19,8 @@ export class BillingService {
             };
         });
 
-        const discountedSubtotal = subtotal - billData.discount;
-        const gstAmount = (discountedSubtotal * billData.gstPercent) / 100;
+        const discountedSubtotal = subtotal - Number(billData.discount || 0);
+        const gstAmount = (discountedSubtotal * Number(billData.gstPercent || 0)) / 100;
         const grandTotal = discountedSubtotal + gstAmount;
 
         // Generate Bill Number (Simple format: INV-YYYYMMDD-XXXX)
@@ -45,20 +46,20 @@ export class BillingService {
         });
 
         // Link Lab Orders if provided
-        if (labOrderIds && labOrderIds.length > 0) {
-            await prisma.$transaction(async (tx) => {
+        if (labOrderIds && (labOrderIds as any[]).length > 0) {
+            await prisma.$transaction(async (tx: any) => {
                 await tx.labTestOrder.updateMany({
                     where: { id: { in: labOrderIds } },
                     data: {
                         billId: bill.id,
-                        status: 'PAYMENT_PENDING' // Update status to pending payment
+                        status: 'PENDING' // Update status to pending
                     }
                 });
             });
         }
 
         // Auto-create lab orders for lab items NOT linked to existing orders
-        const labItems = billItems.filter(item =>
+        const labItems = billItems.filter((item: any) =>
             item.description.trim().toLowerCase().startsWith('lab:')
         );
 
@@ -80,7 +81,7 @@ export class BillingService {
                 staffIdForOrder = fallbackStaff.id;
             }
 
-            await prisma.$transaction(async (tx) => {
+            await prisma.$transaction(async (tx: any) => {
                 for (const labItem of labItems) {
                     // Extract test name from "Lab: CBC" format
                     const testName = labItem.description.replace(/^Lab:\s*/i, '').trim();
@@ -92,7 +93,7 @@ export class BillingService {
                             orderedById: staffIdForOrder,
                             testName,
                             priority: 'normal',
-                            status: 'PAYMENT_PENDING',
+                            status: 'PENDING',
                             billId: bill.id,
                         }
                     });
@@ -109,23 +110,25 @@ export class BillingService {
     }
 
     async findAll(query: BillQueryInput) {
-        const { page = 1, limit = 10, patientId, status, startDate, endDate, search } = query;
+        const page = Number(query.page || 1);
+        const limit = Number(query.limit || 10);
+        const { patientId, status, startDate, endDate, search } = query;
         const skip = (page - 1) * limit;
 
-        const where: Prisma.BillWhereInput = {};
+        const where: any = {};
 
         if (patientId) where.patientId = patientId;
-        if (status) where.status = status;
+        if (status) where.status = (status as unknown as string).toUpperCase();
 
         if (startDate || endDate) {
             const dateFilter: any = {};
             if (startDate) {
-                const start = new Date(startDate);
+                const start = new Date(startDate as string);
                 start.setHours(0, 0, 0, 0);
                 dateFilter.gte = start;
             }
             if (endDate) {
-                const end = new Date(endDate);
+                const end = new Date(endDate as string);
                 end.setHours(23, 59, 59, 999);
                 dateFilter.lte = end;
             }
@@ -161,7 +164,7 @@ export class BillingService {
             })
         ]);
 
-        const itemsWithMedicalRecords = await Promise.all(items.map(async (item) => {
+        const itemsWithMedicalRecords = await Promise.all(items.map(async (item: any) => {
             const medicalRecord = await prisma.medicalRecord.findFirst({
                 where: { patientId: item.patientId },
                 orderBy: { createdAt: 'desc' }
@@ -200,7 +203,7 @@ export class BillingService {
         const bill = await prisma.bill.findUnique({ where: { id } });
         if (!bill) throw new NotFoundError('Bill not found');
 
-        const updatedBill = await prisma.$transaction(async (tx) => {
+        const updatedBill = await prisma.$transaction(async (tx: any) => {
             // Update Bill
             const updated = await tx.bill.update({
                 where: { id },
@@ -215,11 +218,11 @@ export class BillingService {
             });
 
             // Create Payment Transaction if Paid
-            if ((input.status === 'PAID' || input.status === 'PARTIALLY_PAID') && input.paidAmount && input.paidAmount > 0) {
+            if ((input.status === 'PAID' || input.status === 'PARTIALLY_PAID') && input.paidAmount && Number(input.paidAmount) > 0) {
                 await tx.paymentTransaction.create({
                     data: {
                         billId: id,
-                        amount: new Prisma.Decimal(input.paidAmount),
+                        amount: new (Prisma as any).Decimal(input.paidAmount),
                         paymentMode: input.paymentMode || 'CASH',
                         referenceNo: input.referenceNo,
                         createdBy: input.createdBy
@@ -284,7 +287,7 @@ export class BillingService {
         }
 
         console.log('[BillingService] Bill found, starting deletion transaction for id:', id);
-        await prisma.$transaction(async (tx) => {
+        await prisma.$transaction(async (tx: any) => {
             // Reset Lab Orders if they were linked to this bill
             await tx.labTestOrder.updateMany({
                 where: { billId: id },

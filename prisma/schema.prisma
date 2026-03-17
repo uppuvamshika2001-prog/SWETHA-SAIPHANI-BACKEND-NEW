@@ -390,6 +390,7 @@ enum LabTestStatus {
   CANCELLED
   PAYMENT_PENDING
   READY_FOR_SAMPLE_COLLECTION
+  PENDING
 }
 
 enum DocumentType {

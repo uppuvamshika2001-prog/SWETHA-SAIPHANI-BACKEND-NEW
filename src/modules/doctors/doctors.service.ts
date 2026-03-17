@@ -67,7 +67,7 @@ export class DoctorsService {
                             patientId: input.patientId,
                             orderedById: doctor.id,
                             testName: testName,
-                            status: 'READY_FOR_SAMPLE_COLLECTION',
+                            status: 'PENDING',
                             priority: 'normal'
                         }
                     });

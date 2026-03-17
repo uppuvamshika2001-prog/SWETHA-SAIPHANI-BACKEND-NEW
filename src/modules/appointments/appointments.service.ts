@@ -169,13 +169,15 @@ export class AppointmentsService {
     }
 
     async findAll(query: AppointmentQueryInput): Promise<PaginatedResponse<AppointmentResponse>> {
-        const { page, limit, patientId, doctorId, status, dateFrom, dateTo } = query;
+        const page = Number(query.page || 1);
+        const limit = Number(query.limit || 10);
+        const { patientId, doctorId, status, dateFrom, dateTo } = query;
         const skip = (page - 1) * limit;
 
         const where: Record<string, unknown> = {};
         if (patientId) where.patientId = patientId;
         if (doctorId) where.doctorId = doctorId;
-        if (status) where.status = status;
+        if (status) where.status = (status as unknown as string).toUpperCase();
         if (dateFrom || dateTo) {
             where.scheduledAt = {};
             if (dateFrom) (where.scheduledAt as Record<string, unknown>).gte = dateFrom;
@@ -197,7 +199,7 @@ export class AppointmentsService {
         ]);
 
         return {
-            items: appointments.map((a) => this.formatAppointment(a)),
+            items: appointments.map((a: any) => this.formatAppointment(a)),
             total,
             page,
             limit,
