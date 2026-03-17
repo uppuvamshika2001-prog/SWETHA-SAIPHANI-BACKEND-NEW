@@ -91,8 +91,7 @@ export async function getLabOrders(
     try {
         const query = labOrderQuerySchema.parse(req.query);
         const result = await labService.getOrders(query);
-        // Returning data array directly as requested in senior engineer prompt
-        sendSuccess(res, result.items);
+        sendSuccess(res, result);
     } catch (error: any) {
         const requestId = req.headers['x-request-id'] || 'unknown';
         logger.error({ 
@@ -139,8 +138,7 @@ export async function getMyLabOrders(
     try {
         const query = labOrderQuerySchema.parse(req.query);
         const result = await labService.getMyOrders(req.user!.userId, query);
-        // Returning data array directly as requested in senior engineer prompt
-        sendSuccess(res, result.items);
+        sendSuccess(res, result);
     } catch (error: any) {
         const requestId = req.headers['x-request-id'] || 'unknown';
         logger.error({ 
