@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { labService } from '@/modules/lab/lab.service.js';
 import { createLabOrderSchema, createLabResultSchema, labOrderQuerySchema, createLabTestSchema, updateLabTestSchema } from '@/modules/lab/lab.types.js';
 import { sendSuccess, sendCreated } from '@/utils/response.js';
+import { logger } from '@/utils/logger.js';
 import { z } from 'zod';
 
 /**
@@ -93,7 +94,14 @@ export async function getLabOrders(
         // Returning data array directly as requested in senior engineer prompt
         sendSuccess(res, result.items);
     } catch (error: any) {
-        console.error(`[LabController] Request ${req.headers['x-request-id'] || 'unknown'} failed:`, error.stack || error);
+        const requestId = req.headers['x-request-id'] || 'unknown';
+        logger.error({ 
+            context: 'LabController.getLabOrders',
+            requestId,
+            error: error.message,
+            code: error.code,
+            stack: error.stack 
+        }, `Request ${requestId} failed`);
         next(error);
     }
 }
@@ -134,7 +142,14 @@ export async function getMyLabOrders(
         // Returning data array directly as requested in senior engineer prompt
         sendSuccess(res, result.items);
     } catch (error: any) {
-        console.error(`[LabController] Request ${req.headers['x-request-id'] || 'unknown'} failed:`, error.stack || error);
+        const requestId = req.headers['x-request-id'] || 'unknown';
+        logger.error({ 
+            context: 'LabController.getMyLabOrders',
+            requestId,
+            error: error.message,
+            code: error.code,
+            stack: error.stack 
+        }, `Request ${requestId} failed`);
         next(error);
     }
 }

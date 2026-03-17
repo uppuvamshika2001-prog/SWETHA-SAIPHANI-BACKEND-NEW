@@ -42,7 +42,7 @@ export class LabService {
 
     async getOrders(query: LabOrderQueryInput): Promise<PaginatedResponse<LabOrderResponse>> {
         try {
-            const { page, limit, patientId, status, priority, startDate, endDate } = query as Required<LabOrderQueryInput>;
+            const { page = 1, limit = 10, patientId, status, priority, startDate, endDate } = query;
             const skip = (Number(page) - 1) * Number(limit);
 
             const where: any = {};
@@ -55,7 +55,7 @@ export class LabService {
                 const dateFilter: any = {};
                 
                 if (startDate) {
-                    const start = new Date(startDate as any);
+                    const start = new Date(startDate);
                     if (!isNaN(start.getTime())) {
                         start.setHours(0, 0, 0, 0);
                         dateFilter.gte = start;
@@ -63,7 +63,7 @@ export class LabService {
                 }
                 
                 if (endDate) {
-                    const end = new Date(endDate as any);
+                    const end = new Date(endDate);
                     if (!isNaN(end.getTime())) {
                         end.setHours(23, 59, 59, 999);
                         dateFilter.lte = end;
@@ -75,13 +75,13 @@ export class LabService {
                 }
             }
 
-            logger.info({ where, query }, 'Fetching all lab orders');
+            logger.info({ context: 'LabService.getOrders', where, query }, 'Fetching all lab orders');
 
             const [orders, total] = await Promise.all([
                 prisma.labTestOrder.findMany({
                     where,
                     skip,
-                    take: limit,
+                    take: Number(limit),
                     orderBy: { createdAt: 'desc' },
                     include: {
                         patient: { select: { firstName: true, lastName: true } },
@@ -102,7 +102,7 @@ export class LabService {
                 totalPages: Math.ceil(total / Number(limit)),
             };
         } catch (error) {
-            logger.error({ error, query }, 'Failed to fetch lab orders');
+            logger.error({ context: 'LabService.getOrders', error, query }, 'Failed to fetch lab orders');
             throw error;
         }
     }
@@ -130,16 +130,17 @@ export class LabService {
             // Get staff ID from user ID
             const staff = await prisma.staff.findUnique({ where: { userId } });
             if (!staff) {
+                logger.warn({ userId }, 'Staff profile not found for my orders');
                 return {
                     items: [],
                     total: 0,
-                    page: (query.page as number) || 1,
-                    limit: (query.limit as number) || 10,
+                    page: Number(query.page) || 1,
+                    limit: Number(query.limit) || 10,
                     totalPages: 0,
                 };
             }
 
-            const { page, limit, status, priority, startDate, endDate } = query as Required<LabOrderQueryInput>;
+            const { page = 1, limit = 10, status, priority, startDate, endDate } = query;
             const skip = (Number(page) - 1) * Number(limit);
 
             const where: any = { orderedById: staff.id };
@@ -151,7 +152,7 @@ export class LabService {
                 const dateFilter: any = {};
                 
                 if (startDate) {
-                    const start = new Date(startDate as any);
+                    const start = new Date(startDate);
                     if (!isNaN(start.getTime())) {
                         start.setHours(0, 0, 0, 0);
                         dateFilter.gte = start;
@@ -159,7 +160,7 @@ export class LabService {
                 }
                 
                 if (endDate) {
-                    const end = new Date(endDate as any);
+                    const end = new Date(endDate);
                     if (!isNaN(end.getTime())) {
                         end.setHours(23, 59, 59, 999);
                         dateFilter.lte = end;
@@ -171,13 +172,13 @@ export class LabService {
                 }
             }
 
-            logger.info({ where, query, staffId: staff.id }, 'Fetching my lab orders');
+            logger.info({ context: 'LabService.getMyOrders', where, query, staffId: staff.id }, 'Fetching doctor specific lab orders');
 
             const [orders, total] = await Promise.all([
                 prisma.labTestOrder.findMany({
                     where,
                     skip,
-                    take: limit,
+                    take: Number(limit),
                     orderBy: { createdAt: 'desc' },
                     include: {
                         patient: { select: { firstName: true, lastName: true } },
@@ -198,7 +199,7 @@ export class LabService {
                 totalPages: Math.ceil(total / Number(limit)),
             };
         } catch (error) {
-            logger.error({ error, userId, query }, 'Failed to fetch my lab orders');
+            logger.error({ context: 'LabService.getMyOrders', error, userId, query }, 'Failed to fetch my lab orders');
             throw error;
         }
     }
