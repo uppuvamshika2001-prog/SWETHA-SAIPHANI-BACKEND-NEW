@@ -41,8 +41,8 @@ export class LabService {
     }
 
     async getOrders(query: LabOrderQueryInput): Promise<PaginatedResponse<LabOrderResponse>> {
-        const { page, limit, patientId, status, priority, startDate, endDate } = query;
-        const skip = (page - 1) * limit;
+        const { page, limit, patientId, status, priority, startDate, endDate } = query as Required<LabOrderQueryInput>;
+        const skip = (Number(page) - 1) * Number(limit);
 
         const where: Record<string, unknown> = {};
         if (patientId) where.patientId = patientId;
@@ -93,11 +93,11 @@ export class LabService {
         ]);
 
         return {
-            items: orders.map((o) => this.formatOrder(o)),
+            items: orders.map((o: any) => this.formatOrder(o)),
             total,
-            page,
-            limit,
-            totalPages: Math.ceil(total / limit),
+            page: Number(page),
+            limit: Number(limit),
+            totalPages: Math.ceil(total / Number(limit)),
         };
     }
 
@@ -128,14 +128,14 @@ export class LabService {
             return {
                 items: [],
                 total: 0,
-                page: query.page || 1,
-                limit: query.limit || 10,
+                page: (query.page as number) || 1,
+                limit: (query.limit as number) || 10,
                 totalPages: 0,
             };
         }
 
-        const { page, limit, status, priority, startDate, endDate } = query;
-        const skip = (page - 1) * limit;
+        const { page, limit, status, priority, startDate, endDate } = query as Required<LabOrderQueryInput>;
+        const skip = (Number(page) - 1) * Number(limit);
 
         const where: Record<string, unknown> = { orderedById: staff.id };
         if (status) where.status = status;
@@ -186,11 +186,11 @@ export class LabService {
         ]);
 
         return {
-            items: orders.map((o) => this.formatOrder(o)),
+            items: orders.map((o: any) => this.formatOrder(o)),
             total,
-            page,
-            limit,
-            totalPages: Math.ceil(total / limit),
+            page: Number(page),
+            limit: Number(limit),
+            totalPages: Math.ceil(total / Number(limit)),
         };
     }
 
@@ -303,7 +303,7 @@ export class LabService {
         }
 
         // Create result and update order status in a transaction
-        const result = await prisma.$transaction(async (tx) => {
+        const result = await prisma.$transaction(async (tx: any) => {
             // 1. Create the main LabTestResult entry (maintaining JSON for compatibility)
             const labResult = await tx.labTestResult.create({
                 data: {
