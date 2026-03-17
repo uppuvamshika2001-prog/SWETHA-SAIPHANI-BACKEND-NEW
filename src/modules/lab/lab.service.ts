@@ -254,6 +254,13 @@ export class LabService {
                 }
             });
 
+            console.log(`[LabService] getOrderParameters for ${orderId}:`, {
+                hasOrder: !!order,
+                testName: order?.testName,
+                hasTestTemplate: !!order?.test,
+                categoriesCount: order?.test?.categories?.length || 0
+            });
+
             if (!order) {
                 throw new NotFoundError('Lab order not found');
             }
