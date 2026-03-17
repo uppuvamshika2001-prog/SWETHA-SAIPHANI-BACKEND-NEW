@@ -55,7 +55,7 @@ export class LabService {
                 const dateFilter: any = {};
                 
                 if (startDate) {
-                    const start = new Date(startDate);
+                    const start = new Date(startDate as any);
                     if (!isNaN(start.getTime())) {
                         start.setHours(0, 0, 0, 0);
                         dateFilter.gte = start;
@@ -63,7 +63,7 @@ export class LabService {
                 }
                 
                 if (endDate) {
-                    const end = new Date(endDate);
+                    const end = new Date(endDate as any);
                     if (!isNaN(end.getTime())) {
                         end.setHours(23, 59, 59, 999);
                         dateFilter.lte = end;
@@ -151,7 +151,7 @@ export class LabService {
                 const dateFilter: any = {};
                 
                 if (startDate) {
-                    const start = new Date(startDate);
+                    const start = new Date(startDate as any);
                     if (!isNaN(start.getTime())) {
                         start.setHours(0, 0, 0, 0);
                         dateFilter.gte = start;
@@ -159,7 +159,7 @@ export class LabService {
                 }
                 
                 if (endDate) {
-                    const end = new Date(endDate);
+                    const end = new Date(endDate as any);
                     if (!isNaN(end.getTime())) {
                         end.setHours(23, 59, 59, 999);
                         dateFilter.lte = end;

@@ -93,7 +93,7 @@ export async function getLabOrders(
         // Returning data array directly as requested in senior engineer prompt
         sendSuccess(res, result.items);
     } catch (error: any) {
-        console.error(`[LabController] Request ${req.id} failed:`, error.stack || error);
+        console.error(`[LabController] Request ${req.headers['x-request-id'] || 'unknown'} failed:`, error.stack || error);
         next(error);
     }
 }
@@ -134,7 +134,7 @@ export async function getMyLabOrders(
         // Returning data array directly as requested in senior engineer prompt
         sendSuccess(res, result.items);
     } catch (error: any) {
-        console.error(`[LabController] Request ${req.id} failed:`, error.stack || error);
+        console.error(`[LabController] Request ${req.headers['x-request-id'] || 'unknown'} failed:`, error.stack || error);
         next(error);
     }
 }
