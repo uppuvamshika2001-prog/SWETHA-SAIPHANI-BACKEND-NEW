@@ -92,7 +92,8 @@ export async function getLabOrders(
         const result = await labService.getOrders(query);
         // Returning data array directly as requested in senior engineer prompt
         sendSuccess(res, result.items);
-    } catch (error) {
+    } catch (error: any) {
+        console.error(`[LabController] Request ${req.id} failed:`, error.stack || error);
         next(error);
     }
 }
@@ -132,7 +133,8 @@ export async function getMyLabOrders(
         const result = await labService.getMyOrders(req.user!.userId, query);
         // Returning data array directly as requested in senior engineer prompt
         sendSuccess(res, result.items);
-    } catch (error) {
+    } catch (error: any) {
+        console.error(`[LabController] Request ${req.id} failed:`, error.stack || error);
         next(error);
     }
 }

@@ -41,64 +41,70 @@ export class LabService {
     }
 
     async getOrders(query: LabOrderQueryInput): Promise<PaginatedResponse<LabOrderResponse>> {
-        const { page, limit, patientId, status, priority, startDate, endDate } = query as Required<LabOrderQueryInput>;
-        const skip = (Number(page) - 1) * Number(limit);
+        try {
+            const { page, limit, patientId, status, priority, startDate, endDate } = query as Required<LabOrderQueryInput>;
+            const skip = (Number(page) - 1) * Number(limit);
 
-        const where: Record<string, unknown> = {};
-        if (patientId) where.patientId = patientId;
-        if (status) where.status = status;
-        if (priority) where.priority = priority;
-        // Date Range Filtering
-        if (startDate || endDate) {
-            where.createdAt = {}; // Initialize the object
-            // For getOrders: Ensure we handle both strings and existing Date objects safely
-            if (startDate) {
-                const start = startDate instanceof Date ? new Date(startDate) : new Date(startDate as string);
-                if (!isNaN(start.getTime())) {
-                    start.setHours(0, 0, 0, 0);
-                    (where.createdAt as any).gte = start;
+            const where: any = {};
+            if (patientId) where.patientId = patientId;
+            if (status) where.status = status;
+            if (priority) where.priority = priority;
+
+            // Date Range Filtering with robust validation
+            if (startDate || endDate) {
+                const dateFilter: any = {};
+                
+                if (startDate) {
+                    const start = new Date(startDate);
+                    if (!isNaN(start.getTime())) {
+                        start.setHours(0, 0, 0, 0);
+                        dateFilter.gte = start;
+                    }
+                }
+                
+                if (endDate) {
+                    const end = new Date(endDate);
+                    if (!isNaN(end.getTime())) {
+                        end.setHours(23, 59, 59, 999);
+                        dateFilter.lte = end;
+                    }
+                }
+
+                if (Object.keys(dateFilter).length > 0) {
+                    where.createdAt = dateFilter;
                 }
             }
-            if (endDate) {
-                const end = endDate instanceof Date ? new Date(endDate) : new Date(endDate as string);
-                if (!isNaN(end.getTime())) {
-                    end.setHours(23, 59, 59, 999);
-                    (where.createdAt as any).lte = end;
-                }
-            }
-            // Cleanup empty object to prevent Prisma errors
-            if (Object.keys(where.createdAt as any).length === 0) {
-                delete where.createdAt;
-            }
+
+            logger.info({ where, query }, 'Fetching all lab orders');
+
+            const [orders, total] = await Promise.all([
+                prisma.labTestOrder.findMany({
+                    where,
+                    skip,
+                    take: limit,
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        patient: { select: { firstName: true, lastName: true } },
+                        orderedBy: { select: { firstName: true, lastName: true } },
+                        test: true,
+                        bill: true,
+                        result: true,
+                    },
+                }),
+                prisma.labTestOrder.count({ where }),
+            ]);
+
+            return {
+                items: orders.map((o: any) => this.formatOrder(o)),
+                total,
+                page: Number(page),
+                limit: Number(limit),
+                totalPages: Math.ceil(total / Number(limit)),
+            };
+        } catch (error) {
+            logger.error({ error, query }, 'Failed to fetch lab orders');
+            throw error;
         }
-
-        logger.info({ where, query }, 'Fetching all lab orders');
-
-        const [orders, total] = await Promise.all([
-            prisma.labTestOrder.findMany({
-                where,
-                skip,
-                take: limit,
-                orderBy: [
-                    { createdAt: 'desc' },
-                ],
-                include: {
-                    patient: { select: { firstName: true, lastName: true } },
-                    orderedBy: { select: { firstName: true, lastName: true } },
-                    bill: true,
-                    result: true,
-                },
-            }),
-            prisma.labTestOrder.count({ where }),
-        ]);
-
-        return {
-            items: orders.map((o: any) => this.formatOrder(o)),
-            total,
-            page: Number(page),
-            limit: Number(limit),
-            totalPages: Math.ceil(total / Number(limit)),
-        };
     }
 
     async getOrder(id: string): Promise<LabOrderResponse> {
@@ -120,78 +126,81 @@ export class LabService {
     }
 
     async getMyOrders(userId: string, query: LabOrderQueryInput): Promise<PaginatedResponse<LabOrderResponse>> {
-        // Get staff ID from user ID
-        const staff = await prisma.staff.findUnique({ where: { userId } });
-        if (!staff) {
-            // If no staff profile, return empty list instead of error
-            // This prevents frontend from breaking or looping if user is Admin without staff profile
+        try {
+            // Get staff ID from user ID
+            const staff = await prisma.staff.findUnique({ where: { userId } });
+            if (!staff) {
+                return {
+                    items: [],
+                    total: 0,
+                    page: (query.page as number) || 1,
+                    limit: (query.limit as number) || 10,
+                    totalPages: 0,
+                };
+            }
+
+            const { page, limit, status, priority, startDate, endDate } = query as Required<LabOrderQueryInput>;
+            const skip = (Number(page) - 1) * Number(limit);
+
+            const where: any = { orderedById: staff.id };
+            if (status) where.status = status;
+            if (priority) where.priority = priority;
+
+            // Date Range Filtering with robust validation
+            if (startDate || endDate) {
+                const dateFilter: any = {};
+                
+                if (startDate) {
+                    const start = new Date(startDate);
+                    if (!isNaN(start.getTime())) {
+                        start.setHours(0, 0, 0, 0);
+                        dateFilter.gte = start;
+                    }
+                }
+                
+                if (endDate) {
+                    const end = new Date(endDate);
+                    if (!isNaN(end.getTime())) {
+                        end.setHours(23, 59, 59, 999);
+                        dateFilter.lte = end;
+                    }
+                }
+
+                if (Object.keys(dateFilter).length > 0) {
+                    where.createdAt = dateFilter;
+                }
+            }
+
+            logger.info({ where, query, staffId: staff.id }, 'Fetching my lab orders');
+
+            const [orders, total] = await Promise.all([
+                prisma.labTestOrder.findMany({
+                    where,
+                    skip,
+                    take: limit,
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        patient: { select: { firstName: true, lastName: true } },
+                        orderedBy: { select: { firstName: true, lastName: true } },
+                        test: true,
+                        bill: true,
+                        result: true,
+                    },
+                }),
+                prisma.labTestOrder.count({ where }),
+            ]);
+
             return {
-                items: [],
-                total: 0,
-                page: (query.page as number) || 1,
-                limit: (query.limit as number) || 10,
-                totalPages: 0,
+                items: orders.map((o: any) => this.formatOrder(o)),
+                total,
+                page: Number(page),
+                limit: Number(limit),
+                totalPages: Math.ceil(total / Number(limit)),
             };
+        } catch (error) {
+            logger.error({ error, userId, query }, 'Failed to fetch my lab orders');
+            throw error;
         }
-
-        const { page, limit, status, priority, startDate, endDate } = query as Required<LabOrderQueryInput>;
-        const skip = (Number(page) - 1) * Number(limit);
-
-        const where: Record<string, unknown> = { orderedById: staff.id };
-        if (status) where.status = status;
-        if (priority) where.priority = priority;
-
-        // Date Range Filtering
-        if (startDate || endDate) {
-            where.createdAt = {}; // Initialize the object
-            // For getMyOrders: Ensure we handle both strings and existing Date objects safely
-            if (startDate) {
-                const start = startDate instanceof Date ? new Date(startDate) : new Date(startDate as string);
-                if (!isNaN(start.getTime())) {
-                    start.setHours(0, 0, 0, 0);
-                    (where.createdAt as any).gte = start;
-                }
-            }
-            if (endDate) {
-                const end = endDate instanceof Date ? new Date(endDate) : new Date(endDate as string);
-                if (!isNaN(end.getTime())) {
-                    end.setHours(23, 59, 59, 999);
-                    (where.createdAt as any).lte = end;
-                }
-            }
-            // Cleanup empty object to prevent Prisma errors
-            if (Object.keys(where.createdAt as any).length === 0) {
-                delete where.createdAt;
-            }
-        }
-
-        logger.info({ where, query, staffId: staff.id }, 'Fetching my lab orders');
-
-        const [orders, total] = await Promise.all([
-            prisma.labTestOrder.findMany({
-                where,
-                skip,
-                take: limit,
-                orderBy: [
-                    { createdAt: 'desc' },
-                ],
-                include: {
-                    patient: { select: { firstName: true, lastName: true } },
-                    orderedBy: { select: { firstName: true, lastName: true } },
-                    bill: true,
-                    result: true,
-                },
-            }),
-            prisma.labTestOrder.count({ where }),
-        ]);
-
-        return {
-            items: orders.map((o: any) => this.formatOrder(o)),
-            total,
-            page: Number(page),
-            limit: Number(limit),
-            totalPages: Math.ceil(total / Number(limit)),
-        };
     }
 
     async getOrderParameters(orderId: string) {
@@ -318,8 +327,8 @@ export class LabService {
             // 2. Create individual LabResult entries for structured data
             if (input.result.parameters && input.result.parameters.length > 0) {
                 const resultsData = input.result.parameters
-                    .filter(p => p.parameterId) // Only save if we have a parameterId
-                    .map(p => ({
+                    .filter((p: any) => p.parameterId) // Only save if we have a parameterId
+                    .map((p: any) => ({
                         orderId: input.orderId,
                         parameterId: p.parameterId!,
                         resultValue: p.value,
@@ -396,6 +405,7 @@ export class LabService {
         notes: string | null;
         patient: { firstName: string; lastName: string };
         orderedBy: { firstName: string; lastName: string };
+        test?: any | null;
         result: {
             id: string;
             orderId: string;
@@ -418,6 +428,7 @@ export class LabService {
             notes: order.notes,
             patient: order.patient,
             orderedBy: order.orderedBy,
+            test: order.test || null,
             result: order.result ? this.formatResult(order.result) : null,
             createdAt: order.createdAt,
         };
