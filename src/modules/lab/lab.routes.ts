@@ -14,7 +14,8 @@ import {
     updateLabTest,
     deleteLabTest,
     deleteLabOrder,
-    downloadLabReport
+    downloadLabReport,
+    confirmLabOrderPayment
 } from './lab.controller.js';
 import { authGuard } from '../../middleware/authGuard.js';
 import { roleGuard } from '../../middleware/roleGuard.js';
@@ -34,6 +35,7 @@ router.get('/orders/:id', roleGuard(UserRole.ADMIN, UserRole.DOCTOR, UserRole.LA
 router.get('/orders/:orderId/parameters', roleGuard(UserRole.ADMIN, UserRole.LAB_TECHNICIAN), getOrderParameters);
 router.patch('/orders/:id/status', roleGuard(UserRole.ADMIN, UserRole.LAB_TECHNICIAN, UserRole.RECEPTIONIST), updateLabOrderStatus);
 router.get('/orders/:id/report', roleGuard(UserRole.ADMIN, UserRole.DOCTOR, UserRole.LAB_TECHNICIAN, UserRole.PATIENT), downloadLabReport);
+router.patch('/orders/:id/confirm-payment', roleGuard(UserRole.ADMIN, UserRole.RECEPTIONIST), confirmLabOrderPayment);
 router.delete('/orders/:id', roleGuard(UserRole.ADMIN), deleteLabOrder);
 
 // Results - Lab Techs submit, Doctors can view

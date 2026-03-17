@@ -242,6 +242,37 @@ export async function updateLabOrderStatus(
 
 /**
  * @swagger
+ * /api/lab/orders/{id}/confirm-payment:
+ *   patch:
+ *     tags: [Lab]
+ *     summary: Confirm payment for a lab order
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Payment confirmed and order ready for collection
+ */
+export async function confirmLabOrderPayment(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const order = await labService.confirmPayment(req.params.id as string);
+        sendSuccess(res, order, 'Payment confirmed successfully');
+    } catch (error) {
+        next(error);
+    }
+}
+
+/**
+ * @swagger
  * /api/lab/results:
  *   post:
  *     tags: [Lab]

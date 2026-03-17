@@ -55,7 +55,7 @@ export class LabService {
                 testId: (input as any).testId,
                 priority: input.priority,
                 notes: input.notes,
-                status: 'PENDING',
+                status: 'PAYMENT_PENDING',
             } as any,
             include: {
                 patient: { select: { firstName: true, lastName: true } },
@@ -409,10 +409,43 @@ export class LabService {
         ]);
     }
 
+    async confirmPayment(id: string): Promise<LabOrderResponse> {
+        const order = await prisma.labTestOrder.findUnique({
+            where: { id },
+            include: { bill: true }
+        });
+
+        if (!order) {
+            throw new NotFoundError('Lab order not found');
+        }
+
+        if (order.status !== 'PAYMENT_PENDING') {
+            throw new ValidationError(`Cannot confirm payment for order in ${order.status} status`);
+        }
+
+        // Optional: Validate associated bill status if it exists
+        if (order.billId && order.bill?.status !== 'PAID') {
+            throw new ValidationError('Associated bill has not been paid yet');
+        }
+
+        const updatedOrder = await prisma.labTestOrder.update({
+            where: { id },
+            data: { status: 'READY_FOR_SAMPLE_COLLECTION' },
+            include: {
+                patient: { select: { firstName: true, lastName: true } },
+                orderedBy: { select: { firstName: true, lastName: true } },
+                bill: true,
+                result: true,
+            },
+        });
+
+        return this.formatOrder(updatedOrder);
+    }
+
     async updateOrderStatus(id: string, status: string): Promise<LabOrderResponse> {
         const order = await prisma.labTestOrder.update({
             where: { id },
-            data: { status: status as 'PAYMENT_PENDING' | 'READY_FOR_SAMPLE_COLLECTION' | 'ORDERED' | 'SAMPLE_COLLECTED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' },
+            data: { status: status as any },
             include: {
                 patient: { select: { firstName: true, lastName: true } },
                 orderedBy: { select: { firstName: true, lastName: true } },
