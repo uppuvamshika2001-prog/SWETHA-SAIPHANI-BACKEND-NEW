@@ -46,17 +46,33 @@ export class LabService {
             throw new NotFoundError('Patient not found');
         }
 
+        // Resolve test record to link master data
+        let resolvedTestId = input.testId;
+        if (!resolvedTestId) {
+            const resolvedTest = await prisma.labTest.findFirst({
+                where: {
+                    OR: [
+                        { code: input.testCode || '___NON_EXISTENT___' },
+                        { name: input.testName }
+                    ]
+                }
+            });
+            if (resolvedTest) {
+                resolvedTestId = resolvedTest.id;
+            }
+        }
+
         const order = await prisma.labTestOrder.create({
             data: {
                 patientId: input.patientId,
                 orderedById: doctorIdForOrder,
                 testName: input.testName,
                 testCode: input.testCode,
-                testId: (input as any).testId,
+                testId: resolvedTestId,
                 priority: input.priority,
                 notes: input.notes,
                 status: 'PAYMENT_PENDING',
-            } as any,
+            },
             include: {
                 patient: { select: { firstName: true, lastName: true } },
                 orderedBy: { select: { firstName: true, lastName: true } },
@@ -253,6 +269,36 @@ export class LabService {
                     }
                 }
             });
+
+            // Fallback: if order exists but test is null, try to resolve by testName/testCode
+            if (order && !order.test) {
+                const resolvedTest = await (prisma.labTest as any).findFirst({
+                    where: {
+                        OR: [
+                            { code: order.testCode || '___NON_EXISTENT___' },
+                            { name: order.testName }
+                        ]
+                    },
+                    include: {
+                        categories: {
+                            orderBy: { displayOrder: 'asc' },
+                            include: {
+                                parameters: {
+                                    orderBy: { displayOrder: 'asc' }
+                                }
+                            }
+                        }
+                    }
+                });
+                if (resolvedTest) {
+                    // Link it for future requests
+                    await prisma.labTestOrder.update({
+                        where: { id: orderId },
+                        data: { testId: resolvedTest.id }
+                    });
+                    (order as any).test = resolvedTest;
+                }
+            }
 
             console.log(`[LabService] getOrderParameters for ${orderId}:`, {
                 hasOrder: !!order,
@@ -561,9 +607,17 @@ export class LabService {
         return prisma.labTest.create({ data: input });
     }
 
-    async getAllTests() {
+    async getAllTests(search?: string) {
+        const where: any = { isActive: true };
+        if (search) {
+            where.OR = [
+                { name: { contains: search, mode: 'insensitive' } },
+                { code: { contains: search, mode: 'insensitive' } },
+                { department: { contains: search, mode: 'insensitive' } }
+            ];
+        }
         return prisma.labTest.findMany({
-            where: { isActive: true },
+            where,
             orderBy: { name: 'asc' }
         });
     }

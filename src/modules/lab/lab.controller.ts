@@ -405,7 +405,8 @@ export async function createLabTest(req: Request, res: Response, next: NextFunct
 
 export async function getLabTests(req: Request, res: Response, next: NextFunction) {
     try {
-        const tests = await labService.getAllTests();
+        const search = req.query.search as string | undefined;
+        const tests = await labService.getAllTests(search);
         sendSuccess(res, tests);
     } catch (error) {
         next(error);

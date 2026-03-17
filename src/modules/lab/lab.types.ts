@@ -18,6 +18,7 @@ export const createLabOrderSchema = z.object({
     patientId: z.string().min(1),
     testName: z.string().min(1, 'Test name is required'),
     testCode: z.string().optional(),
+    testId: z.string().optional(),
     doctorId: z.string().optional(),
     priority: z.enum(['normal', 'urgent', 'stat']).default('normal'),
     notes: z.string().optional(),

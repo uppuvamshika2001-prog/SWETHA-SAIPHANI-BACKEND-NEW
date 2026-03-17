@@ -17,7 +17,8 @@
     "verify:doctors": "tsx verify_doctors.ts",
     "cleanup:doctors": "tsx cleanup_doctors.ts",
     "seed:admin": "tsx prisma/seed-admin.ts",
-    "seed:master-lab": "tsx src/seed-master-lab-data.ts"
+    "seed:master-lab": "tsx src/seed-master-lab-data.ts",
+    "migrate:lab-orders": "tsx src/migrate-lab-orders.ts"
   },
   "keywords": [
     "hospital",
