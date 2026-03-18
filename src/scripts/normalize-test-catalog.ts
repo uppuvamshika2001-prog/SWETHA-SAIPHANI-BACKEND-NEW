@@ -36,7 +36,7 @@ async function normalize() {
     for (const [alias, masterCode] of Object.entries(normalizationMap)) {
         try {
             // Find the Master test
-            const masterTest = await prisma.labTest.findUnique({
+            const masterTest = await prisma.labTest.findFirst({
                 where: { code: masterCode }
             });
 

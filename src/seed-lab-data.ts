@@ -89,22 +89,29 @@ async function main() {
     ];
 
     for (const testData of tests) {
-        const test = await prisma.labTest.upsert({
-            where: { code: testData.code },
-            update: {
-                name: testData.name,
-                department: testData.department,
-                price: testData.price,
-                turnaround: testData.turnaround,
-            },
-            create: {
-                code: testData.code,
-                name: testData.name,
-                department: testData.department,
-                price: testData.price,
-                turnaround: testData.turnaround,
-            },
-        });
+        const existing = await prisma.labTest.findFirst({ where: { code: testData.code } });
+        let test;
+        if (existing) {
+            test = await prisma.labTest.update({
+                where: { id: existing.id },
+                data: {
+                    name: testData.name,
+                    department: testData.department,
+                    price: testData.price,
+                    turnaround: testData.turnaround,
+                },
+            });
+        } else {
+            test = await prisma.labTest.create({
+                data: {
+                    code: testData.code,
+                    name: testData.name,
+                    department: testData.department,
+                    price: testData.price,
+                    turnaround: testData.turnaround,
+                },
+            });
+        }
 
         console.log(`Working on parameters for: ${testData.name}`);
 
