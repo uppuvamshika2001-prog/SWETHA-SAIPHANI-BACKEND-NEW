@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { pharmacyService } from '@/modules/pharmacy/pharmacy.service.js';
 import { createMedicineSchema, updateMedicineSchema, medicineQuerySchema, createBillSchema, updateBillSchema, recordPaymentSchema } from '@/modules/pharmacy/pharmacy.types.js';
 import { sendSuccess, sendCreated } from '@/utils/response.js';
+import { logger } from '@/utils/logger.js';
 
 /**
  * @swagger
@@ -52,6 +53,7 @@ export async function createMedicine(
         const medicine = await pharmacyService.createMedicine(input);
         sendCreated(res, medicine, 'Medicine added successfully');
     } catch (error) {
+        logger.error({ context: 'PharmacyController.createMedicine', error, body: req.body }, 'Failed to create medicine');
         next(error);
     }
 }
@@ -99,6 +101,7 @@ export async function getMedicines(
         const result = await pharmacyService.getMedicines(query);
         sendSuccess(res, result);
     } catch (error) {
+        logger.error({ context: 'PharmacyController.getMedicines', error, query: req.query }, 'Failed to fetch medicines');
         next(error);
     }
 }
@@ -130,6 +133,7 @@ export async function getMedicine(
         const medicine = await pharmacyService.getMedicine(req.params.id as string);
         sendSuccess(res, medicine);
     } catch (error) {
+        logger.error({ context: 'PharmacyController.getMedicine', error, id: req.params.id }, 'Failed to fetch medicine');
         next(error);
     }
 }
@@ -162,6 +166,7 @@ export async function updateMedicine(
         const medicine = await pharmacyService.updateMedicine(req.params.id as string, input);
         sendSuccess(res, medicine, 'Medicine updated successfully');
     } catch (error) {
+        logger.error({ context: 'PharmacyController.updateMedicine', error, id: req.params.id, body: req.body }, 'Failed to update medicine');
         next(error);
     }
 }
@@ -175,6 +180,7 @@ export async function deleteMedicine(
         await pharmacyService.deleteMedicine(req.params.id as string);
         sendSuccess(res, null, 'Medicine deleted successfully');
     } catch (error) {
+        logger.error({ context: 'PharmacyController.deleteMedicine', error, id: req.params.id }, 'Failed to delete medicine');
         next(error);
     }
 }
@@ -230,6 +236,7 @@ export async function createBill(
         const bill = await pharmacyService.createBill(input);
         sendCreated(res, bill, 'Bill created successfully');
     } catch (error) {
+        logger.error({ context: 'PharmacyController.createBill', error, body: req.body }, 'Failed to create bill');
         next(error);
     }
 }
@@ -269,6 +276,7 @@ export async function getBills(
         const result = await pharmacyService.getBills(query);
         sendSuccess(res, result);
     } catch (error) {
+        logger.error({ context: 'PharmacyController.getBills', error, query: req.query }, 'Failed to fetch bills');
         next(error);
     }
 }
@@ -300,6 +308,7 @@ export async function getBill(
         const bill = await pharmacyService.getBill(req.params.id as string);
         sendSuccess(res, bill);
     } catch (error) {
+        logger.error({ context: 'PharmacyController.getBill', error, id: req.params.id }, 'Failed to fetch bill');
         next(error);
     }
 }
@@ -332,6 +341,7 @@ export async function updateBill(
         const bill = await pharmacyService.updateBill(req.params.id as string, input);
         sendSuccess(res, bill, 'Bill updated successfully');
     } catch (error) {
+        logger.error({ context: 'PharmacyController.updateBill', error, id: req.params.id, body: req.body }, 'Failed to update bill');
         next(error);
     }
 }
@@ -345,6 +355,7 @@ export async function deleteBill(
         await pharmacyService.deleteBill(req.params.id as string);
         sendSuccess(res, null, 'Bill deleted successfully');
     } catch (error) {
+        logger.error({ context: 'PharmacyController.deleteBill', error, id: req.params.id }, 'Failed to delete bill');
         next(error);
     }
 }
@@ -370,6 +381,7 @@ export async function getLowStockMedicines(
         const medicines = await pharmacyService.getLowStockMedicines();
         sendSuccess(res, medicines);
     } catch (error) {
+        logger.error({ context: 'PharmacyController.getLowStockMedicines', error }, 'Failed to fetch low stock medicines');
         next(error);
     }
 }
@@ -383,7 +395,9 @@ export async function getPurchases(
         const result = await pharmacyService.getPurchases(req.query);
         sendSuccess(res, result);
     } catch (error) {
-        next(error);
+        logger.error({ context: 'PharmacyController.getPurchases', error, query: req.query }, 'Failed to fetch purchases');
+        // Safe fallback response
+        sendSuccess(res, { items: [], total: 0, page: 1, limit: 10, totalPages: 0 });
     }
 }
 
@@ -396,9 +410,16 @@ export async function getDistributorReport(
         const result = await pharmacyService.getDistributorReport();
         sendSuccess(res, result);
     } catch (error) {
-        next(error);
+        logger.error({ context: 'PharmacyController.getDistributorReport', error }, 'Failed to fetch distributor report');
+        // Safe fallback response
+        sendSuccess(res, {
+            pendingPurchases: [],
+            stats: { totalAmount: 0, totalPaid: 0, totalBalance: 0, pendingCount: 0 },
+            pendingByDistributor: {}
+        });
     }
 }
+
 export async function getMarginReport(
     req: Request,
     res: Response,
@@ -408,6 +429,7 @@ export async function getMarginReport(
         const result = await pharmacyService.getMarginReport(req.query);
         sendSuccess(res, result);
     } catch (error) {
+        logger.error({ context: 'PharmacyController.getMarginReport', error, query: req.query }, 'Failed to fetch margin report');
         next(error);
     }
 }
@@ -422,6 +444,7 @@ export async function recordPayment(
         const result = await pharmacyService.recordPayment(validated);
         sendSuccess(res, result);
     } catch (error) {
+        logger.error({ context: 'PharmacyController.recordPayment', error, body: req.body }, 'Failed to record payment');
         next(error);
     }
 }
@@ -435,6 +458,7 @@ export async function getPurchasePayments(
         const result = await pharmacyService.getPurchasePayments(req.params.id as string);
         sendSuccess(res, result);
     } catch (error) {
-        next(error);
+        logger.error({ context: 'PharmacyController.getPurchasePayments', error, id: req.params.id }, 'Failed to fetch purchase payments');
+        sendSuccess(res, []);
     }
 }

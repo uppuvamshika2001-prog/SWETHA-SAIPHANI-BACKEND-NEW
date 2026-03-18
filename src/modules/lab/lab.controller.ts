@@ -46,6 +46,7 @@ export async function createLabOrder(
         const order = await labService.createOrder(req.user!.userId, req.user!.role, input);
         sendCreated(res, order, 'Lab order created successfully');
     } catch (error) {
+        logger.error({ context: 'LabController.createLabOrder', error, body: req.body }, 'Failed to create lab order');
         next(error);
     }
 }
@@ -97,6 +98,7 @@ export async function getLabOrders(
         logger.error({ 
             context: 'LabController.getLabOrders',
             requestId,
+            query: req.query,
             error: error.message,
             code: error.code,
             stack: error.stack 
@@ -144,6 +146,7 @@ export async function getMyLabOrders(
         logger.error({ 
             context: 'LabController.getMyLabOrders',
             requestId,
+            query: req.query,
             error: error.message,
             code: error.code,
             stack: error.stack 
@@ -179,6 +182,7 @@ export async function getLabOrder(
         const order = await labService.getOrder(req.params.id as string);
         sendSuccess(res, order);
     } catch (error) {
+        logger.error({ context: 'LabController.getLabOrder', error, orderId: req.params.id }, 'Failed to get lab order');
         next(error);
     }
 }
@@ -192,7 +196,7 @@ export async function getOrderParameters(
         const parameters = await labService.getOrderParameters(req.params.orderId as string);
         res.status(200).json(parameters); // Return direct JSON to match frontend expectations
     } catch (error) {
-        console.error(`[LabController] Error fetching parameters for order ${req.params.orderId}:`, error);
+        logger.error({ context: 'LabController.getOrderParameters', error, orderId: req.params.orderId }, `Error fetching parameters for order ${req.params.orderId}`);
         next(error);
     }
 }
@@ -221,7 +225,7 @@ export async function getOrderParameters(
  *             properties:
  *               status:
  *                 type: string
- *                 enum: [ORDERED, SAMPLE_COLLECTED, IN_PROGRESS, COMPLETED, CANCELLED]
+ *                 enum: [ORDERED, PAYMENT_PENDING, READY_FOR_SAMPLE_COLLECTION, SAMPLE_COLLECTED, IN_PROGRESS, COMPLETED, CANCELLED]
  *     responses:
  *       200:
  *         description: Order status updated
@@ -236,6 +240,7 @@ export async function updateLabOrderStatus(
         const order = await labService.updateOrderStatus(req.params.id as string, status);
         sendSuccess(res, order, 'Order status updated');
     } catch (error) {
+        logger.error({ context: 'LabController.updateLabOrderStatus', error, orderId: req.params.id, body: req.body }, 'Failed to update lab order status');
         next(error);
     }
 }
@@ -267,6 +272,7 @@ export async function confirmLabOrderPayment(
         const order = await labService.confirmPayment(req.params.id as string);
         sendSuccess(res, order, 'Payment confirmed successfully');
     } catch (error) {
+        logger.error({ context: 'LabController.confirmLabOrderPayment', error, orderId: req.params.id }, 'Failed to confirm lab order payment');
         next(error);
     }
 }
@@ -325,6 +331,7 @@ export async function submitLabResult(
         const result = await labService.submitResult(req.user!.userId, input);
         sendCreated(res, result, 'Lab result submitted successfully');
     } catch (error) {
+        logger.error({ context: 'LabController.submitLabResult', error, body: req.body }, 'Failed to submit lab result');
         next(error);
     }
 }
@@ -356,6 +363,7 @@ export async function getLabResult(
         const result = await labService.getResult(req.params.id as string);
         sendSuccess(res, result);
     } catch (error) {
+        logger.error({ context: 'LabController.getLabResult', error, resultId: req.params.id }, 'Failed to get lab result');
         next(error);
     }
 }
@@ -387,6 +395,7 @@ export async function deleteLabResult(
         await labService.deleteResult(req.params.id as string);
         sendSuccess(res, null, 'Lab result deleted successfully');
     } catch (error) {
+        logger.error({ context: 'LabController.deleteLabResult', error, resultId: req.params.id }, 'Failed to delete lab result');
         next(error);
     }
 }
@@ -399,6 +408,7 @@ export async function createLabTest(req: Request, res: Response, next: NextFunct
         const test = await labService.createTest(input);
         sendCreated(res, test, 'Lab test created successfully');
     } catch (error) {
+        logger.error({ context: 'LabController.createLabTest', error, body: req.body }, 'Failed to create lab test');
         next(error);
     }
 }
@@ -409,6 +419,7 @@ export async function getLabTests(req: Request, res: Response, next: NextFunctio
         const tests = await labService.getAllTests(search);
         sendSuccess(res, tests);
     } catch (error) {
+        logger.error({ context: 'LabController.getLabTests', error, query: req.query }, 'Failed to fetch lab tests');
         next(error);
     }
 }
@@ -419,6 +430,7 @@ export async function updateLabTest(req: Request, res: Response, next: NextFunct
         const test = await labService.updateTest(req.params.id as string, input);
         sendSuccess(res, test, 'Lab test updated successfully');
     } catch (error) {
+        logger.error({ context: 'LabController.updateLabTest', error, testId: req.params.id, body: req.body }, 'Failed to update lab test');
         next(error);
     }
 }
@@ -428,6 +440,7 @@ export async function deleteLabTest(req: Request, res: Response, next: NextFunct
         await labService.deleteTest(req.params.id as string);
         sendSuccess(res, null, 'Lab test deleted successfully');
     } catch (error) {
+        logger.error({ context: 'LabController.deleteLabTest', error, testId: req.params.id }, 'Failed to delete lab test');
         next(error);
     }
 }
@@ -455,6 +468,7 @@ export async function deleteLabOrder(req: Request, res: Response, next: NextFunc
         await labService.deleteTestOrder(req.params.id as string);
         sendSuccess(res, null, 'Lab order deleted successfully');
     } catch (error) {
+        logger.error({ context: 'LabController.deleteLabOrder', error, orderId: req.params.id }, 'Failed to delete lab order');
         next(error);
     }
 }
@@ -468,6 +482,7 @@ export async function downloadLabReport(req: Request, res: Response, next: NextF
         res.setHeader('Content-Disposition', `attachment; filename=Lab_Report_${id}.pdf`);
         res.send(pdfBuffer);
     } catch (error) {
+        logger.error({ context: 'LabController.downloadLabReport', error, reportId: req.params.id }, 'Failed to download lab report');
         next(error);
     }
 }

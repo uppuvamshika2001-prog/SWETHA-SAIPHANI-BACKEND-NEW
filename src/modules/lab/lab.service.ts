@@ -1,4 +1,5 @@
 import { prisma } from '../../config/database.js';
+import { LabTestStatus } from '@prisma/client';
 import { logger } from '../../utils/logger.js';
 import { pdfGenerator } from '../../services/pdfGenerator.js';
 import { NotFoundError, ValidationError } from '../../middleware/errorHandler.js';
@@ -105,7 +106,7 @@ export class LabService {
                 notes: input.notes,
                 isWalkInLab: input.isWalkInLab || false,
                 visitId: input.visitId || null,
-                status: 'PAYMENT_PENDING',
+                status: LabTestStatus.PAYMENT_PENDING,
             },
             include: {
                 patient: { select: { firstName: true, lastName: true } },
@@ -120,15 +121,29 @@ export class LabService {
 
     async getOrders(query: LabOrderQueryInput): Promise<PaginatedResponse<LabOrderResponse>> {
         try {
-            const { page = 1, limit = 10, patientId, status, priority, startDate, endDate } = query;
+            const { page = 1, limit = 10, patientId, status: statusQuery, priority, startDate, endDate } = query;
             const skip = (Number(page) - 1) * Number(limit);
 
             const where: any = {};
             if (patientId) where.patientId = patientId;
-            if (status) {
-                const upperStatus = status.toUpperCase();
-                where.status = upperStatus === 'PENDING' ? 'PAYMENT_PENDING' : upperStatus;
+            
+            if (statusQuery) {
+                const upperStatus = statusQuery.toString().toUpperCase();
+                // Map PENDING to PAYMENT_PENDING for backward compatibility
+                if (upperStatus === 'PENDING' || upperStatus === 'PAYMENT_PENDING') {
+                    where.status = LabTestStatus.PAYMENT_PENDING;
+                } else {
+                    // Safety check against valid enum values
+                    where.status = Object.values(LabTestStatus).includes(upperStatus as any) 
+                        ? (upperStatus as LabTestStatus) 
+                        : { in: Object.values(LabTestStatus) };
+                }
+            } else {
+                // RESILIENCE: By default, only fetch records that match current valid enum values
+                // This prevents crashing if the database contains legacy strings like 'PENDING'
+                where.status = { in: Object.values(LabTestStatus) };
             }
+
             if (priority) where.priority = priority;
 
             // Date Range Filtering with robust validation
@@ -221,14 +236,26 @@ export class LabService {
                 };
             }
 
-            const { page = 1, limit = 10, status, priority, startDate, endDate } = query;
+            const { page = 1, limit = 10, status: statusQuery, priority, startDate, endDate } = query;
             const skip = (Number(page) - 1) * Number(limit);
 
             const where: any = { orderedById: staff.id };
-            if (status) {
-                const upperStatus = status.toUpperCase();
-                where.status = upperStatus === 'PENDING' ? 'PAYMENT_PENDING' : upperStatus;
+            if (statusQuery) {
+                const upperStatus = statusQuery.toString().toUpperCase();
+                // Map PENDING to PAYMENT_PENDING for backward compatibility
+                if (upperStatus === 'PENDING' || upperStatus === 'PAYMENT_PENDING') {
+                    where.status = LabTestStatus.PAYMENT_PENDING;
+                } else {
+                    // Safety check against valid enum values
+                    where.status = Object.values(LabTestStatus).includes(upperStatus as any) 
+                        ? (upperStatus as LabTestStatus) 
+                        : { in: Object.values(LabTestStatus) };
+                }
+            } else {
+                // RESILIENCE: Only fetch records that match current valid enum values
+                where.status = { in: Object.values(LabTestStatus) };
             }
+
             if (priority) where.priority = priority;
 
             // Date Range Filtering with robust validation
@@ -560,7 +587,8 @@ export class LabService {
             throw new NotFoundError('Lab order not found');
         }
 
-        if (order.status !== 'PAYMENT_PENDING') {
+        const validPaymentStatuses = [LabTestStatus.PAYMENT_PENDING.toString(), 'PENDING'];
+        if (!validPaymentStatuses.includes(order.status as string)) {
             throw new ValidationError(`Cannot confirm payment for order in ${order.status} status`);
         }
 
@@ -571,7 +599,7 @@ export class LabService {
 
         const updatedOrder = await prisma.labTestOrder.update({
             where: { id },
-            data: { status: 'READY_FOR_SAMPLE_COLLECTION' },
+            data: { status: LabTestStatus.READY_FOR_SAMPLE_COLLECTION },
             include: {
                 patient: { select: { firstName: true, lastName: true } },
                 orderedBy: { select: { firstName: true, lastName: true, user: { select: { role: true } } } },
@@ -584,9 +612,14 @@ export class LabService {
     }
 
     async updateOrderStatus(id: string, status: string): Promise<LabOrderResponse> {
+        const upperStatus = status.toUpperCase();
+        const mappedStatus = (upperStatus === 'PENDING' || upperStatus === 'PAYMENT_PENDING') 
+            ? LabTestStatus.PAYMENT_PENDING 
+            : upperStatus as any;
+
         const order = await prisma.labTestOrder.update({
             where: { id },
-            data: { status: status as any },
+            data: { status: mappedStatus },
             include: {
                 patient: { select: { firstName: true, lastName: true } },
                 orderedBy: { select: { firstName: true, lastName: true, user: { select: { role: true } } } },

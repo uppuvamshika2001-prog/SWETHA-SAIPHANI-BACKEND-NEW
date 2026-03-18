@@ -892,16 +892,7 @@ export class PharmacyService {
         });
     }
 
-    async getPurchasePayments(purchaseId: string): Promise<any[]> {
-        const payments = await (prisma as any).pharmacyPayment.findMany({
-            where: { purchaseId },
-            orderBy: { paymentDate: 'desc' }
-        });
-        return payments.map((p: any) => ({
-            ...p,
-            amount: Number(p.amount)
-        }));
-    }
+
 
     private formatStockReturn(sReturn: any): PharmacyStockReturnResponse {
         return {
@@ -1025,119 +1016,159 @@ export class PharmacyService {
     }
 
     async getPurchases(input: any): Promise<PaginatedResponse<PharmacyPurchaseResponse>> {
-        const { page = 1, limit = 10, distributor, status } = input;
-        const skip = (page - 1) * limit;
+        try {
+            const { page = 1, limit = 10, distributor, status } = input || {};
+            const skip = (Number(page) - 1) * Number(limit);
 
-        const where: any = {};
-        if (distributor) where.distributorName = { contains: distributor, mode: 'insensitive' };
-        if (status) where.paymentStatus = status;
+            const where: any = {};
+            if (distributor) where.distributorName = { contains: distributor, mode: 'insensitive' };
+            if (status) where.paymentStatus = status;
 
-        const [purchases, total] = await Promise.all([
-            (prisma as any).pharmacyPurchase.findMany({
-                where,
-                skip,
-                take: limit,
-                orderBy: { purchaseDate: 'desc' },
-                include: { 
-                    batches: { include: { medicine: true } },
-                    payments: true // Include payments to calculate derived totals
-                }
-            }),
-            (prisma as any).pharmacyPurchase.count({ where })
-        ]);
+            const [purchases, total] = await Promise.all([
+                (prisma as any).pharmacyPurchase.findMany({
+                    where,
+                    skip,
+                    take: Number(limit),
+                    orderBy: { purchaseDate: 'desc' },
+                    include: { 
+                        batches: { include: { medicine: true } },
+                        payments: true
+                    }
+                }),
+                (prisma as any).pharmacyPurchase.count({ where })
+            ]);
 
-        return {
-            items: purchases.map((p: any) => {
-                const totalPaidFromPayments = p.payments.reduce((sum: number, pay: any) => sum + Number(pay.amount), 0);
-                // If the stored amountPaid is out of sync (e.g. legacy data), use the derived one
-                const amountPaid = totalPaidFromPayments;
-                const balanceAmount = Number(p.totalAmount) - amountPaid;
-                
-                return this.formatPurchase({
-                    ...p,
-                    amountPaid,
-                    balanceAmount,
-                    paymentStatus: balanceAmount <= 0 ? 'PAID' : (amountPaid > 0 ? 'PARTIALLY_PAID' : 'PENDING')
-                });
-            }),
-            total,
-            page: Number(page),
-            limit: Number(limit),
-            totalPages: Math.ceil(total / Number(limit)),
-        };
+            return {
+                items: (purchases || []).map((p: any) => {
+                    const payments = p.payments || [];
+                    const totalPaidFromPayments = payments.reduce((sum: number, pay: any) => sum + Number(pay.amount || 0), 0);
+                    const amountPaid = totalPaidFromPayments;
+                    const balanceAmount = Number(p.totalAmount || 0) - amountPaid;
+                    
+                    return this.formatPurchase({
+                        ...p,
+                        amountPaid,
+                        balanceAmount,
+                        paymentStatus: balanceAmount <= 0 ? 'PAID' : (amountPaid > 0 ? 'PARTIALLY_PAID' : 'PENDING')
+                    });
+                }),
+                total: total || 0,
+                page: Number(page),
+                limit: Number(limit),
+                totalPages: Math.ceil((total || 0) / Number(limit)),
+            };
+        } catch (error) {
+            console.error('[PharmacyService] getPurchases failed:', error);
+            return {
+                items: [],
+                total: 0,
+                page: Number(input?.page || 1),
+                limit: Number(input?.limit || 10),
+                totalPages: 0,
+            };
+        }
     }
 
     async getDistributorReport(): Promise<any> {
-        const pendingPurchases = await (prisma as any).pharmacyPurchase.findMany({
-            where: { paymentStatus: { in: ['PENDING', 'PARTIALLY_PAID'] } },
-            orderBy: { purchaseDate: 'asc' }
-        });
+        try {
+            const pendingPurchases = await (prisma as any).pharmacyPurchase.findMany({
+                where: { paymentStatus: { in: ['PENDING', 'PARTIALLY_PAID'] } },
+                orderBy: { purchaseDate: 'asc' }
+            });
 
-        // Source of truth totals from aggregate across all records
-        const [purchaseStats, paymentStats] = await Promise.all([
-            (prisma as any).pharmacyPurchase.aggregate({
-                _sum: { totalAmount: true }
-            }),
-            (prisma as any).pharmacyPayment.aggregate({
-                _sum: { amount: true }
-            })
-        ]);
+            // Source of truth totals from aggregate across all records
+            const [purchaseStats, paymentStats] = await Promise.all([
+                (prisma as any).pharmacyPurchase.aggregate({
+                    _sum: { totalAmount: true }
+                }),
+                (prisma as any).pharmacyPayment.aggregate({
+                    _sum: { amount: true }
+                })
+            ]);
 
-        const totalAmount = Number(purchaseStats._sum.totalAmount) || 0;
-        const totalPaid = Number(paymentStats._sum.amount) || 0;
-        const totalBalance = totalAmount - totalPaid;
+            const totalAmount = Number(purchaseStats?._sum?.totalAmount) || 0;
+            const totalPaid = Number(paymentStats?._sum?.amount) || 0;
+            const totalBalance = totalAmount - totalPaid;
 
-        // Group pending by distributor
-        const pendingByDistributor: Record<string, { count: number; totalBalance: number }> = {};
-        pendingPurchases.forEach((p: any) => {
-            const name = p.distributorName || 'Unknown';
-            if (!pendingByDistributor[name]) {
-                pendingByDistributor[name] = { count: 0, totalBalance: 0 };
-            }
-            pendingByDistributor[name].count += 1;
-            pendingByDistributor[name].totalBalance += Number(p.balanceAmount) || 0;
-        });
+            // Group pending by distributor
+            const pendingByDistributor: Record<string, { count: number; totalBalance: number }> = {};
+            (pendingPurchases || []).forEach((p: any) => {
+                const name = p.distributorName || 'Unknown';
+                if (!pendingByDistributor[name]) {
+                    pendingByDistributor[name] = { count: 0, totalBalance: 0 };
+                }
+                pendingByDistributor[name].count += 1;
+                pendingByDistributor[name].totalBalance += Number(p.balanceAmount) || 0;
+            });
 
-        return {
-            pendingPurchases: pendingPurchases.map((p: any) => {
-                // Sync pending purchases specifically ensuring balance is correct
-                const amountPaid = Number(p.amountPaid);
-                const totalAmount = Number(p.totalAmount);
-                const balanceAmount = totalAmount - amountPaid;
-                return this.formatPurchase({
-                    ...p,
-                    balanceAmount
-                });
-            }),
-            stats: {
-                totalAmount,
-                totalPaid,
-                totalBalance,
-                pendingCount: pendingPurchases.length
-            },
-            pendingByDistributor
-        };
+            return {
+                pendingPurchases: (pendingPurchases || []).map((p: any) => {
+                    const amountPaid = Number(p.amountPaid) || 0;
+                    const totalAmt = Number(p.totalAmount) || 0;
+                    const balanceAmount = totalAmt - amountPaid;
+                    return this.formatPurchase({
+                        ...p,
+                        balanceAmount
+                    });
+                }),
+                stats: {
+                    totalAmount,
+                    totalPaid,
+                    totalBalance,
+                    pendingCount: (pendingPurchases || []).length
+                },
+                pendingByDistributor
+            };
+        } catch (error) {
+            console.error('[PharmacyService] getDistributorReport failed:', error);
+            return {
+                pendingPurchases: [],
+                stats: {
+                    totalAmount: 0,
+                    totalPaid: 0,
+                    totalBalance: 0,
+                    pendingCount: 0
+                },
+                pendingByDistributor: {}
+            };
+        }
+    }
+
+    async getPurchasePayments(purchaseId: string): Promise<any[]> {
+        try {
+            const payments = await (prisma as any).pharmacyPayment.findMany({
+                where: { purchaseId },
+                orderBy: { paymentDate: 'desc' }
+            });
+            return (payments || []).map((p: any) => ({
+                ...p,
+                amount: Number(p.amount || 0)
+            }));
+        } catch (error) {
+            console.error('[PharmacyService] getPurchasePayments failed:', error);
+            return [];
+        }
     }
 
     private formatPurchase(purchase: any): PharmacyPurchaseResponse {
         return {
             id: purchase.id,
-            distributorName: purchase.distributorName,
-            invoiceNumber: purchase.invoiceNumber,
+            distributorName: purchase.distributorName || '',
+            invoiceNumber: purchase.invoiceNumber || '',
             purchaseDate: purchase.purchaseDate,
-            totalAmount: Number(purchase.totalAmount),
-            amountPaid: Number(purchase.amountPaid),
-            balanceAmount: Number(purchase.balanceAmount),
-            paymentStatus: purchase.paymentStatus,
-            paymentDate: purchase.paymentDate,
-            paymentMethod: purchase.paymentMethod,
+            totalAmount: Number(purchase.totalAmount) || 0,
+            amountPaid: Number(purchase.amountPaid) || 0,
+            balanceAmount: Number(purchase.balanceAmount) || 0,
+            paymentStatus: purchase.paymentStatus || 'PENDING',
+            paymentDate: purchase.paymentDate || null,
+            paymentMethod: purchase.paymentMethod || null,
             createdAt: purchase.createdAt,
             updatedAt: purchase.updatedAt,
-            batches: purchase.batches?.map((b: any) => ({
+            batches: (purchase.batches || []).map((b: any) => ({
                 id: b.id,
                 batchNumber: b.batchNumber,
                 medicineName: b.medicine?.name || 'Unknown',
-                stockQuantity: b.stockQuantity
+                stockQuantity: b.stockQuantity || 0
             }))
         };
     }

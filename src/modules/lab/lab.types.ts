@@ -1,17 +1,8 @@
 import { z } from 'zod';
 
-// Enum for Lab Test Status (mirroring Prisma schema)
-export type LabTestStatus = 'ORDERED' | 'SAMPLE_COLLECTED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'PAYMENT_PENDING' | 'READY_FOR_SAMPLE_COLLECTION';
+import { LabTestStatus } from '@prisma/client';
 
-export const LabTestStatus = {
-    ORDERED: 'ORDERED',
-    SAMPLE_COLLECTED: 'SAMPLE_COLLECTED',
-    IN_PROGRESS: 'IN_PROGRESS',
-    COMPLETED: 'COMPLETED',
-    CANCELLED: 'CANCELLED',
-    PAYMENT_PENDING: 'PAYMENT_PENDING',
-    READY_FOR_SAMPLE_COLLECTION: 'READY_FOR_SAMPLE_COLLECTION'
-} as const;
+export { LabTestStatus };
 
 export const createLabOrderSchema = z.object({
     patientId: z.string().min(1),
@@ -46,7 +37,7 @@ export const labOrderQuerySchema = z.object({
     page: z.coerce.number().int().positive().default(1),
     limit: z.coerce.number().int().positive().max(100).default(10),
     patientId: z.string().optional(),
-    status: z.enum(['ORDERED', 'SAMPLE_COLLECTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'PAYMENT_PENDING', 'READY_FOR_SAMPLE_COLLECTION']).optional(),
+    status: z.nativeEnum(LabTestStatus).optional(),
     priority: z.enum(['normal', 'urgent', 'stat']).optional(),
     startDate: z.coerce.date().optional(),
     endDate: z.coerce.date().optional(),
