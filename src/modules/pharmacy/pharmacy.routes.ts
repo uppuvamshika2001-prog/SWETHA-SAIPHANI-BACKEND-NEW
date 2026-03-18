@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { createMedicine, getMedicines, getMedicine, updateMedicine, deleteMedicine, createBill, getBills, getBill, updateBill, deleteBill, getLowStockMedicines, getDistributorReport, getPurchases, getMarginReport, recordPayment, getPurchasePayments } from './pharmacy.controller.js';
-import { getPendingPrescriptions } from '../doctors/doctors.controller.js';
+import { getPendingPrescriptions, getDispensedHistory, getPharmacyStats } from '../doctors/doctors.controller.js';
 import { authGuard } from '../../middleware/authGuard.js';
 import { roleGuard } from '../../middleware/roleGuard.js';
 import { UserRole } from '@prisma/client';
@@ -12,6 +12,8 @@ router.use(roleGuard(UserRole.ADMIN, UserRole.PHARMACIST));
 
 // Pending Orders (Queue) - Added here to match /api/pharmacy/pending
 router.get('/pending', getPendingPrescriptions);
+router.get('/dispensed-history', getDispensedHistory);
+router.get('/stats', getPharmacyStats);
 
 // Medicines
 router.post('/medicines', createMedicine);

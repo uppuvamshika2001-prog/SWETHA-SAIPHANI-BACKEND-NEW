@@ -288,3 +288,29 @@ export async function getPendingPrescriptions(
         next(error);
     }
 }
+
+export async function getDispensedHistory(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const records = await doctorsService.getDispensedHistory();
+        sendSuccess(res, records);
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getPharmacyStats(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const stats = await doctorsService.getPharmacyStats();
+        sendSuccess(res, stats);
+    } catch (error) {
+        next(error);
+    }
+}

@@ -815,9 +815,16 @@ export class PharmacyService {
 
             if (!purchase) throw new NotFoundError('Purchase not found');
 
-            const currentBalance = Number(purchase.balanceAmount);
+            // SYNC CHECK: Calculate current balance from actual payments
+            const paymentHistory = await (tx as any).pharmacyPayment.aggregate({
+                where: { purchaseId },
+                _sum: { amount: true }
+            });
+            const totalPaidSoFar = Number(paymentHistory._sum.amount) || 0;
+            const currentBalance = Number(purchase.totalAmount) - totalPaidSoFar;
+
             if (amount > currentBalance) {
-                throw new ValidationError(`Paid amount (₹${amount}) cannot exceed current balance (₹${currentBalance})`);
+                throw new ValidationError(`Paid amount (₹${amount}) cannot exceed current balance (₹${currentBalance.toFixed(2)})`);
             }
 
             // Record the payment
@@ -831,23 +838,57 @@ export class PharmacyService {
                 }
             });
 
-            // Update purchase record
-            const newAmountPaid = Number(purchase.amountPaid) + amount;
-            const newBalance = Number(purchase.totalAmount) - newAmountPaid;
+            // Update purchase record with synced values
+            const newTotalPaid = totalPaidSoFar + amount;
+            const newBalance = Number(purchase.totalAmount) - newTotalPaid;
             let status = 'PENDING';
             if (newBalance <= 0) status = 'PAID';
-            else if (newAmountPaid > 0) status = 'PARTIALLY_PAID';
+            else if (newTotalPaid > 0) status = 'PARTIALLY_PAID';
 
             await (tx as any).pharmacyPurchase.update({
                 where: { id: purchaseId },
                 data: {
-                    amountPaid: new Decimal(newAmountPaid),
+                    amountPaid: new Decimal(newTotalPaid),
                     balanceAmount: new Decimal(newBalance),
                     paymentStatus: status
                 }
             });
 
             return payment;
+        });
+    }
+
+    /**
+     * Helper to ensure a purchase record's totals match its payment history
+     */
+    async syncPurchaseTotals(purchaseId: string): Promise<void> {
+        await prisma.$transaction(async (tx) => {
+            const purchase = await (tx as any).pharmacyPurchase.findUnique({
+                where: { id: purchaseId }
+            });
+            if (!purchase) return;
+
+            const paymentHistory = await (tx as any).pharmacyPayment.aggregate({
+                where: { purchaseId },
+                _sum: { amount: true }
+            });
+
+            const totalAmount = Number(purchase.totalAmount);
+            const amountPaid = Number(paymentHistory._sum.amount) || 0;
+            const balanceAmount = totalAmount - amountPaid;
+            
+            let status = 'PENDING';
+            if (balanceAmount <= 0) status = 'PAID';
+            else if (amountPaid > 0) status = 'PARTIALLY_PAID';
+
+            await (tx as any).pharmacyPurchase.update({
+                where: { id: purchaseId },
+                data: {
+                    amountPaid: new Decimal(amountPaid),
+                    balanceAmount: new Decimal(balanceAmount),
+                    paymentStatus: status
+                }
+            });
         });
     }
 
@@ -997,13 +1038,28 @@ export class PharmacyService {
                 skip,
                 take: limit,
                 orderBy: { purchaseDate: 'desc' },
-                include: { batches: { include: { medicine: true } } }
+                include: { 
+                    batches: { include: { medicine: true } },
+                    payments: true // Include payments to calculate derived totals
+                }
             }),
             (prisma as any).pharmacyPurchase.count({ where })
         ]);
 
         return {
-            items: purchases.map((p: any) => this.formatPurchase(p)),
+            items: purchases.map((p: any) => {
+                const totalPaidFromPayments = p.payments.reduce((sum: number, pay: any) => sum + Number(pay.amount), 0);
+                // If the stored amountPaid is out of sync (e.g. legacy data), use the derived one
+                const amountPaid = totalPaidFromPayments;
+                const balanceAmount = Number(p.totalAmount) - amountPaid;
+                
+                return this.formatPurchase({
+                    ...p,
+                    amountPaid,
+                    balanceAmount,
+                    paymentStatus: balanceAmount <= 0 ? 'PAID' : (amountPaid > 0 ? 'PARTIALLY_PAID' : 'PENDING')
+                });
+            }),
             total,
             page: Number(page),
             limit: Number(limit),
@@ -1017,13 +1073,19 @@ export class PharmacyService {
             orderBy: { purchaseDate: 'asc' }
         });
 
-        const stats = await (prisma as any).pharmacyPurchase.aggregate({
-            _sum: {
-                totalAmount: true,
-                amountPaid: true,
-                balanceAmount: true
-            }
-        });
+        // Source of truth totals from aggregate across all records
+        const [purchaseStats, paymentStats] = await Promise.all([
+            (prisma as any).pharmacyPurchase.aggregate({
+                _sum: { totalAmount: true }
+            }),
+            (prisma as any).pharmacyPayment.aggregate({
+                _sum: { amount: true }
+            })
+        ]);
+
+        const totalAmount = Number(purchaseStats._sum.totalAmount) || 0;
+        const totalPaid = Number(paymentStats._sum.amount) || 0;
+        const totalBalance = totalAmount - totalPaid;
 
         // Group pending by distributor
         const pendingByDistributor: Record<string, { count: number; totalBalance: number }> = {};
@@ -1037,11 +1099,20 @@ export class PharmacyService {
         });
 
         return {
-            pendingPurchases: pendingPurchases.map((p: any) => this.formatPurchase(p)),
+            pendingPurchases: pendingPurchases.map((p: any) => {
+                // Sync pending purchases specifically ensuring balance is correct
+                const amountPaid = Number(p.amountPaid);
+                const totalAmount = Number(p.totalAmount);
+                const balanceAmount = totalAmount - amountPaid;
+                return this.formatPurchase({
+                    ...p,
+                    balanceAmount
+                });
+            }),
             stats: {
-                totalAmount: Number(stats._sum.totalAmount) || 0,
-                totalPaid: Number(stats._sum.amountPaid) || 0,
-                totalBalance: Number(stats._sum.balanceAmount) || 0,
+                totalAmount,
+                totalPaid,
+                totalBalance,
                 pendingCount: pendingPurchases.length
             },
             pendingByDistributor

@@ -210,6 +210,11 @@ export class DoctorsService {
             where: { id: recordId },
             data: {
                 prescriptionStatus: status as any,
+                // Add dispensed timestamp to vitals if dispensing
+                vitalSigns: status === 'DISPENSED' ? {
+                    ...(record.vitalSigns as any || {}),
+                    dispensedAt: new Date().toISOString()
+                } : record.vitalSigns
             },
             include: {
                 patient: { select: { firstName: true, lastName: true } },
@@ -348,6 +353,50 @@ export class DoctorsService {
             patient: record.patient,
             doctor: record.doctor,
             createdAt: record.createdAt,
+        };
+    }
+
+    async getDispensedHistory() {
+        const records = await prisma.medicalRecord.findMany({
+            where: {
+                prescriptionStatus: 'DISPENSED'
+            },
+            include: {
+                patient: true,
+                doctor: true
+            },
+            orderBy: {
+                updatedAt: 'desc'
+            },
+            take: 10
+        });
+        return records.map(r => this.formatMedicalRecord(r as any));
+    }
+
+    async getPharmacyStats() {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Fetch all DISPENSED records from today (using updatedAt as a proxy for efficiency, 
+        // then filtering by dispensedAt in JS if needed, but updatedAt is usually same as dispensedAt)
+        const todaysRecords = await prisma.medicalRecord.count({
+            where: {
+                prescriptionStatus: 'DISPENSED',
+                updatedAt: {
+                    gte: today
+                }
+            }
+        });
+
+        const pendingCount = await prisma.medicalRecord.count({
+            where: {
+                prescriptionStatus: 'PENDING'
+            }
+        });
+
+        return {
+            dispensedToday: todaysRecords,
+            pendingOrders: pendingCount
         };
     }
 
