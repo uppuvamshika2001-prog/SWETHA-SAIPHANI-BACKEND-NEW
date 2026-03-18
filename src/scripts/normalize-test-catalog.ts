@@ -21,7 +21,16 @@ async function normalize() {
         'CALCIUM': 'SERUM_CALCIUM',
         'ELECTRO': 'SERUM_ELECTROLYTES',
         'THYROID': 'THYROID_PROFILE',
-        'LIPID': 'LIPID_PROFILE'
+        'LIPID': 'LIPID_PROFILE',
+        'CRP RESULT': 'CRP',
+        'C-Reactive Protein': 'CRP',
+        'C-Reactive Protein (CRP)': 'CRP',
+        'Random Blood Sugar': 'RBS',
+        'Blood Sugar': 'RBS',
+        'ESR RESULT': 'ESR',
+        'Erythrocyte Sedimentation Rate': 'ESR',
+        'HbA1c': 'HBA1C',
+        'Glycosylated Hemoglobin': 'HBA1C'
     };
 
     for (const [alias, masterCode] of Object.entries(normalizationMap)) {

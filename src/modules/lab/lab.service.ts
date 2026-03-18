@@ -683,10 +683,45 @@ export class LabService {
                         id: { not: id }
                     }
                 });
-                if (existingTest) throw new ValidationError('Test with this code already exists');
+
+                if (existingTest) {
+                    // SMART MERGE LOGIC:
+                    // If the names match OR the current test is just a redundant duplicate of a master record
+                    const namesMatch = existingTest.name.toLowerCase().includes(test.name.toLowerCase()) || 
+                                     test.name.toLowerCase().includes(existingTest.name.toLowerCase());
+                    
+                    if (namesMatch) {
+                        logger.info({ context: 'LabService.updateTest', fromId: id, toId: existingTest.id, code: normalizedCode }, 'Auto-merging duplicate test records on code update');
+                        
+                        // 1. Move all orders to the existing (master) test
+                        await prisma.labTestOrder.updateMany({
+                            where: { testId: id },
+                            data: { 
+                                testId: existingTest.id,
+                                testCode: existingTest.code,
+                                testName: existingTest.name
+                            }
+                        });
+
+                        // 2. Delete the redundant test record (and its local parameters/categories)
+                        await (prisma as any).labTestParameter.deleteMany({ where: { testId: id } });
+                        await (prisma as any).labTestCategory.deleteMany({ where: { testId: id } });
+                        await prisma.labTest.delete({ where: { id: id } });
+
+                        // 3. Update the existing record with any other changes from input (price, dept, etc.)
+                        const { code: _, ...otherUpdates } = input;
+                        return prisma.labTest.update({
+                            where: { id: existingTest.id },
+                            data: otherUpdates
+                        });
+                    }
+
+                    throw new ValidationError('Test with this code already exists');
+                }
                 (input as any).code = normalizedCode;
             }
         }
+
 
         return prisma.labTest.update({
             where: { id },
