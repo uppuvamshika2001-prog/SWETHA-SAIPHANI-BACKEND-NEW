@@ -300,10 +300,20 @@ export class LabService {
                 }
             });
 
-            // Fallback: if order exists but test is null, try to resolve by testName/testCode
-            if (order && !order.test) {
+            // Fallback: if order exists but test is null OR test has no categories/parameters,
+            // try to resolve by testName/testCode to find the correct test with parameters
+            const needsFallback = order && (
+                !order.test ||
+                !order.test.categories ||
+                order.test.categories.length === 0 ||
+                order.test.categories.every((c: any) => !c.parameters || c.parameters.length === 0)
+            );
+
+            if (needsFallback) {
                 const resolvedTest = await (prisma.labTest as any).findFirst({
                     where: {
+                        isActive: true,
+                        categories: { some: { parameters: { some: {} } } },
                         OR: [
                             { code: { equals: order.testCode || order.testName, mode: 'insensitive' } },
                             { name: { equals: order.testName, mode: 'insensitive' } },
@@ -329,11 +339,12 @@ export class LabService {
                         where: { id: orderId },
                         data: {
                             testId: resolvedTest.id,
-                            testName: resolvedTest.name, // Sync name too
-                            testCode: resolvedTest.code  // Sync code too
+                            testName: resolvedTest.name,
+                            testCode: resolvedTest.code
                         }
                     });
                     (order as any).test = resolvedTest;
+                    console.log(`[LabService] Auto-relinked order ${orderId} to test ${resolvedTest.code} (${resolvedTest.id})`);
                 }
             }
 
