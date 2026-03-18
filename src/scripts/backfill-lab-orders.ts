@@ -43,18 +43,24 @@ async function backfill() {
             let searchKey = (order.testCode || order.testName || '').trim();
             let targetCode = normalizationMap[searchKey] || searchKey;
 
-            // 2. Find the canonical active test that has parameters
             const resolvedTest = await (prisma.labTest as any).findFirst({
                 where: {
                     isActive: true,
-                    // Require the test to actually have parameters so we don't link to another dead duplicate
-                    categories: { some: { parameters: { some: {} } } },
+                    // Require the test to actually have parameters (either directly or via categories)
                     OR: [
-                        { code: { equals: targetCode, mode: 'insensitive' } },
-                        { name: { equals: order.testName, mode: 'insensitive' } },
-                        { name: { contains: order.testName, mode: 'insensitive' } },
-                        { code: { contains: order.testName, mode: 'insensitive' } },
-                        { code: { equals: searchKey, mode: 'insensitive' } }
+                        { parameters: { some: {} } },
+                        { categories: { some: { parameters: { some: {} } } } }
+                    ],
+                    AND: [
+                        {
+                            OR: [
+                                { code: { equals: targetCode, mode: 'insensitive' } },
+                                { name: { equals: order.testName, mode: 'insensitive' } },
+                                { name: { contains: order.testName, mode: 'insensitive' } },
+                                { code: { contains: order.testName, mode: 'insensitive' } },
+                                { code: { equals: searchKey, mode: 'insensitive' } }
+                            ]
+                        }
                     ]
                 },
                 select: { id: true, name: true, code: true }
