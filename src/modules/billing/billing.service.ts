@@ -5,8 +5,7 @@ import { Prisma } from '@prisma/client';
 
 export class BillingService {
     async create(input: CreateBillInput) {
-        const { items, labOrderIds, creatorId } = input;
-        const billData = input as any;
+        const { items, labOrderIds, isWalkInLab, creatorId, patientId, discount, gstPercent, notes, status } = input as any;
 
         // Calculate totals
         let subtotal = 0;
@@ -14,13 +13,18 @@ export class BillingService {
             const total = Number(item.unitPrice) * Number(item.quantity);
             subtotal += total;
             return {
-                ...item,
+                description: item.description,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                medicineId: item.medicineId || undefined,
                 total
             };
         });
 
-        const discountedSubtotal = subtotal - Number(billData.discount || 0);
-        const gstAmount = (discountedSubtotal * Number(billData.gstPercent || 0)) / 100;
+        const discountAmount = Number(discount || 0);
+        const discountedSubtotal = subtotal - discountAmount;
+        const gstRate = Number(gstPercent || 0);
+        const gstAmount = (discountedSubtotal * gstRate) / 100;
         const grandTotal = discountedSubtotal + gstAmount;
 
         // Generate Bill Number (Simple format: INV-YYYYMMDD-XXXX)
@@ -28,13 +32,18 @@ export class BillingService {
         const count = await prisma.bill.count();
         const billNumber = `INV-${dateStr}-${(count + 1).toString().padStart(4, '0')}`;
 
+        // Only pass valid Bill model fields — NOT items/labOrderIds/isWalkInLab/creatorId
         const bill = await prisma.bill.create({
             data: {
-                ...billData,
+                patientId,
                 billNumber,
                 subtotal,
+                discount: discountAmount,
+                gstPercent: gstRate,
                 gstAmount,
                 grandTotal,
+                status: status || 'PENDING',
+                notes: notes || undefined,
                 items: {
                     create: billItems
                 }
@@ -52,7 +61,7 @@ export class BillingService {
                     where: { id: { in: labOrderIds } },
                     data: {
                         billId: bill.id,
-                        status: 'PENDING' // Update status to pending
+                        status: 'PAYMENT_PENDING'
                     }
                 });
             });
@@ -89,13 +98,13 @@ export class BillingService {
 
                     await tx.labTestOrder.create({
                         data: {
-                            patientId: billData.patientId,
+                            patientId,
                             orderedById: staffIdForOrder,
                             testName,
                             priority: 'normal',
-                            status: 'PENDING',
+                            status: 'PAYMENT_PENDING',
                             billId: bill.id,
-                            isWalkInLab: billData.isWalkInLab || false,
+                            isWalkInLab: isWalkInLab || false,
                         }
                     });
                 }

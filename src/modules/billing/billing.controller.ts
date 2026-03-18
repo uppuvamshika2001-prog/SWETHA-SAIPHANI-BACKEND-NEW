@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { billingService } from './billing.service.js';
 import { createBillSchema, updateBillStatusSchema, billQuerySchema } from './billing.types.js';
 import { sendSuccess } from '../../utils/response.js';
+import { logger } from '../../utils/logger.js';
 
 export async function createBill(req: Request, res: Response, next: NextFunction) {
     try {
@@ -12,6 +13,7 @@ export async function createBill(req: Request, res: Response, next: NextFunction
         });
         sendSuccess(res, bill, 'Bill created successfully', 201);
     } catch (error) {
+        logger.error({ context: 'BillingController.createBill', error, body: req.body }, 'Failed to create bill');
         next(error);
     }
 }
