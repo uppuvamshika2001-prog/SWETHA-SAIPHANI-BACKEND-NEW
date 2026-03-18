@@ -1,33 +1,51 @@
+# Build stage
+FROM node:20-bookworm-slim AS builder
+
+WORKDIR /app
+
+# Install system dependencies required by Prisma
+RUN apt-get update -y && \
+  apt-get install -y openssl ca-certificates && \
+  rm -rf /var/lib/apt/lists/*
+
+# Copy package files for dependency installation
+COPY package.json ./
+COPY package-lock.json* ./
+
+# Install all dependencies (including devDependencies for build)
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+# Copy Prisma schema and generate client
+COPY prisma ./prisma/
+RUN npx prisma generate
+
+# Copy source configuration and files
+COPY tsconfig.json ./
+COPY src ./src/
+
+# Build the application
+RUN npm run build
+
+# Production stage
 FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-# Install system dependencies required by Prisma and health checks
+# Install production-only system dependencies
 RUN apt-get update -y && \
   apt-get install -y openssl ca-certificates wget && \
   rm -rf /var/lib/apt/lists/*
 
-# Copy package files first for Docker layer caching
+# Copy production artifacts from builder
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
 COPY package.json ./
-COPY package-lock.json* ./
-
-# Install dependencies (use npm ci if lockfile exists, otherwise npm install)
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
-
-# Copy Prisma schema and generate client inside this container
-COPY prisma ./prisma/
-RUN npx prisma generate
-
-# Copy source and build
-COPY tsconfig.json ./
-COPY src ./src/
-RUN npm run build
-
-# Copy start script
 COPY start.sh ./
+
 RUN chmod +x start.sh
 
-# Environment
+# Environment settings
 ENV NODE_ENV=production
 ENV PORT=8080
 

@@ -13,7 +13,7 @@ async function main() {
     // =========================
     // 1. CBP - Complete Blood Picture (PANEL)
     // =========================
-    const cbp = await prisma.labTest.upsert({
+    const cbp = await (prisma.labTest as any).upsert({
         where: { code: 'CBP' },
         update: { name: 'Complete Blood Picture (CBP)', department: 'HEMATOLOGY', type: 'PANEL', price: 500 },
         create: { code: 'CBP', name: 'Complete Blood Picture (CBP)', department: 'HEMATOLOGY', type: 'PANEL', price: 500 },
@@ -55,7 +55,7 @@ async function main() {
     // =========================
     // 2. CUE - Complete Urine Examination (PANEL)
     // =========================
-    const cue = await prisma.labTest.upsert({
+    const cue = await (prisma.labTest as any).upsert({
         where: { code: 'CUE' },
         update: { name: 'Complete Urine Examination (CUE)', department: 'PATHOLOGY', type: 'PANEL', price: 300 },
         create: { code: 'CUE', name: 'Complete Urine Examination (CUE)', department: 'PATHOLOGY', type: 'PANEL', price: 300 },
@@ -89,7 +89,7 @@ async function main() {
     // =========================
     // 3. LFT - Liver Function Test (PANEL)
     // =========================
-    const lft = await prisma.labTest.upsert({
+    const lft = await (prisma.labTest as any).upsert({
         where: { code: 'LFT' },
         update: { name: 'Liver Function Test (LFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200 },
         create: { code: 'LFT', name: 'Liver Function Test (LFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200 },
@@ -114,7 +114,7 @@ async function main() {
     // =========================
     // 4. RFT - Renal Function Test (PANEL)
     // =========================
-    const rft = await prisma.labTest.upsert({
+    const rft = await (prisma.labTest as any).upsert({
         where: { code: 'RFT' },
         update: { name: 'Renal Function Test (RFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1000 },
         create: { code: 'RFT', name: 'Renal Function Test (RFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1000 },
@@ -133,7 +133,7 @@ async function main() {
     // =========================
     // 5. Lipid Profile (PANEL)
     // =========================
-    const lipid = await prisma.labTest.upsert({
+    const lipid = await (prisma.labTest as any).upsert({
         where: { code: 'LIPID' },
         update: { name: 'Lipid Profile', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200 },
         create: { code: 'LIPID', name: 'Lipid Profile', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200 },
@@ -154,7 +154,7 @@ async function main() {
     // =========================
     // 6. Thyroid Profile (PANEL)
     // =========================
-    const thyroid = await prisma.labTest.upsert({
+    const thyroid = await (prisma.labTest as any).upsert({
         where: { code: 'THYROID' },
         update: { name: 'Thyroid Profile', department: 'IMMUNOLOGY', type: 'PANEL', price: 1500 },
         create: { code: 'THYROID', name: 'Thyroid Profile', department: 'IMMUNOLOGY', type: 'PANEL', price: 1500 },
@@ -172,7 +172,7 @@ async function main() {
     // =========================
     // 7. Serum Electrolytes (PANEL)
     // =========================
-    const electrolytes = await prisma.labTest.upsert({
+    const electrolytes = await (prisma.labTest as any).upsert({
         where: { code: 'ELECTRO' },
         update: { name: 'Serum Electrolytes', department: 'BIOCHEMISTRY', type: 'PANEL', price: 800 },
         create: { code: 'ELECTRO', name: 'Serum Electrolytes', department: 'BIOCHEMISTRY', type: 'PANEL', price: 800 },
@@ -190,7 +190,7 @@ async function main() {
     // =========================
     // 8. Widal Test (PANEL)
     // =========================
-    const widal = await prisma.labTest.upsert({
+    const widal = await (prisma.labTest as any).upsert({
         where: { code: 'WIDAL' },
         update: { name: 'Widal Test', department: 'SEROLOGY', type: 'PANEL', price: 350 },
         create: { code: 'WIDAL', name: 'Widal Test', department: 'SEROLOGY', type: 'PANEL', price: 350 },
@@ -209,7 +209,7 @@ async function main() {
     // =========================
     // 9. Dengue (PANEL - Semi-structured)
     // =========================
-    const dengue = await prisma.labTest.upsert({
+    const dengue = await (prisma.labTest as any).upsert({
         where: { code: 'DENGUE' },
         update: { name: 'Dengue NS1 & Antibodies', department: 'SEROLOGY', type: 'PANEL', price: 1000 },
         create: { code: 'DENGUE', name: 'Dengue NS1 & Antibodies', department: 'SEROLOGY', type: 'PANEL', price: 1000 },
@@ -243,7 +243,7 @@ async function main() {
     ];
 
     for (const st of singleTestsRef) {
-        const test = await prisma.labTest.upsert({
+        const test = await (prisma.labTest as any).upsert({
             where: { code: st.code },
             update: { name: st.name, department: st.dept, type: 'SINGLE', price: st.price },
             create: { code: st.code, name: st.name, department: st.dept, type: 'SINGLE', price: st.price },
@@ -274,7 +274,7 @@ async function main() {
     // =========================
     console.log('  Seeding Report Tests...');
     
-    await prisma.labTest.upsert({
+    await (prisma.labTest as any).upsert({
         where: { code: 'XRAY' },
         update: { name: 'Chest X-Ray', department: 'RADIOLOGY', type: 'REPORT', price: 500 },
         create: { code: 'XRAY', name: 'Chest X-Ray', department: 'RADIOLOGY', type: 'REPORT', price: 500 },
