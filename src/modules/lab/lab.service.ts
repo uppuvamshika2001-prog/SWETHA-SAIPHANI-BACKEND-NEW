@@ -48,6 +48,9 @@ export class LabService {
 
         // Resolve test record to link master data
         let resolvedTestId = input.testId;
+        let resolvedTestName = input.testName;
+        let resolvedTestCode = input.testCode;
+
         if (!resolvedTestId) {
             const resolvedTest = await prisma.labTest.findFirst({
                 where: {
@@ -61,6 +64,15 @@ export class LabService {
             });
             if (resolvedTest) {
                 resolvedTestId = resolvedTest.id;
+                resolvedTestName = resolvedTest.name;
+                resolvedTestCode = resolvedTest.code;
+            }
+        } else {
+            // If testId is provided, sync the name/code from the catalog
+            const catalogTest = await prisma.labTest.findUnique({ where: { id: resolvedTestId } });
+            if (catalogTest) {
+                resolvedTestName = catalogTest.name;
+                resolvedTestCode = catalogTest.code;
             }
         }
 
@@ -72,8 +84,8 @@ export class LabService {
             data: {
                 patientId: input.patientId,
                 orderedById: doctorIdForOrder,
-                testName: input.testName,
-                testCode: input.testCode,
+                testName: resolvedTestName,
+                testCode: resolvedTestCode,
                 testId: resolvedTestId,
                 priority: input.priority,
                 notes: input.notes,

@@ -15,4 +15,4 @@ fi
 
 # Start the application
 echo "🚀 Starting server on port ${PORT:-8080}..."
-exec node dist/server.js
+exec node dist/src/server.js
