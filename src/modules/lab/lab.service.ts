@@ -8,7 +8,7 @@ import { PaginatedResponse } from '../users/users.types.js';
 export class LabService {
     async createOrder(orderedByUserId: string, input: CreateLabOrderInput): Promise<LabOrderResponse> {
         // Find orderedBy staff profile (the person logged in, e.g., Doctor, Receptionist, Lab Tech)
-        const orderer = await prisma.staff.findUnique({ 
+        const orderer = await prisma.staff.findUnique({
             where: { userId: orderedByUserId },
             include: { user: true }
         });
@@ -131,7 +131,7 @@ export class LabService {
             // Date Range Filtering with robust validation
             if (startDate || endDate) {
                 const dateFilter: any = {};
-                
+
                 if (startDate) {
                     const start = new Date(startDate);
                     if (!isNaN(start.getTime())) {
@@ -139,7 +139,7 @@ export class LabService {
                         dateFilter.gte = start;
                     }
                 }
-                
+
                 if (endDate) {
                     const end = new Date(endDate);
                     if (!isNaN(end.getTime())) {
@@ -228,7 +228,7 @@ export class LabService {
             // Date Range Filtering with robust validation
             if (startDate || endDate) {
                 const dateFilter: any = {};
-                
+
                 if (startDate) {
                     const start = new Date(startDate);
                     if (!isNaN(start.getTime())) {
@@ -236,7 +236,7 @@ export class LabService {
                         dateFilter.gte = start;
                     }
                 }
-                
+
                 if (endDate) {
                     const end = new Date(endDate);
                     if (!isNaN(end.getTime())) {
@@ -331,7 +331,7 @@ export class LabService {
                     // Auto-link it for future requests to fix broken legacy data
                     await prisma.labTestOrder.update({
                         where: { id: orderId },
-                        data: { 
+                        data: {
                             testId: resolvedTest.id,
                             testName: resolvedTest.name, // Sync name too
                             testCode: resolvedTest.code  // Sync code too
@@ -356,7 +356,7 @@ export class LabService {
             const patientGender = (order as any).patient.gender;
             const patientAgeStr = this.calculateAge(order.patient.dateOfBirth);
             const patientAgeNum = parseInt(patientAgeStr);
-            
+
             // Helper to get correct reference range from JSON structure
             const getRange = (p: any) => {
                 const range = p.referenceRange;
@@ -370,7 +370,7 @@ export class LabService {
                 // New JSON logic
                 if (patientGender === 'MALE' && range.male) return range.male;
                 if (patientGender === 'FEMALE' && range.female) return range.female;
-                
+
                 // Age based ranges (e.g. for Alkaline Phosphatase)
                 if (range.ageBased && Array.isArray(range.ageBased)) {
                     // This is a simplified check, can be expanded if needed
@@ -384,7 +384,7 @@ export class LabService {
             };
 
             const testData = (order as any).test;
-            
+
             // If we have a direct test relation with categories
             if (testData && testData.categories && testData.categories.length > 0) {
                 return {
@@ -498,7 +498,7 @@ export class LabService {
             // 3. Update order status and visibility
             await tx.labTestOrder.update({
                 where: { id: input.orderId },
-                data: { 
+                data: {
                     status: 'COMPLETED',
                     isReportVisibleToPatient: (input as any).isReportVisibleToPatient !== undefined ? (input as any).isReportVisibleToPatient : true
                 } as any,
@@ -644,14 +644,14 @@ export class LabService {
     // Lab Test Catalog Management
     async createTest(input: CreateLabTestInput) {
         const normalizedCode = input.code.trim().toUpperCase();
-        const existingTest = await (prisma.labTest as any).findFirst({ 
-            where: { code: { equals: normalizedCode, mode: 'insensitive' } } 
+        const existingTest = await (prisma.labTest as any).findFirst({
+            where: { code: { equals: normalizedCode, mode: 'insensitive' } }
         });
         if (existingTest) {
             throw new ValidationError('Test with this code already exists');
         }
-        return prisma.labTest.create({ 
-            data: { ...input, code: normalizedCode } 
+        return prisma.labTest.create({
+            data: { ...input, code: normalizedCode }
         });
     }
 
@@ -677,11 +677,11 @@ export class LabService {
         if (input.code) {
             const normalizedCode = input.code.trim().toUpperCase();
             if (normalizedCode !== test.code) {
-                const existingTest = await (prisma.labTest as any).findFirst({ 
-                    where: { 
+                const existingTest = await (prisma.labTest as any).findFirst({
+                    where: {
                         code: { equals: normalizedCode, mode: 'insensitive' },
                         id: { not: id }
-                    } 
+                    }
                 });
                 if (existingTest) throw new ValidationError('Test with this code already exists');
                 (input as any).code = normalizedCode;
@@ -737,7 +737,7 @@ export class LabService {
         }
 
         const resultData = order.result.result as any;
-        
+
         const reportData = {
             orderId: order.id,
             patientName: `${order.patient.firstName} ${order.patient.lastName}`,

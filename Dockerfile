@@ -24,7 +24,7 @@ COPY tsconfig.json ./
 COPY src ./src/
 
 # Build the application
-RUN npm run build
+RUN export NODE_OPTIONS="--max-old-space-size=2048" && npm run build
 
 # Production stage
 FROM node:20-bookworm-slim
