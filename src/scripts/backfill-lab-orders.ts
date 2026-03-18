@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function backfill() {
-    console.log('🔍 Starting Comprehensive Lab Order Backfill...');
+    console.log('🔍 Starting Diagnostic Lab Order Backfill...');
 
     // 1. Get ALL orders regardless of their current testId
     const orders = await prisma.labTestOrder.findMany();
@@ -28,10 +28,15 @@ async function backfill() {
         'CALCIUM': 'SERUM_CALCIUM',
         'ELECTRO': 'SERUM_ELECTROLYTES',
         'THYROID': 'THYROID_PROFILE',
+        'THYROID_PROFILE': 'THYROID_PROFILE',
+        'THYROID PROFILE': 'THYROID_PROFILE',
+        'THYROID PROFILE ': 'THYROID_PROFILE',
         'LIPID': 'LIPID_PROFILE',
         'ESR (Erythrocyte Sedimentation Rate)': 'ESR',
         'ERYTHROCYTE SEDIMENTATION RATE(ESR)': 'ESR',
         'Erythrocyte Sedimentation Rate': 'ESR',
+        'ERYTHROCYTE SEDIMENTATION RATE (ESR)': 'ESR',
+        'HME008': 'ESR',
         'CRP RESULT': 'CRP',
         'C-Reactive Protein': 'CRP',
         'C-Reactive Protein (CRP)': 'CRP'
@@ -39,53 +44,67 @@ async function backfill() {
 
     for (const order of orders) {
         try {
-            // Check normalization map first
-            let searchKey = (order.testCode || order.testName || '').trim();
-            let targetCode = normalizationMap[searchKey] || searchKey;
+            // Map BOTH name and code, prioritize finding a valid target
+            let rawName = (order.testName || '').trim();
+            let rawCode = (order.testCode || '').trim();
+            
+            let targetCode = normalizationMap[rawCode] || normalizationMap[rawName] || rawCode || rawName;
 
-            const resolvedTest = await (prisma.labTest as any).findFirst({
+            // 2. Find ALL tests that match the target code or name exactly to see what exists
+            const potentialTests = await (prisma.labTest as any).findMany({
                 where: {
-                    isActive: true,
-                    // Require the test to actually have parameters (either directly or via categories)
                     OR: [
-                        { parameters: { some: {} } },
-                        { categories: { some: { parameters: { some: {} } } } }
-                    ],
-                    AND: [
-                        {
-                            OR: [
-                                { code: { equals: targetCode, mode: 'insensitive' } },
-                                { name: { equals: order.testName, mode: 'insensitive' } },
-                                { name: { contains: order.testName, mode: 'insensitive' } },
-                                { code: { contains: order.testName, mode: 'insensitive' } },
-                                { code: { equals: searchKey, mode: 'insensitive' } }
-                            ]
-                        }
+                        { code: { equals: targetCode, mode: 'insensitive' } },
+                        { name: { equals: rawName, mode: 'insensitive' } },
+                        { code: { equals: rawCode, mode: 'insensitive' } },
+                        { name: { contains: rawName, mode: 'insensitive' } }
                     ]
                 },
-                select: { id: true, name: true, code: true }
+                include: {
+                    categories: { include: { parameters: true } },
+                    parameters: true
+                }
             });
 
-            if (resolvedTest) {
-                // If the order already points to this EXACT canonical test ID, it's correct
-                if (order.testId === resolvedTest.id) {
-                    alreadyCorrectCount++;
-                } else {
-                    // 3. Update the order with the correct canonical testId
-                    await prisma.labTestOrder.update({
-                        where: { id: order.id },
-                        data: {
-                            testId: resolvedTest.id,
-                            testName: resolvedTest.name,
-                            testCode: resolvedTest.code
-                        }
-                    });
-                    updatedCount++;
-                    console.log(`✅ Fixed Order ${order.id}: '${order.testName}' -> canonical test '${resolvedTest.name}' (${resolvedTest.id})`);
-                }
-            } else {
+            if (potentialTests.length === 0) {
                 failedCount++;
-                console.warn(`⚠️ Could not find parameterized canonical test for Order ${order.id}: '${order.testName}' (code: ${order.testCode})`);
+                console.warn(`⚠️ [NOT FOUND] No test matches '${rawName}' OR code '${rawCode}' (target: ${targetCode})`);
+                continue;
+            }
+
+            // 3. Filter for the BEST one: must be active AND have parameters
+            let bestTest = potentialTests.find((t: any) => {
+                const hasParams = (t.parameters && t.parameters.length > 0) || 
+                                  (t.categories && t.categories.some((c: any) => c.parameters && c.parameters.length > 0));
+                return t.isActive && hasParams;
+            });
+
+            // If none are perfect, log deep diagnostic info about why they failed
+            if (!bestTest) {
+                failedCount++;
+                console.warn(`⚠️ [NO VALID TEST] Found ${potentialTests.length} matches for Order ${order.id} ('${rawName}' / '${rawCode}'), but NONE are fully valid!`);
+                potentialTests.forEach((t: any, i: number) => {
+                    const hasParams = (t.parameters && t.parameters.length > 0) || 
+                                      (t.categories && t.categories.some((c: any) => c.parameters && c.parameters.length > 0));
+                    console.log(`   -> Match ${i+1}: ID=${t.id}, Code='${t.code}', Active=${t.isActive}, HasParams=${hasParams}`);
+                });
+                continue;
+            }
+
+            // 4. Update the order with the correct canonical testId
+            if (order.testId === bestTest.id) {
+                alreadyCorrectCount++;
+            } else {
+                await prisma.labTestOrder.update({
+                    where: { id: order.id },
+                    data: {
+                        testId: bestTest.id,
+                        testName: bestTest.name,
+                        testCode: bestTest.code
+                    }
+                });
+                updatedCount++;
+                console.log(`✅ Fixed Order ${order.id}: '${rawName}' -> canonical test '${bestTest.name}' (${bestTest.id})`);
             }
         } catch (error) {
             failedCount++;
