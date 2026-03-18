@@ -36,6 +36,16 @@ async function normalize() {
                 continue;
             }
 
+            // Ensure Master is Active
+            if (!masterTest.isActive) {
+                await prisma.labTest.update({
+                    where: { id: masterTest.id },
+                    data: { isActive: true }
+                });
+                console.log(`📡 Master test '${masterCode}' reactivated.`);
+                masterTest.isActive = true;
+            }
+
             // Find duplicate tests (by name or code)
             const duplicates = await prisma.labTest.findMany({
                 where: {

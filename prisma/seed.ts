@@ -15,8 +15,8 @@ async function main() {
     // =========================
     const cbp = await (prisma.labTest as any).upsert({
         where: { code: 'CBP' },
-        update: { name: 'Complete Blood Picture (CBP)', department: 'HEMATOLOGY', type: 'PANEL', price: 500 },
-        create: { code: 'CBP', name: 'Complete Blood Picture (CBP)', department: 'HEMATOLOGY', type: 'PANEL', price: 500 },
+        update: { name: 'Complete Blood Picture (CBP)', department: 'HEMATOLOGY', type: 'PANEL', price: 500, isActive: true },
+        create: { code: 'CBP', name: 'Complete Blood Picture (CBP)', department: 'HEMATOLOGY', type: 'PANEL', price: 500, isActive: true },
     });
     console.log('  ✅ CBP test created/updated');
 
@@ -57,8 +57,8 @@ async function main() {
     // =========================
     const cue = await (prisma.labTest as any).upsert({
         where: { code: 'CUE' },
-        update: { name: 'Complete Urine Examination (CUE)', department: 'PATHOLOGY', type: 'PANEL', price: 300 },
-        create: { code: 'CUE', name: 'Complete Urine Examination (CUE)', department: 'PATHOLOGY', type: 'PANEL', price: 300 },
+        update: { name: 'Complete Urine Examination (CUE)', department: 'PATHOLOGY', type: 'PANEL', price: 300, isActive: true },
+        create: { code: 'CUE', name: 'Complete Urine Examination (CUE)', department: 'PATHOLOGY', type: 'PANEL', price: 300, isActive: true },
     });
     
     const cuePhys = await (prisma as any).labTestCategory.create({ data: { testId: cue.id, name: 'PHYSICAL EXAMINATION', displayOrder: 1 } });
@@ -91,8 +91,8 @@ async function main() {
     // =========================
     const lft = await (prisma.labTest as any).upsert({
         where: { code: 'LFT' },
-        update: { name: 'Liver Function Test (LFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200 },
-        create: { code: 'LFT', name: 'Liver Function Test (LFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200 },
+        update: { name: 'Liver Function Test (LFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200, isActive: true },
+        create: { code: 'LFT', name: 'Liver Function Test (LFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200, isActive: true },
     });
     
     const lftCat = await (prisma as any).labTestCategory.create({ data: { testId: lft.id, name: 'BIO CHEMISTRY', displayOrder: 1 } });
@@ -116,8 +116,8 @@ async function main() {
     // =========================
     const rft = await (prisma.labTest as any).upsert({
         where: { code: 'RFT' },
-        update: { name: 'Renal Function Test (RFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1000 },
-        create: { code: 'RFT', name: 'Renal Function Test (RFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1000 },
+        update: { name: 'Renal Function Test (RFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1000, isActive: true },
+        create: { code: 'RFT', name: 'Renal Function Test (RFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1000, isActive: true },
     });
     
     const rftCat = await (prisma as any).labTestCategory.create({ data: { testId: rft.id, name: 'BIO CHEMISTRY', displayOrder: 1 } });
@@ -135,8 +135,8 @@ async function main() {
     // =========================
     const lipid = await (prisma.labTest as any).upsert({
         where: { code: 'LIPID_PROFILE' },
-        update: { name: 'Lipid Profile', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200 },
-        create: { code: 'LIPID_PROFILE', name: 'Lipid Profile', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200 },
+        update: { name: 'Lipid Profile', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200, isActive: true },
+        create: { code: 'LIPID_PROFILE', name: 'Lipid Profile', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200, isActive: true },
     });
     
     const lipidCat = await (prisma as any).labTestCategory.create({ data: { testId: lipid.id, name: 'LIPID PROFILE', displayOrder: 1 } });
@@ -156,8 +156,8 @@ async function main() {
     // =========================
     const thyroid = await (prisma.labTest as any).upsert({
         where: { code: 'THYROID_PROFILE' },
-        update: { name: 'Thyroid Profile', department: 'IMMUNOLOGY', type: 'PANEL', price: 1500 },
-        create: { code: 'THYROID_PROFILE', name: 'Thyroid Profile', department: 'IMMUNOLOGY', type: 'PANEL', price: 1500 },
+        update: { name: 'Thyroid Profile', department: 'IMMUNOLOGY', type: 'PANEL', price: 1500, isActive: true },
+        create: { code: 'THYROID_PROFILE', name: 'Thyroid Profile', department: 'IMMUNOLOGY', type: 'PANEL', price: 1500, isActive: true },
     });
     
     const thyroidCat = await (prisma as any).labTestCategory.create({ data: { testId: thyroid.id, name: 'THYROID PROFILE', displayOrder: 1 } });
@@ -174,8 +174,8 @@ async function main() {
     // =========================
     const electrolytes = await (prisma.labTest as any).upsert({
         where: { code: 'SERUM_ELECTROLYTES' },
-        update: { name: 'Serum Electrolytes', department: 'BIOCHEMISTRY', type: 'PANEL', price: 800 },
-        create: { code: 'SERUM_ELECTROLYTES', name: 'Serum Electrolytes', department: 'BIOCHEMISTRY', type: 'PANEL', price: 800 },
+        update: { name: 'Serum Electrolytes', department: 'BIOCHEMISTRY', type: 'PANEL', price: 800, isActive: true },
+        create: { code: 'SERUM_ELECTROLYTES', name: 'Serum Electrolytes', department: 'BIOCHEMISTRY', type: 'PANEL', price: 800, isActive: true },
     });
     
     const electrolytesCat = await (prisma as any).labTestCategory.create({ data: { testId: electrolytes.id, name: 'SERUM ELECTROLYTES', displayOrder: 1 } });
@@ -192,8 +192,8 @@ async function main() {
     // =========================
     const widal = await (prisma.labTest as any).upsert({
         where: { code: 'WIDAL' },
-        update: { name: 'Widal Test', department: 'SEROLOGY', type: 'PANEL', price: 350 },
-        create: { code: 'WIDAL', name: 'Widal Test', department: 'SEROLOGY', type: 'PANEL', price: 350 },
+        update: { name: 'Widal Test', department: 'SEROLOGY', type: 'PANEL', price: 350, isActive: true },
+        create: { code: 'WIDAL', name: 'Widal Test', department: 'SEROLOGY', type: 'PANEL', price: 350, isActive: true },
     });
     
     const widalCat = await (prisma as any).labTestCategory.create({ data: { testId: widal.id, name: 'SEROLOGY', displayOrder: 1 } });
@@ -211,8 +211,8 @@ async function main() {
     // =========================
     const dengue = await (prisma.labTest as any).upsert({
         where: { code: 'DENGUE' },
-        update: { name: 'Dengue NS1 & Antibodies', department: 'SEROLOGY', type: 'PANEL', price: 1000 },
-        create: { code: 'DENGUE', name: 'Dengue NS1 & Antibodies', department: 'SEROLOGY', type: 'PANEL', price: 1000 },
+        update: { name: 'Dengue NS1 & Antibodies', department: 'SEROLOGY', type: 'PANEL', price: 1000, isActive: true },
+        create: { code: 'DENGUE', name: 'Dengue NS1 & Antibodies', department: 'SEROLOGY', type: 'PANEL', price: 1000, isActive: true },
     });
     
     const dengueCat = await (prisma as any).labTestCategory.create({ data: { testId: dengue.id, name: 'SEROLOGY', displayOrder: 1 } });
@@ -245,8 +245,8 @@ async function main() {
     for (const st of singleTestsRef) {
         const test = await (prisma.labTest as any).upsert({
             where: { code: st.code },
-            update: { name: st.name, department: st.dept, type: 'SINGLE', price: st.price },
-            create: { code: st.code, name: st.name, department: st.dept, type: 'SINGLE', price: st.price },
+            update: { name: st.name, department: st.dept, type: 'SINGLE', price: st.price, isActive: true },
+            create: { code: st.code, name: st.name, department: st.dept, type: 'SINGLE', price: st.price, isActive: true },
         });
 
         // Although SINGLE, we store the parameter at the root level so the UI has the metadata
@@ -276,8 +276,8 @@ async function main() {
     
     await (prisma.labTest as any).upsert({
         where: { code: 'XRAY' },
-        update: { name: 'Chest X-Ray', department: 'RADIOLOGY', type: 'REPORT', price: 500 },
-        create: { code: 'XRAY', name: 'Chest X-Ray', department: 'RADIOLOGY', type: 'REPORT', price: 500 },
+        update: { name: 'Chest X-Ray', department: 'RADIOLOGY', type: 'REPORT', price: 500, isActive: true },
+        create: { code: 'XRAY', name: 'Chest X-Ray', department: 'RADIOLOGY', type: 'REPORT', price: 500, isActive: true },
     });
 
     // =========================
