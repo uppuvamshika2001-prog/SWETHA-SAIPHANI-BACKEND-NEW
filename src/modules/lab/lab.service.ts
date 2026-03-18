@@ -643,11 +643,16 @@ export class LabService {
 
     // Lab Test Catalog Management
     async createTest(input: CreateLabTestInput) {
-        const existingTest = await prisma.labTest.findUnique({ where: { code: input.code } });
+        const normalizedCode = input.code.trim().toUpperCase();
+        const existingTest = await (prisma.labTest as any).findFirst({ 
+            where: { code: { equals: normalizedCode, mode: 'insensitive' } } 
+        });
         if (existingTest) {
             throw new ValidationError('Test with this code already exists');
         }
-        return prisma.labTest.create({ data: input });
+        return prisma.labTest.create({ 
+            data: { ...input, code: normalizedCode } 
+        });
     }
 
     async getAllTests(search?: string) {
@@ -669,9 +674,15 @@ export class LabService {
         const test = await prisma.labTest.findUnique({ where: { id } });
         if (!test) throw new NotFoundError('Test not found');
 
-        if (input.code && input.code !== test.code) {
-            const existingTest = await prisma.labTest.findUnique({ where: { code: input.code } });
-            if (existingTest) throw new ValidationError('Test with this code already exists');
+        if (input.code) {
+            const normalizedCode = input.code.trim().toUpperCase();
+            if (normalizedCode !== test.code) {
+                const existingTest = await (prisma.labTest as any).findFirst({ 
+                    where: { code: { equals: normalizedCode, mode: 'insensitive' } } 
+                });
+                if (existingTest) throw new ValidationError('Test with this code already exists');
+                (input as any).code = normalizedCode;
+            }
         }
 
         return prisma.labTest.update({
