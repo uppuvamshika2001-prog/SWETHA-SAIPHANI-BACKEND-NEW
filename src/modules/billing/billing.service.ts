@@ -127,25 +127,45 @@ export class BillingService {
 
         const where: any = {};
 
-        if (patientId) where.patientId = patientId;
-        if (status) where.status = (status as unknown as string).toUpperCase();
+        if (patientId && patientId.trim() !== '') {
+            where.patientId = patientId;
+        }
 
+        // Do not restrict by status unless explicitly required (not empty string)
+        if (status && status.trim() !== '') {
+            where.status = (status as string).toUpperCase();
+        }
+
+        // Date Filter Fix: Convert to proper UTC range boundaries for the given date string
         if (startDate || endDate) {
             const dateFilter: any = {};
+            
             if (startDate) {
-                const start = new Date(startDate as string);
-                start.setHours(0, 0, 0, 0);
+                // Example startDate: '2026-03-18' -> Create exactly at 00:00:00 UTC
+                const startStr = `${startDate}T00:00:00.000Z`;
+                const start = new Date(startStr);
+                
+                // If the user's timezone is IST (+05:30), the local '00:00:00' is '18:30:00' UTC of the previous day
+                // To be robust and match the local day, we shift back 5.5 hours to align UTC with IST midnight.
+                // Assuming the clinic operates in IST timezone (+05:30)
+                start.setMinutes(start.getMinutes() - 330);
+                
                 dateFilter.gte = start;
             }
             if (endDate) {
-                const end = new Date(endDate as string);
-                end.setHours(23, 59, 59, 999);
+                const endStr = `${endDate}T23:59:59.999Z`;
+                const end = new Date(endStr);
+                
+                // Shift back 5.5 hours to align UTC with IST end of day
+                end.setMinutes(end.getMinutes() - 330);
+                
                 dateFilter.lte = end;
             }
+            
             where.createdAt = dateFilter;
         }
 
-        if (search) {
+        if (search && search.trim() !== '') {
             where.OR = [
                 { billNumber: { contains: search, mode: 'insensitive' } },
                 {
@@ -160,34 +180,51 @@ export class BillingService {
             ];
         }
 
-        const [total, items] = await Promise.all([
-            prisma.bill.count({ where }),
-            prisma.bill.findMany({
-                where,
-                skip,
-                take: limit,
-                orderBy: { createdAt: 'desc' },
-                include: {
-                    patient: true,
-                    items: true
-                }
-            })
-        ]);
+        // Debug Logging
+        console.log(`[BillingService] findAll Incoming Filters:`, query);
+        console.log(`[BillingService] findAll Prisma Where:`, JSON.stringify(where, null, 2));
 
-        const itemsWithMedicalRecords = await Promise.all(items.map(async (item: any) => {
-            const medicalRecord = await prisma.medicalRecord.findFirst({
-                where: { patientId: item.patientId },
-                orderBy: { createdAt: 'desc' }
-            });
-            return this.formatBill({ ...item, medicalRecord });
-        }));
+        try {
+            const [total, items] = await Promise.all([
+                prisma.bill.count({ where }),
+                prisma.bill.findMany({
+                    where,
+                    skip,
+                    take: limit,
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        patient: true,
+                        items: true
+                    }
+                })
+            ]);
 
-        return {
-            items: itemsWithMedicalRecords,
-            total,
-            page,
-            totalPages: Math.ceil(total / limit)
-        };
+            console.log(`[BillingService] findAll Result Count: ${items.length} records out of ${total} total matching.`);
+
+            const itemsWithMedicalRecords = await Promise.all(items.map(async (item: any) => {
+                const medicalRecord = await prisma.medicalRecord.findFirst({
+                    where: { patientId: item.patientId },
+                    orderBy: { createdAt: 'desc' }
+                });
+                return this.formatBill({ ...item, medicalRecord });
+            }));
+
+            return {
+                items: itemsWithMedicalRecords || [],
+                total: total || 0,
+                page,
+                totalPages: Math.ceil((total || 0) / limit)
+            };
+        } catch (error) {
+            console.error('[BillingService] findAll Error:', error);
+            // Safe query return on failure
+            return {
+                items: [],
+                total: 0,
+                page,
+                totalPages: 0
+            };
+        }
     }
 
     async findById(id: string) {
