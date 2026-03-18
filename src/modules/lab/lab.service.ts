@@ -6,7 +6,7 @@ import { CreateLabOrderInput, CreateLabResultInput, LabOrderQueryInput, LabOrder
 import { PaginatedResponse } from '../users/users.types.js';
 
 export class LabService {
-    async createOrder(orderedByUserId: string, input: CreateLabOrderInput): Promise<LabOrderResponse> {
+    async createOrder(orderedByUserId: string, userRole: any, input: CreateLabOrderInput): Promise<LabOrderResponse> {
         // Find orderedBy staff profile (the person logged in, e.g., Doctor, Receptionist, Lab Tech)
         const orderer = await prisma.staff.findUnique({
             where: { userId: orderedByUserId },
@@ -17,10 +17,13 @@ export class LabService {
             throw new NotFoundError('Staff profile not found for current user');
         }
 
-        let doctorIdForOrder: string;
+        let doctorIdForOrder: string | null = null;
+        let orderedByRoleValue = userRole;
 
-        // If a specific doctorId is provided (Receptionist flow), prioritize it
-        if (input.doctorId) {
+        if (userRole === 'DOCTOR') {
+            doctorIdForOrder = orderer.id;
+        } else if (input.doctorId) {
+            // Receptionist or Admin delegating to a specific doctor
             const doctor = await prisma.staff.findUnique({
                 where: { id: input.doctorId },
                 include: { user: true }
@@ -30,11 +33,8 @@ export class LabService {
                 throw new ValidationError('Invalid doctor selected for lab order');
             }
             doctorIdForOrder = doctor.id;
-        } else {
-            // Default to the current orderer (even if they are Receptionist/Admin)
-            // A non-doctor orderer is allowed, they will be the primary contact on the order.
-            doctorIdForOrder = orderer.id;
         }
+        // If it's a Receptionist and NO doctor is provided, doctorIdForOrder remains null safely.
 
         // Validate patient
         const patient = await prisma.patient.findUnique({ where: { uhid: input.patientId } });
@@ -92,15 +92,19 @@ export class LabService {
             throw new ValidationError(`The lab test '${input.testName}' is not in the official catalog. Please select a valid test from the list.`);
         }
 
-        const order = await prisma.labTestOrder.create({
+        const order = await (prisma.labTestOrder as any).create({
             data: {
                 patientId: input.patientId,
-                orderedById: doctorIdForOrder,
+                orderedById: orderer.id,
+                orderedByRole: orderedByRoleValue,
+                doctorId: doctorIdForOrder || undefined,
                 testName: resolvedTestName,
                 testCode: resolvedTestCode,
                 testId: resolvedTestId,
                 priority: input.priority,
                 notes: input.notes,
+                isWalkInLab: input.isWalkInLab || false,
+                visitId: input.visitId || null,
                 status: 'PAYMENT_PENDING',
             },
             include: {
@@ -196,7 +200,7 @@ export class LabService {
             throw new NotFoundError('Lab order not found');
         }
 
-        return this.formatOrder(order);
+        return this.formatOrder(order as any);
     }
 
     async getMyOrders(userId: string, query: LabOrderQueryInput): Promise<PaginatedResponse<LabOrderResponse>> {
@@ -570,7 +574,7 @@ export class LabService {
             },
         });
 
-        return this.formatOrder(updatedOrder);
+        return this.formatOrder(updatedOrder as any);
     }
 
     async updateOrderStatus(id: string, status: string): Promise<LabOrderResponse> {
@@ -584,22 +588,25 @@ export class LabService {
                 result: true,
             },
         });
-        return this.formatOrder(order);
+        return this.formatOrder(order as any);
     }
 
     private formatOrder(order: {
         id: string;
         patientId: string;
         orderedById: string;
+        orderedByRole?: string | null;
+        doctorId?: string | null;
         testName: string;
         testCode: string | null;
         priority: string;
         status: string;
         notes: string | null;
         patient: { firstName: string; lastName: string };
-        orderedBy: { firstName: string; lastName: string };
+        orderedBy: { firstName: string; lastName: string; user?: { role: string } };
+        doctor?: { firstName: string; lastName: string } | null;
         test?: any | null;
-        result: {
+        result?: {
             id: string;
             orderId: string;
             technicianId: string;
@@ -608,12 +615,16 @@ export class LabService {
             attachments: unknown;
             completedAt: Date;
         } | null;
+        isWalkInLab: boolean;
+        visitId: string | null;
         createdAt: Date;
     }): LabOrderResponse {
         return {
             id: order.id,
             patientId: order.patientId,
             orderedById: order.orderedById,
+            orderedByRole: order.orderedByRole ?? null,
+            doctorId: order.doctorId ?? null,
             testName: order.testName,
             testCode: order.testCode,
             priority: order.priority,
@@ -621,8 +632,11 @@ export class LabService {
             notes: order.notes,
             patient: order.patient,
             orderedBy: order.orderedBy,
+            doctor: order.doctor || null,
             test: order.test || null,
             result: order.result ? this.formatResult(order.result) : null,
+            isWalkInLab: order.isWalkInLab || false,
+            visitId: order.visitId || null,
             createdAt: order.createdAt,
         };
     }
@@ -698,16 +712,16 @@ export class LabService {
                 if (existingTest) {
                     // SMART MERGE LOGIC:
                     // If the names match OR the current test is just a redundant duplicate of a master record
-                    const namesMatch = existingTest.name.toLowerCase().includes(test.name.toLowerCase()) || 
-                                     test.name.toLowerCase().includes(existingTest.name.toLowerCase());
-                    
+                    const namesMatch = existingTest.name.toLowerCase().includes(test.name.toLowerCase()) ||
+                        test.name.toLowerCase().includes(existingTest.name.toLowerCase());
+
                     if (namesMatch) {
                         logger.info({ context: 'LabService.updateTest', fromId: id, toId: existingTest.id, code: normalizedCode }, 'Auto-merging duplicate test records on code update');
-                        
+
                         // 1. Move all orders to the existing (master) test
                         await prisma.labTestOrder.updateMany({
                             where: { testId: id },
-                            data: { 
+                            data: {
                                 testId: existingTest.id,
                                 testCode: existingTest.code,
                                 testName: existingTest.name
@@ -769,25 +783,36 @@ export class LabService {
     }
 
     async generateReportPDF(orderId: string): Promise<Buffer> {
-        const order = await prisma.labTestOrder.findUnique({
+        const order = (await (prisma.labTestOrder as any).findUnique({
             where: { id: orderId },
             include: {
                 patient: true,
                 orderedBy: { include: { user: true } },
+                doctor: true,
                 result: true,
             }
-        });
+        })) as any;
 
         if (!order || !order.result) {
             throw new NotFoundError('Lab order or results not found');
         }
 
-        const isDoctor = order.orderedBy?.user?.role === 'DOCTOR';
-        const doctorName = isDoctor 
-            ? `Dr. ${order.orderedBy.firstName} ${order.orderedBy.lastName}`
-            : `${order.orderedBy.firstName} ${order.orderedBy.lastName}`;
+        let doctorName = '';
+        if (order.isWalkInLab) {
+            doctorName = 'Reception (Walk-in Lab)';
+        } else if (order.orderedByRole === 'DOCTOR' || order.orderedBy?.user?.role === 'DOCTOR') {
+            doctorName = `Dr. ${order.orderedBy.firstName} ${order.orderedBy.lastName}`;
+        } else if (order.orderedByRole === 'RECEPTIONIST' || order.orderedBy?.user?.role === 'RECEPTIONIST') {
+            if (order.doctor) {
+                doctorName = `Dr. ${order.doctor.firstName} ${order.doctor.lastName} (Ordered by Reception)`;
+            } else {
+                doctorName = `${order.orderedBy.firstName} ${order.orderedBy.lastName} (Receptionist)`;
+            }
+        } else {
+            doctorName = `${order.orderedBy.firstName} ${order.orderedBy.lastName}`;
+        }
 
-        const resultData = order.result.result as any;
+        const resultData = order.result.result;
 
         const reportData = {
             orderId: order.id,

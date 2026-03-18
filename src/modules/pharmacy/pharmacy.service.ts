@@ -721,9 +721,13 @@ export class PharmacyService {
         };
     }
 
-    async getMarginReport(query: { startDate?: string; endDate?: string }): Promise<MarginReportResponse> {
+    async getMarginReport(query: { startDate?: string; endDate?: string }): Promise<any> {
         const start = query.startDate ? new Date(query.startDate) : new Date(new Date().setHours(0, 0, 0, 0));
-        const end = query.endDate ? new Date(query.endDate) : new Date();
+        let end = new Date();
+        if (query.endDate) {
+            end = new Date(query.endDate);
+            end.setHours(23, 59, 59, 999);
+        }
         
         const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
         const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
@@ -773,11 +777,13 @@ export class PharmacyService {
         }));
 
         return {
-            todayMargin: Number((todayStats as any)._sum?.profit) || 0,
-            monthlyMargin: Number((monthStats as any)._sum?.profit) || 0,
-            todayMedicinesCount: Number((todayStats as any)._sum?.quantity) || 0,
+            summary: {
+                todayMargin: Number((todayStats as any)._sum?.profit) || 0,
+                monthlyMargin: Number((monthStats as any)._sum?.profit) || 0,
+                totalSoldToday: Number((todayStats as any)._sum?.quantity) || 0,
+            },
             medicineWiseProfit,
-            topMedicines: medicineWiseProfit.slice(0, 10).map((m: any) => ({
+            topProfitableMedicines: medicineWiseProfit.slice(0, 10).map((m: any) => ({
                 medicineId: m.medicineId,
                 medicineName: m.medicineName,
                 totalProfit: m.totalProfit
@@ -948,14 +954,26 @@ export class PharmacyService {
             }
         });
 
+        // Group pending by distributor
+        const pendingByDistributor: Record<string, { count: number; totalBalance: number }> = {};
+        pendingPurchases.forEach((p: any) => {
+            const name = p.distributorName || 'Unknown';
+            if (!pendingByDistributor[name]) {
+                pendingByDistributor[name] = { count: 0, totalBalance: 0 };
+            }
+            pendingByDistributor[name].count += 1;
+            pendingByDistributor[name].totalBalance += Number(p.balanceAmount) || 0;
+        });
+
         return {
             pendingPurchases: pendingPurchases.map((p: any) => this.formatPurchase(p)),
-            summary: {
-                totalPurchaseAmount: Number(stats._sum.totalAmount) || 0,
-                totalPaidAmount: Number(stats._sum.amountPaid) || 0,
-                totalBalanceAmount: Number(stats._sum.balanceAmount) || 0,
-                pendingInvoicesCount: pendingPurchases.length
-            }
+            stats: {
+                totalAmount: Number(stats._sum.totalAmount) || 0,
+                totalPaid: Number(stats._sum.amountPaid) || 0,
+                totalBalance: Number(stats._sum.balanceAmount) || 0,
+                pendingCount: pendingPurchases.length
+            },
+            pendingByDistributor
         };
     }
 

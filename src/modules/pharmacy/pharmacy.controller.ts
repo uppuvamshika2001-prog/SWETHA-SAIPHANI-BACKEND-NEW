@@ -399,3 +399,15 @@ export async function getDistributorReport(
         next(error);
     }
 }
+export async function getMarginReport(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const result = await pharmacyService.getMarginReport(req.query);
+        sendSuccess(res, result);
+    } catch (error) {
+        next(error);
+    }
+}

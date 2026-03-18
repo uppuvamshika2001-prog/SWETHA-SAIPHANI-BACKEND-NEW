@@ -60,6 +60,7 @@ model Staff {
   updatedAt      DateTime        @updatedAt @map("updated_at")
   appointments   Appointment[]   @relation("DoctorAppointments")
   labTestOrders  LabTestOrder[]  @relation("OrderedBy")
+  doctorLabOrders LabTestOrder[] @relation("DoctorOrdering")
   labTestResults LabTestResult[]
   medicalRecords MedicalRecord[]
   prescriptions  Prescription[]
@@ -280,6 +281,8 @@ model LabTestOrder {
   id          String         @id @default(uuid())
   patientId   String         @map("patient_id")
   orderedById String         @map("ordered_by_id")
+  orderedByRole String?      @map("ordered_by_role")
+  doctorId      String?      @map("doctor_id")
   testName    String         @map("test_name")
   testCode    String?        @map("test_code")
   priority    String         @default("normal")
@@ -292,10 +295,13 @@ model LabTestOrder {
   billId      String?        @map("bill_id")
   bill        Bill?          @relation(fields: [billId], references: [id])
   orderedBy   Staff          @relation("OrderedBy", fields: [orderedById], references: [id], onDelete: Cascade)
+  doctor      Staff?         @relation("DoctorOrdering", fields: [doctorId], references: [id])
   patient     Patient        @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
   result      LabTestResult?
   labResults  LabResult[]
   isReportVisibleToPatient Boolean @default(true) @map("is_report_visible")
+  isWalkInLab              Boolean @default(false) @map("is_walk_in_lab")
+  visitId                  String? @map("visit_id")
 
   @@map("lab_test_orders")
 }

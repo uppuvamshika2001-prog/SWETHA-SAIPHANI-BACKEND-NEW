@@ -95,6 +95,7 @@ export class BillingService {
                             priority: 'normal',
                             status: 'PENDING',
                             billId: bill.id,
+                            isWalkInLab: billData.isWalkInLab || false,
                         }
                     });
                 }

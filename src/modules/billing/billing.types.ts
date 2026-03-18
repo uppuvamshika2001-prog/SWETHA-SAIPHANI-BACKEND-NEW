@@ -16,6 +16,7 @@ export const createBillSchema = z.object({
     notes: z.string().optional(),
     status: z.nativeEnum(BillStatus).default(BillStatus.PENDING),
     labOrderIds: z.array(z.string()).optional(),
+    isWalkInLab: z.boolean().optional().default(false),
 });
 
 export const updateBillStatusSchema = z.object({

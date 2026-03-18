@@ -43,7 +43,7 @@ export async function createLabOrder(
 ): Promise<void> {
     try {
         const input = createLabOrderSchema.parse(req.body);
-        const order = await labService.createOrder(req.user!.userId, input);
+        const order = await labService.createOrder(req.user!.userId, req.user!.role, input);
         sendCreated(res, order, 'Lab order created successfully');
     } catch (error) {
         next(error);
