@@ -44,7 +44,7 @@ async function backfill() {
             let targetCode = normalizationMap[searchKey] || searchKey;
 
             // 2. Find the canonical active test that has parameters
-            const resolvedTest = await prisma.labTest.findFirst({
+            const resolvedTest = await (prisma.labTest as any).findFirst({
                 where: {
                     isActive: true,
                     // Require the test to actually have parameters so we don't link to another dead duplicate
