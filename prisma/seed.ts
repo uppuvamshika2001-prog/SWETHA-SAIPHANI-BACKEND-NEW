@@ -143,9 +143,9 @@ async function main() {
     await (prisma as any).labTestParameter.createMany({
         data: [
             { testId: lipid.id, categoryId: lipidCat.id, parameterName: 'Total Cholesterol', unit: 'mg/dl', inputType: 'number', referenceRange: { default: '< 200' }, displayOrder: 1 },
-            { testId: lipid.id, categoryId: lipidCat.id, parameterName: 'Triglycerides', unit: 'mg/dl', inputType: 'number', referenceRange: { default: '< 150' }, displayOrder: 2 },
-            { testId: lipid.id, categoryId: lipidCat.id, parameterName: 'HDL Cholesterol', unit: 'mg/dl', inputType: 'number', referenceRange: { default: '> 40' }, displayOrder: 3 },
-            { testId: lipid.id, categoryId: lipidCat.id, parameterName: 'LDL Cholesterol', unit: 'mg/dl', inputType: 'number', referenceRange: { default: '< 100' }, displayOrder: 4 },
+            { testId: lipid.id, categoryId: lipidCat.id, parameterName: 'HDL Cholesterol', unit: 'mg/dl', inputType: 'number', referenceRange: { male: '> 40', female: '> 50' }, displayOrder: 2 },
+            { testId: lipid.id, categoryId: lipidCat.id, parameterName: 'LDL Cholesterol', unit: 'mg/dl', inputType: 'number', referenceRange: { default: '< 100' }, displayOrder: 3 },
+            { testId: lipid.id, categoryId: lipidCat.id, parameterName: 'Triglycerides', unit: 'mg/dl', inputType: 'number', referenceRange: { default: '< 150' }, displayOrder: 4 },
             { testId: lipid.id, categoryId: lipidCat.id, parameterName: 'VLDL Cholesterol', unit: 'mg/dl', inputType: 'number', referenceRange: { default: '< 30' }, displayOrder: 5 },
             { testId: lipid.id, categoryId: lipidCat.id, parameterName: 'CHOL / HDL Ratio', unit: '', inputType: 'number', referenceRange: { default: '< 5.0' }, displayOrder: 6 },
         ]
@@ -163,9 +163,9 @@ async function main() {
     const thyroidCat = await (prisma as any).labTestCategory.create({ data: { testId: thyroid.id, name: 'THYROID PROFILE', displayOrder: 1 } });
     await (prisma as any).labTestParameter.createMany({
         data: [
-            { testId: thyroid.id, categoryId: thyroidCat.id, parameterName: 'Total T3', unit: 'ng/dl', inputType: 'number', referenceRange: { default: '84 - 202' }, displayOrder: 1 },
-            { testId: thyroid.id, categoryId: thyroidCat.id, parameterName: 'Total T4', unit: 'ug/dl', inputType: 'number', referenceRange: { default: '5.1 - 14.1' }, displayOrder: 2 },
-            { testId: thyroid.id, categoryId: thyroidCat.id, parameterName: 'TSH', unit: 'uIU/ml', inputType: 'number', referenceRange: { default: '0.27 - 4.2' }, displayOrder: 3 },
+            { testId: thyroid.id, categoryId: thyroidCat.id, parameterName: 'Total T3', unit: 'ng/dl', inputType: 'number', referenceRange: { default: '80 - 200' }, displayOrder: 1 },
+            { testId: thyroid.id, categoryId: thyroidCat.id, parameterName: 'Total T4', unit: 'ug/dl', inputType: 'number', referenceRange: { default: '5 - 12' }, displayOrder: 2 },
+            { testId: thyroid.id, categoryId: thyroidCat.id, parameterName: 'TSH', unit: 'uIU/ml', inputType: 'number', referenceRange: { default: '0.4 - 4' }, displayOrder: 3 },
         ]
     });
 
@@ -230,12 +230,13 @@ async function main() {
     console.log('  Seeding Single Tests...');
     
     const singleTestsRef = [
-        { code: 'CRP', name: 'C-Reactive Protein (CRP)', dept: 'SEROLOGY', price: 400, param: 'CRP RESULT', unit: 'mg/L', range: '< 6.0' },
-        { code: 'HBA1C', name: 'HbA1C (Glycosylated Hemoglobin)', dept: 'BIOCHEMISTRY', price: 600, param: 'HbA1C', unit: '%', range: '4.0 - 5.6' },
-        { code: 'BLOOD_UREA', name: 'Blood Urea', dept: 'BIOCHEMISTRY', price: 200, param: 'Blood Urea', unit: 'mg/dl', range: '15 - 45' },
-        { code: 'SERUM_CREATININE', name: 'Serum Creatinine', dept: 'BIOCHEMISTRY', price: 250, param: 'Serum Creatinine', unit: 'mg/dl', range: '0.6 - 1.4' },
+        { code: 'ESR', name: 'ESR (Erythrocyte Sedimentation Rate)', dept: 'HEMATOLOGY', price: 100, param: 'ESR', unit: 'mm/hr', range: '0 - 20', maleRange: '0-15', femaleRange: '0-20' },
+        { code: 'CRP', name: 'C-Reactive Protein (CRP)', dept: 'SEROLOGY', price: 400, param: 'C-Reactive Protein', unit: 'mg/L', range: '< 6.0' },
+        { code: 'HBA1C', name: 'HbA1C (Glycosylated Hemoglobin)', dept: 'BIOCHEMISTRY', price: 600, param: 'HbA1c', unit: '%', range: '4.0 - 5.6' },
+        { code: 'BLOOD_UREA', name: 'Blood Urea', dept: 'BIOCHEMISTRY', price: 200, param: 'Blood Urea', unit: 'mg/dL', range: '15 - 45' },
+        { code: 'SERUM_CREATININE', name: 'Serum Creatinine', dept: 'BIOCHEMISTRY', price: 250, param: 'Creatinine', unit: 'mg/dL', range: '0.6 - 1.4', maleRange: '0.7-1.3', femaleRange: '0.6-1.1' },
         { code: 'SERUM_CALCIUM', name: 'Serum Calcium', dept: 'BIOCHEMISTRY', price: 300, param: 'Serum Calcium', unit: 'mg/dl', range: '8.5 - 10.5' },
-        { code: 'RBS', name: 'RBS (Random Blood Sugar)', dept: 'BIOCHEMISTRY', price: 150, param: 'RBS', unit: 'mg/dl', range: '70 - 140' },
+        { code: 'RBS', name: 'RBS (Random Blood Sugar)', dept: 'BIOCHEMISTRY', price: 150, param: 'Random Blood Sugar', unit: 'mg/dL', range: '70 - 140' },
         { code: 'MP', name: 'Malarial Parasite (MP)', dept: 'PATHOLOGY', price: 250, param: 'Malarial Parasite', unit: '', range: 'Negative' },
         { code: 'HIV', name: 'HIV I & II Antibodies', dept: 'SEROLOGY', price: 500, param: 'HIV Antibodies', unit: '', range: 'Negative' },
         { code: 'HBSAG', name: 'HBsAg', dept: 'SEROLOGY', price: 400, param: 'HBsAg', unit: '', range: 'Negative' },
@@ -263,7 +264,9 @@ async function main() {
                 parameterName: st.param, 
                 unit: st.unit, 
                 inputType: st.range === 'Negative' ? 'text' : 'number', 
-                referenceRange: { default: st.range }, 
+                referenceRange: (st as any).maleRange 
+                    ? { default: st.range, male: (st as any).maleRange, female: (st as any).femaleRange }
+                    : { default: st.range }, 
                 displayOrder: 1 
             }
         });

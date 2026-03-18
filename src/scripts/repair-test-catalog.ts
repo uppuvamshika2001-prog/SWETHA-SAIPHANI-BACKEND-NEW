@@ -10,7 +10,7 @@ async function repair() {
         'CBP', 'CUE', 'LFT', 'RFT', 'LIPID_PROFILE', 'THYROID_PROFILE', 
         'SERUM_ELECTROLYTES', 'WIDAL', 'DENGUE', 'CRP', 'HBA1C', 
         'BLOOD_UREA', 'SERUM_CREATININE', 'SERUM_CALCIUM', 'RBS', 
-        'MP', 'HIV', 'HBSAG', 'HCV', 'XRAY'
+        'MP', 'HIV', 'HBSAG', 'HCV', 'XRAY', 'ESR'
     ];
 
     const result = await prisma.labTest.updateMany({
