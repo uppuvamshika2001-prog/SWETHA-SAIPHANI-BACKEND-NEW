@@ -16,9 +16,9 @@ export const LabTestStatus = {
 
 export const createLabOrderSchema = z.object({
     patientId: z.string().min(1),
-    testName: z.string().min(1, 'Test name is required'),
+    testId: z.string().optional(), // Strictly preferred
+    testName: z.string().min(1, 'Test name is required'), // Still required for record, but should be synced from testId
     testCode: z.string().optional(),
-    testId: z.string().optional(),
     doctorId: z.string().optional(),
     priority: z.enum(['normal', 'urgent', 'stat']).default('normal'),
     notes: z.string().optional(),

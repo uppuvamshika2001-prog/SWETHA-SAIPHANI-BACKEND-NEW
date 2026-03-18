@@ -52,6 +52,7 @@ export class LabService {
         let resolvedTestCode = input.testCode;
 
         if (!resolvedTestId) {
+            // Attempt to resolve testId from name or code if not provided
             const resolvedTest = await prisma.labTest.findFirst({
                 where: {
                     OR: [
@@ -68,16 +69,31 @@ export class LabService {
                 resolvedTestCode = resolvedTest.code;
             }
         } else {
-            // If testId is provided, sync the name/code from the catalog
+            // If testId is provided, sync the name/code from the catalog to ensure consistency
             const catalogTest = await prisma.labTest.findUnique({ where: { id: resolvedTestId } });
             if (catalogTest) {
                 resolvedTestName = catalogTest.name;
                 resolvedTestCode = catalogTest.code;
+            } else {
+                // If testId is invalid, try resolving by name/code as a backup
+                const fallbackTest = await prisma.labTest.findFirst({
+                    where: {
+                        OR: [
+                            { code: { equals: input.testCode || input.testName, mode: 'insensitive' } },
+                            { name: { equals: input.testName, mode: 'insensitive' } }
+                        ]
+                    }
+                });
+                if (fallbackTest) {
+                    resolvedTestId = fallbackTest.id;
+                    resolvedTestName = fallbackTest.name;
+                    resolvedTestCode = fallbackTest.code;
+                }
             }
         }
 
         if (!resolvedTestId) {
-            throw new ValidationError(`Lab test '${input.testName}' not found in catalog. Please select a valid test.`);
+            throw new ValidationError(`The lab test '${input.testName}' is not in the official catalog. Please select a valid test from the list.`);
         }
 
         const order = await prisma.labTestOrder.create({
@@ -295,8 +311,9 @@ export class LabService {
                         OR: [
                             { code: { equals: order.testCode || order.testName, mode: 'insensitive' } },
                             { name: { equals: order.testName, mode: 'insensitive' } },
+                            { code: { equals: order.testName, mode: 'insensitive' } },
                             { name: { contains: order.testName, mode: 'insensitive' } },
-                            { code: { contains: order.testName, mode: 'insensitive' } }
+                            { name: { contains: order.testCode || '', mode: 'insensitive' } }
                         ]
                     },
                     include: {
@@ -311,10 +328,14 @@ export class LabService {
                     }
                 });
                 if (resolvedTest) {
-                    // Link it for future requests
+                    // Auto-link it for future requests to fix broken legacy data
                     await prisma.labTestOrder.update({
                         where: { id: orderId },
-                        data: { testId: resolvedTest.id }
+                        data: { 
+                            testId: resolvedTest.id,
+                            testName: resolvedTest.name, // Sync name too
+                            testCode: resolvedTest.code  // Sync code too
+                        }
                     });
                     (order as any).test = resolvedTest;
                 }

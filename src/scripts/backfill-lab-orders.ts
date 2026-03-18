@@ -17,16 +17,38 @@ async function backfill() {
     let updatedCount = 0;
     let failedCount = 0;
 
+    const normalizationMap: Record<string, string> = {
+        'Complete Blood Picture': 'CBP',
+        'Complete Blood Picture (CBP)': 'CBP',
+        'CBC': 'CBP',
+        'Complete Urine Examination': 'CUE',
+        'Complete Urine Examination (CUE)': 'CUE',
+        'URINE': 'CUE',
+        'Liver Function Test': 'LFT',
+        'Renal Function Test': 'RFT',
+        'B_UREA': 'BLOOD_UREA',
+        'CREATININE': 'SERUM_CREATININE',
+        'CALCIUM': 'SERUM_CALCIUM',
+        'ELECTRO': 'SERUM_ELECTROLYTES',
+        'THYROID': 'THYROID_PROFILE',
+        'LIPID': 'LIPID_PROFILE'
+    };
+
     for (const order of orders) {
         try {
             // 2. Try to find the matching test in the catalog
+            // Check normalization map first
+            let searchKey = (order.testCode || order.testName || '').trim();
+            let targetCode = normalizationMap[searchKey] || searchKey;
+
             const resolvedTest = await prisma.labTest.findFirst({
                 where: {
                     OR: [
-                        { code: { equals: order.testCode || order.testName, mode: 'insensitive' } },
+                        { code: { equals: targetCode, mode: 'insensitive' } },
                         { name: { equals: order.testName, mode: 'insensitive' } },
                         { name: { contains: order.testName, mode: 'insensitive' } },
-                        { code: { contains: order.testName, mode: 'insensitive' } }
+                        { code: { contains: order.testName, mode: 'insensitive' } },
+                        { code: { equals: searchKey, mode: 'insensitive' } }
                     ]
                 }
             });
