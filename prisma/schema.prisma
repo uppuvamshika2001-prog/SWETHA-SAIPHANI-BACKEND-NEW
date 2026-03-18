@@ -413,7 +413,7 @@ enum LabTestType {
 
 model LabTest {
   id          String             @id @default(uuid())
-  code        String             @unique
+  code        String
   name        String
   department  String
   type        LabTestType        @default(PANEL)

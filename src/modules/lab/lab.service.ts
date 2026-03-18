@@ -641,7 +641,10 @@ export class LabService {
     async createTest(input: CreateLabTestInput) {
         const normalizedCode = input.code.trim().toUpperCase();
         const existingTest = await (prisma.labTest as any).findFirst({
-            where: { code: { equals: normalizedCode, mode: 'insensitive' } }
+            where: {
+                code: { equals: normalizedCode, mode: 'insensitive' },
+                isActive: true
+            }
         });
         if (existingTest) {
             throw new ValidationError('Test with this code already exists');
@@ -676,7 +679,8 @@ export class LabService {
                 const existingTest = await (prisma.labTest as any).findFirst({
                     where: {
                         code: { equals: normalizedCode, mode: 'insensitive' },
-                        id: { not: id }
+                        id: { not: id },
+                        isActive: true
                     }
                 });
 

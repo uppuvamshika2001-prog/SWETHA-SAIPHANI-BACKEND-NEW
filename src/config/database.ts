@@ -29,6 +29,20 @@ export async function connectDatabase(): Promise<void> {
     try {
         await prisma.$connect();
         logger.info('Database connected successfully');
+
+        // Ensure partial unique index on lab_tests.code for active records only
+        // This allows inactive/soft-deleted tests to have duplicate codes
+        try {
+            await prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "lab_tests_code_key"`);
+            await prisma.$executeRawUnsafe(`
+                CREATE UNIQUE INDEX IF NOT EXISTS "lab_tests_code_active_unique"
+                ON "lab_tests"(code)
+                WHERE "is_active" = true
+            `);
+            logger.info('Partial unique index on lab_tests.code ensured');
+        } catch (indexError) {
+            logger.warn({ error: indexError }, 'Could not create partial unique index on lab_tests (non-fatal)');
+        }
     } catch (error) {
         logger.error({ error }, 'Failed to connect to database');
         throw error;
