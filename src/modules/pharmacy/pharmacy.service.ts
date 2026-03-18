@@ -45,29 +45,43 @@ export class PharmacyService {
                 });
             }
 
-            // 2. Handle Pharmacy Purchase if invoice provided
+            // 2. Handle Pharmacy Purchase (Aggregated by Invoice)
             let purchaseId = null;
             if (input.invoiceNumber) {
-                const totalAmount = input.stockQuantity * input.purchasePrice;
-                const amountPaid = input.amountPaid || 0;
-                const balanceAmount = totalAmount - amountPaid;
+                const totalItemAmount = input.stockQuantity * input.purchasePrice;
                 
-                let paymentStatus = 'PENDING';
-                if (amountPaid >= totalAmount) paymentStatus = 'PAID';
-                else if (amountPaid > 0) paymentStatus = 'PARTIALLY_PAID';
-
-                const purchase = await (tx as any).pharmacyPurchase.create({
-                    data: {
-                        distributorName: input.distributorName,
-                        invoiceNumber: input.invoiceNumber,
-                        totalAmount: new Decimal(totalAmount),
-                        amountPaid: new Decimal(amountPaid),
-                        balanceAmount: new Decimal(balanceAmount),
-                        paymentStatus,
-                        paymentDate: input.paymentDate,
-                        paymentMethod: input.paymentMethod,
+                // Find existing purchase for this distributor + invoice
+                let purchase = await (tx as any).pharmacyPurchase.findUnique({
+                    where: {
+                        distributorName_invoiceNumber: {
+                            distributorName: input.distributorName,
+                            invoiceNumber: input.invoiceNumber
+                        }
                     }
                 });
+
+                if (purchase) {
+                    // Update existing purchase total
+                    purchase = await (tx as any).pharmacyPurchase.update({
+                        where: { id: purchase.id },
+                        data: {
+                            totalAmount: { increment: new Decimal(totalItemAmount) },
+                            balanceAmount: { increment: new Decimal(totalItemAmount) }
+                        }
+                    });
+                } else {
+                    // Create new purchase
+                    purchase = await (tx as any).pharmacyPurchase.create({
+                        data: {
+                            distributorName: input.distributorName,
+                            invoiceNumber: input.invoiceNumber,
+                            totalAmount: new Decimal(totalItemAmount),
+                            amountPaid: new Decimal(0),
+                            balanceAmount: new Decimal(totalItemAmount),
+                            paymentStatus: 'PENDING'
+                        }
+                    });
+                }
                 purchaseId = purchase.id;
             }
 
@@ -789,6 +803,63 @@ export class PharmacyService {
                 totalProfit: m.totalProfit
             }))
         };
+    }
+    
+    async recordPayment(input: any): Promise<any> {
+        const { purchaseId, amount, paymentMethod, paymentDate, notes } = input;
+        
+        return await prisma.$transaction(async (tx) => {
+            const purchase = await (tx as any).pharmacyPurchase.findUnique({
+                where: { id: purchaseId }
+            });
+
+            if (!purchase) throw new NotFoundError('Purchase not found');
+
+            const currentBalance = Number(purchase.balanceAmount);
+            if (amount > currentBalance) {
+                throw new ValidationError(`Paid amount (₹${amount}) cannot exceed current balance (₹${currentBalance})`);
+            }
+
+            // Record the payment
+            const payment = await (tx as any).pharmacyPayment.create({
+                data: {
+                    purchaseId,
+                    amount: new Decimal(amount),
+                    paymentMethod,
+                    paymentDate: paymentDate || new Date(),
+                    notes
+                }
+            });
+
+            // Update purchase record
+            const newAmountPaid = Number(purchase.amountPaid) + amount;
+            const newBalance = Number(purchase.totalAmount) - newAmountPaid;
+            let status = 'PENDING';
+            if (newBalance <= 0) status = 'PAID';
+            else if (newAmountPaid > 0) status = 'PARTIALLY_PAID';
+
+            await (tx as any).pharmacyPurchase.update({
+                where: { id: purchaseId },
+                data: {
+                    amountPaid: new Decimal(newAmountPaid),
+                    balanceAmount: new Decimal(newBalance),
+                    paymentStatus: status
+                }
+            });
+
+            return payment;
+        });
+    }
+
+    async getPurchasePayments(purchaseId: string): Promise<any[]> {
+        const payments = await (prisma as any).pharmacyPayment.findMany({
+            where: { purchaseId },
+            orderBy: { paymentDate: 'desc' }
+        });
+        return payments.map((p: any) => ({
+            ...p,
+            amount: Number(p.amount)
+        }));
     }
 
     private formatStockReturn(sReturn: any): PharmacyStockReturnResponse {

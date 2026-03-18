@@ -18,11 +18,16 @@ export const createMedicineSchema = z.object({
     mrp: z.number().nonnegative().optional(),
     gst: z.number().nonnegative().default(0),
     stockQuantity: z.number().int().positive(),
-    // Purchase payment tracking
+    // Purchase payment tracking (Now handled separately, but kept as optional for backward compatibility during migration)
     invoiceNumber: z.string().optional(),
-    amountPaid: z.number().nonnegative().default(0),
+});
+
+export const recordPaymentSchema = z.object({
+    purchaseId: z.string(),
+    amount: z.number().positive(),
     paymentDate: z.string().transform((s) => new Date(s)).optional(),
-    paymentMethod: z.string().optional(),
+    paymentMethod: z.string(),
+    notes: z.string().optional(),
 });
 
 export const updateMedicineSchema = z.object({
@@ -69,6 +74,7 @@ export type UpdateMedicineInput = z.infer<typeof updateMedicineSchema>;
 export type MedicineQueryInput = z.infer<typeof medicineQuerySchema>;
 export type CreateBillInput = z.infer<typeof createBillSchema>;
 export type UpdateBillInput = z.infer<typeof updateBillSchema>;
+export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
 
 export interface MedicineResponse {
     id: string;

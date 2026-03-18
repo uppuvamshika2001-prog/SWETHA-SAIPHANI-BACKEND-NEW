@@ -109,7 +109,7 @@ export class LabService {
             },
             include: {
                 patient: { select: { firstName: true, lastName: true } },
-                orderedBy: { select: { firstName: true, lastName: true } },
+                orderedBy: { select: { firstName: true, lastName: true, user: { select: { role: true } } } },
                 result: true,
             },
         });
@@ -125,7 +125,10 @@ export class LabService {
 
             const where: any = {};
             if (patientId) where.patientId = patientId;
-            if (status) where.status = status.toUpperCase();
+            if (status) {
+                const upperStatus = status.toUpperCase();
+                where.status = upperStatus === 'PENDING' ? 'PAYMENT_PENDING' : upperStatus;
+            }
             if (priority) where.priority = priority;
 
             // Date Range Filtering with robust validation
@@ -163,7 +166,7 @@ export class LabService {
                     orderBy: { createdAt: 'desc' },
                     include: {
                         patient: { select: { firstName: true, lastName: true } },
-                        orderedBy: { select: { firstName: true, lastName: true } },
+                        orderedBy: { select: { firstName: true, lastName: true, user: { select: { role: true } } } },
                         test: true,
                         bill: true,
                         result: true,
@@ -190,7 +193,7 @@ export class LabService {
             where: { id },
             include: {
                 patient: { select: { firstName: true, lastName: true } },
-                orderedBy: { select: { firstName: true, lastName: true } },
+                orderedBy: { select: { firstName: true, lastName: true, user: { select: { role: true } } } },
                 bill: true,
                 result: true,
             },
@@ -222,7 +225,10 @@ export class LabService {
             const skip = (Number(page) - 1) * Number(limit);
 
             const where: any = { orderedById: staff.id };
-            if (status) where.status = status;
+            if (status) {
+                const upperStatus = status.toUpperCase();
+                where.status = upperStatus === 'PENDING' ? 'PAYMENT_PENDING' : upperStatus;
+            }
             if (priority) where.priority = priority;
 
             // Date Range Filtering with robust validation
@@ -260,7 +266,7 @@ export class LabService {
                     orderBy: { createdAt: 'desc' },
                     include: {
                         patient: { select: { firstName: true, lastName: true } },
-                        orderedBy: { select: { firstName: true, lastName: true } },
+                        orderedBy: { select: { firstName: true, lastName: true, user: { select: { role: true } } } },
                         test: true,
                         bill: true,
                         result: true,
@@ -568,7 +574,7 @@ export class LabService {
             data: { status: 'READY_FOR_SAMPLE_COLLECTION' },
             include: {
                 patient: { select: { firstName: true, lastName: true } },
-                orderedBy: { select: { firstName: true, lastName: true } },
+                orderedBy: { select: { firstName: true, lastName: true, user: { select: { role: true } } } },
                 bill: true,
                 result: true,
             },
@@ -583,7 +589,7 @@ export class LabService {
             data: { status: status as any },
             include: {
                 patient: { select: { firstName: true, lastName: true } },
-                orderedBy: { select: { firstName: true, lastName: true } },
+                orderedBy: { select: { firstName: true, lastName: true, user: { select: { role: true } } } },
                 bill: true,
                 result: true,
             },

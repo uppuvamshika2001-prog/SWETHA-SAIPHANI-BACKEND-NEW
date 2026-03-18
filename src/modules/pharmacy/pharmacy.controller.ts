@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { pharmacyService } from '@/modules/pharmacy/pharmacy.service.js';
-import { createMedicineSchema, updateMedicineSchema, medicineQuerySchema, createBillSchema, updateBillSchema } from '@/modules/pharmacy/pharmacy.types.js';
+import { createMedicineSchema, updateMedicineSchema, medicineQuerySchema, createBillSchema, updateBillSchema, recordPaymentSchema } from '@/modules/pharmacy/pharmacy.types.js';
 import { sendSuccess, sendCreated } from '@/utils/response.js';
 
 /**
@@ -406,6 +406,33 @@ export async function getMarginReport(
 ): Promise<void> {
     try {
         const result = await pharmacyService.getMarginReport(req.query);
+        sendSuccess(res, result);
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function recordPayment(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const validated = recordPaymentSchema.parse(req.body);
+        const result = await pharmacyService.recordPayment(validated);
+        sendSuccess(res, result);
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getPurchasePayments(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const result = await pharmacyService.getPurchasePayments(req.params.id as string);
         sendSuccess(res, result);
     } catch (error) {
         next(error);

@@ -99,7 +99,7 @@ model Patient {
   department       String?
   paymentMode      String?         @map("payment_mode") // cash, card, upi
   registrationFee  Decimal?        @map("registration_fee") @db.Decimal(10, 2)
-  registrationDate DateTime        @default(now()) @map("registration_date")
+  registrationDate DateTime        @default(now()) @map("registration_date") @db.Date
   createdAt        DateTime        @default(now()) @map("created_at")
   updatedAt        DateTime        @updatedAt @map("updated_at")
   appointments     Appointment[]
@@ -396,7 +396,6 @@ enum LabTestStatus {
   CANCELLED
   PAYMENT_PENDING
   READY_FOR_SAMPLE_COLLECTION
-  PENDING
 }
 
 enum DocumentType {
@@ -513,16 +512,30 @@ model PharmacyPurchase {
   invoiceNumber   String           @map("invoice_number")
   purchaseDate    DateTime         @default(now()) @map("purchase_date")
   totalAmount     Decimal          @map("total_amount") @db.Decimal(10, 2)
-  amountPaid      Decimal          @map("amount_paid") @db.Decimal(10, 2)
-  balanceAmount   Decimal          @map("balance_amount") @db.Decimal(10, 2)
-  paymentStatus   String           @map("payment_status") // PENDING, PAID, PARTIALLY_PAID
-  paymentDate     DateTime?        @map("payment_date")
-  paymentMethod   String?          @map("payment_method")
+  amountPaid      Decimal          @default(0) @map("amount_paid") @db.Decimal(10, 2)
+  balanceAmount   Decimal          @default(0) @map("balance_amount") @db.Decimal(10, 2)
+  paymentStatus   String           @default("PENDING") @map("payment_status") // PENDING, PAID, PARTIALLY_PAID
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
   batches         MedicineBatch[]
+  payments        PharmacyPayment[]
 
+  @@unique([distributorName, invoiceNumber])
   @@map("pharmacy_purchases")
+}
+
+model PharmacyPayment {
+  id              String           @id @default(uuid())
+  purchaseId      String           @map("purchase_id")
+  amount          Decimal          @db.Decimal(10, 2)
+  paymentDate     DateTime         @default(now()) @map("payment_date")
+  paymentMethod   String           @map("payment_method")
+  notes           String?
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  purchase        PharmacyPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  @@map("pharmacy_payments")
 }
 
 model PharmacyReturn {

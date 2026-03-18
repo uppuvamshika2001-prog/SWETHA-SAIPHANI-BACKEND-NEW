@@ -102,6 +102,7 @@ export class PatientsService {
                     department: input.department,
                     paymentMode: input.paymentMode,
                     registrationFee: input.registrationFee,
+                    registrationDate: input.registrationDate || new Date(),
                 },
             });
 
@@ -236,7 +237,7 @@ export class PatientsService {
             endOfDay.setHours(23, 59, 59, 999);
 
             AND.push({
-                createdAt: {
+                registrationDate: {
                     gte: startOfDay,
                     lte: endOfDay
                 }
@@ -244,18 +245,18 @@ export class PatientsService {
         }
 
         if (startDate || endDate) {
-            const createdAtFilter: any = {};
+            const registrationDateFilter: any = {};
             if (startDate) {
                 const start = new Date(startDate);
                 start.setHours(0, 0, 0, 0);
-                createdAtFilter.gte = start;
+                registrationDateFilter.gte = start;
             }
             if (endDate) {
                 const end = new Date(endDate);
                 end.setHours(23, 59, 59, 999);
-                createdAtFilter.lte = end;
+                registrationDateFilter.lte = end;
             }
-            AND.push({ createdAt: createdAtFilter });
+            AND.push({ registrationDate: registrationDateFilter });
         }
 
         if (AND.length > 0) {
@@ -503,6 +504,7 @@ export class PatientsService {
         department: string | null;
         paymentMode: string | null;
         registrationFee: any;
+        registrationDate: Date;
         createdAt: Date;
         updatedAt: Date;
     }): PatientResponse {
@@ -537,6 +539,7 @@ export class PatientsService {
             department: patient.department,
             paymentMode: patient.paymentMode,
             registrationFee: patient.registrationFee ? Number(patient.registrationFee) : null,
+            registrationDate: patient.registrationDate,
             createdAt: patient.createdAt,
             updatedAt: patient.updatedAt,
         };
@@ -575,6 +578,7 @@ export class PatientsService {
                 referredPerson: input.referredPerson,
                 consultingDoctor: input.consultingDoctor,
                 department: input.department,
+                registrationDate: (input as any).registrationDate || new Date(),
             },
         });
 

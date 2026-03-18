@@ -34,6 +34,7 @@ export const createPatientSchema = z.object({
     // Payment
     paymentMode: z.string().optional(),
     registrationFee: z.union([z.string(), z.number()]).optional().transform(v => v ? Number(v) : undefined),
+    registrationDate: z.string().optional().transform(v => v ? new Date(v) : undefined),
 }).superRefine((data, ctx) => {
     if (data.idType === 'pan' && data.idNumber) {
         // Strict PAN Validation: 5 Letters + 4 Digits + 1 Letter
@@ -98,6 +99,7 @@ export const updatePatientSchema = z.object({
     department: z.string().optional(),
     paymentMode: z.string().optional(),
     registrationFee: z.union([z.string(), z.number()]).optional().transform(v => v ? Number(v) : undefined),
+    registrationDate: z.string().optional().transform(v => v ? new Date(v) : undefined),
 });
 
 export const patientQuerySchema = z.object({
@@ -144,6 +146,7 @@ export interface PatientResponse {
     department: string | null;
     paymentMode: string | null;
     registrationFee: number | null;
+    registrationDate: Date;
     createdAt: Date;
     updatedAt: Date;
     // Login credentials (only returned on patient creation)
