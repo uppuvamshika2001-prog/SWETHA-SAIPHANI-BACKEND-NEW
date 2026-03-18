@@ -134,9 +134,9 @@ async function main() {
     // 5. Lipid Profile (PANEL)
     // =========================
     const lipid = await (prisma.labTest as any).upsert({
-        where: { code: 'LIPID' },
+        where: { code: 'LIPID_PROFILE' },
         update: { name: 'Lipid Profile', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200 },
-        create: { code: 'LIPID', name: 'Lipid Profile', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200 },
+        create: { code: 'LIPID_PROFILE', name: 'Lipid Profile', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200 },
     });
     
     const lipidCat = await (prisma as any).labTestCategory.create({ data: { testId: lipid.id, name: 'LIPID PROFILE', displayOrder: 1 } });
@@ -155,9 +155,9 @@ async function main() {
     // 6. Thyroid Profile (PANEL)
     // =========================
     const thyroid = await (prisma.labTest as any).upsert({
-        where: { code: 'THYROID' },
+        where: { code: 'THYROID_PROFILE' },
         update: { name: 'Thyroid Profile', department: 'IMMUNOLOGY', type: 'PANEL', price: 1500 },
-        create: { code: 'THYROID', name: 'Thyroid Profile', department: 'IMMUNOLOGY', type: 'PANEL', price: 1500 },
+        create: { code: 'THYROID_PROFILE', name: 'Thyroid Profile', department: 'IMMUNOLOGY', type: 'PANEL', price: 1500 },
     });
     
     const thyroidCat = await (prisma as any).labTestCategory.create({ data: { testId: thyroid.id, name: 'THYROID PROFILE', displayOrder: 1 } });
@@ -173,9 +173,9 @@ async function main() {
     // 7. Serum Electrolytes (PANEL)
     // =========================
     const electrolytes = await (prisma.labTest as any).upsert({
-        where: { code: 'ELECTRO' },
+        where: { code: 'SERUM_ELECTROLYTES' },
         update: { name: 'Serum Electrolytes', department: 'BIOCHEMISTRY', type: 'PANEL', price: 800 },
-        create: { code: 'ELECTRO', name: 'Serum Electrolytes', department: 'BIOCHEMISTRY', type: 'PANEL', price: 800 },
+        create: { code: 'SERUM_ELECTROLYTES', name: 'Serum Electrolytes', department: 'BIOCHEMISTRY', type: 'PANEL', price: 800 },
     });
     
     const electrolytesCat = await (prisma as any).labTestCategory.create({ data: { testId: electrolytes.id, name: 'SERUM ELECTROLYTES', displayOrder: 1 } });
@@ -232,9 +232,9 @@ async function main() {
     const singleTestsRef = [
         { code: 'CRP', name: 'C-Reactive Protein (CRP)', dept: 'SEROLOGY', price: 400, param: 'CRP RESULT', unit: 'mg/L', range: '< 6.0' },
         { code: 'HBA1C', name: 'HbA1C (Glycosylated Hemoglobin)', dept: 'BIOCHEMISTRY', price: 600, param: 'HbA1C', unit: '%', range: '4.0 - 5.6' },
-        { code: 'B_UREA', name: 'Blood Urea', dept: 'BIOCHEMISTRY', price: 200, param: 'Blood Urea', unit: 'mg/dl', range: '15 - 45' },
-        { code: 'CREATININE', name: 'Serum Creatinine', dept: 'BIOCHEMISTRY', price: 250, param: 'Serum Creatinine', unit: 'mg/dl', range: '0.6 - 1.4' },
-        { code: 'CALCIUM', name: 'Serum Calcium', dept: 'BIOCHEMISTRY', price: 300, param: 'Serum Calcium', unit: 'mg/dl', range: '8.5 - 10.5' },
+        { code: 'BLOOD_UREA', name: 'Blood Urea', dept: 'BIOCHEMISTRY', price: 200, param: 'Blood Urea', unit: 'mg/dl', range: '15 - 45' },
+        { code: 'SERUM_CREATININE', name: 'Serum Creatinine', dept: 'BIOCHEMISTRY', price: 250, param: 'Serum Creatinine', unit: 'mg/dl', range: '0.6 - 1.4' },
+        { code: 'SERUM_CALCIUM', name: 'Serum Calcium', dept: 'BIOCHEMISTRY', price: 300, param: 'Serum Calcium', unit: 'mg/dl', range: '8.5 - 10.5' },
         { code: 'RBS', name: 'RBS (Random Blood Sugar)', dept: 'BIOCHEMISTRY', price: 150, param: 'RBS', unit: 'mg/dl', range: '70 - 140' },
         { code: 'MP', name: 'Malarial Parasite (MP)', dept: 'PATHOLOGY', price: 250, param: 'Malarial Parasite', unit: '', range: 'Negative' },
         { code: 'HIV', name: 'HIV I & II Antibodies', dept: 'SEROLOGY', price: 500, param: 'HIV Antibodies', unit: '', range: 'Negative' },
@@ -308,8 +308,24 @@ async function main() {
     const testCount = await prisma.labTest.count();
     const catCount = await (prisma as any).labTestCategory.count();
     const paramCount = await (prisma as any).labTestParameter.count();
-    const linkedOrders = await prisma.labTestOrder.count({ where: { testId: { not: null } } });
-    const unlinkedOrders = await prisma.labTestOrder.count({ where: { testId: null } });
+    const linkedOrders = await prisma.labTestOrder.count({ 
+        where: { 
+            NOT: [
+                { testId: null },
+                { testId: '' },
+                { testId: 'undefined' }
+            ]
+        } 
+    });
+    const unlinkedOrders = await prisma.labTestOrder.count({ 
+        where: { 
+            OR: [
+                { testId: null },
+                { testId: '' },
+                { testId: 'undefined' }
+            ]
+        } 
+    });
 
     console.log(`\n📊 Summary:`);
     console.log(`  Tests:      ${testCount}`);

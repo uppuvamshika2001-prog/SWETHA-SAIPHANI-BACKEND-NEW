@@ -5,10 +5,14 @@ const prisma = new PrismaClient();
 async function backfill() {
     console.log('🔍 Starting Lab Order Backfill...');
 
-    // 1. Get all orders without a testId
+    // 1. Get all orders with missing or invalid testId
     const orders = await prisma.labTestOrder.findMany({
         where: {
-            testId: null
+            OR: [
+                { testId: null },
+                { testId: '' },
+                { testId: 'undefined' }
+            ]
         }
     });
 
