@@ -678,7 +678,10 @@ export class LabService {
             const normalizedCode = input.code.trim().toUpperCase();
             if (normalizedCode !== test.code) {
                 const existingTest = await (prisma.labTest as any).findFirst({ 
-                    where: { code: { equals: normalizedCode, mode: 'insensitive' } } 
+                    where: { 
+                        code: { equals: normalizedCode, mode: 'insensitive' },
+                        id: { not: id }
+                    } 
                 });
                 if (existingTest) throw new ValidationError('Test with this code already exists');
                 (input as any).code = normalizedCode;
