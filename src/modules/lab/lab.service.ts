@@ -31,13 +31,9 @@ export class LabService {
             }
             doctorIdForOrder = doctor.id;
         } else {
-            // Default to the current orderer if they are a doctor
-            if (orderer.user.role === 'DOCTOR') {
-                doctorIdForOrder = orderer.id;
-            } else {
-                // Requirement: Reception/Admin/others must provide doctor_id
-                throw new ValidationError('A valid doctor_id is required for this order');
-            }
+            // Default to the current orderer (even if they are Receptionist/Admin)
+            // A non-doctor orderer is allowed, they will be the primary contact on the order.
+            doctorIdForOrder = orderer.id;
         }
 
         // Validate patient
@@ -762,7 +758,7 @@ export class LabService {
             where: { id: orderId },
             include: {
                 patient: true,
-                orderedBy: true,
+                orderedBy: { include: { user: true } },
                 result: true,
             }
         });
@@ -770,6 +766,11 @@ export class LabService {
         if (!order || !order.result) {
             throw new NotFoundError('Lab order or results not found');
         }
+
+        const isDoctor = order.orderedBy?.user?.role === 'DOCTOR';
+        const doctorName = isDoctor 
+            ? `Dr. ${order.orderedBy.firstName} ${order.orderedBy.lastName}`
+            : `${order.orderedBy.firstName} ${order.orderedBy.lastName}`;
 
         const resultData = order.result.result as any;
 
@@ -779,7 +780,7 @@ export class LabService {
             patientId: order.patient.uhid,
             gender: order.patient.gender,
             age: this.calculateAge(order.patient.dateOfBirth),
-            doctorName: `Dr. ${order.orderedBy.firstName} ${order.orderedBy.lastName}`,
+            doctorName,
             date: order.createdAt,
             results: resultData,
             interpretation: order.result.interpretation
@@ -787,6 +788,7 @@ export class LabService {
 
         return await pdfGenerator.generateLabReportPDF(reportData, true);
     }
+
 
     private calculateAge(dob: Date): string {
         const today = new Date();
