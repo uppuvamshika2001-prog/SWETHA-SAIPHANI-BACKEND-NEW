@@ -1,11 +1,26 @@
 import { prisma } from '../../config/database.js';
-import { NotFoundError } from '../../middleware/errorHandler.js';
+import { NotFoundError, ValidationError } from '../../middleware/errorHandler.js';
 import { CreateBillInput, BillQueryInput, UpdateBillStatusInput } from './billing.types.js';
 import { Prisma } from '@prisma/client';
 
 export class BillingService {
     async create(input: CreateBillInput) {
         const { items, labOrderIds, isWalkInLab, creatorId, patientId, discount, gstPercent, notes, status } = input as any;
+
+        // Prevent duplicate billing for lab orders
+        if (labOrderIds && (labOrderIds as any[]).length > 0) {
+            const existingBilledOrders = await prisma.labTestOrder.findMany({
+                where: {
+                    id: { in: labOrderIds },
+                    billId: { not: null }
+                }
+            });
+
+            if (existingBilledOrders.length > 0) {
+                const billedTestNames = existingBilledOrders.map((o: any) => o.testName).join(', ');
+                throw new ValidationError(`The following lab tests are already billed: ${billedTestNames}. Please remove them before generating the bill.`);
+            }
+        }
 
         // Calculate totals
         let subtotal = 0;
@@ -280,10 +295,10 @@ export class BillingService {
             // Sync Lab Orders
             if (input.status === 'PAID') {
                 // Find all lab orders linked to this bill
-                // Update their status to READY_FOR_SAMPLE_COLLECTION
+                // Update their status to PAID (technician can now process)
                 await tx.labTestOrder.updateMany({
                     where: { billId: id },
-                    data: { status: 'READY_FOR_SAMPLE_COLLECTION' }
+                    data: { status: 'PAID' }
                 });
             }
 

@@ -578,37 +578,7 @@ export class LabService {
     }
 
     async confirmPayment(id: string): Promise<LabOrderResponse> {
-        const order = await prisma.labTestOrder.findUnique({
-            where: { id },
-            include: { bill: true }
-        });
-
-        if (!order) {
-            throw new NotFoundError('Lab order not found');
-        }
-
-        const validPaymentStatuses = [LabTestStatus.PAYMENT_PENDING.toString(), 'PENDING'];
-        if (!validPaymentStatuses.includes(order.status as string)) {
-            throw new ValidationError(`Cannot confirm payment for order in ${order.status} status`);
-        }
-
-        // Optional: Validate associated bill status if it exists
-        if (order.billId && order.bill?.status !== 'PAID') {
-            throw new ValidationError('Associated bill has not been paid yet');
-        }
-
-        const updatedOrder = await prisma.labTestOrder.update({
-            where: { id },
-            data: { status: LabTestStatus.READY_FOR_SAMPLE_COLLECTION },
-            include: {
-                patient: { select: { firstName: true, lastName: true } },
-                orderedBy: { select: { firstName: true, lastName: true, user: { select: { role: true } } } },
-                bill: true,
-                result: true,
-            },
-        });
-
-        return this.formatOrder(updatedOrder as any);
+        throw new ValidationError('Manual payment confirmation is disabled. Please process payments through the Billing module.');
     }
 
     async updateOrderStatus(id: string, status: string): Promise<LabOrderResponse> {
