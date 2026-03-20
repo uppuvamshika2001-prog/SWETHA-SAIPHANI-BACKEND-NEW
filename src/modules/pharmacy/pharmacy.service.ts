@@ -122,9 +122,9 @@ export class PharmacyService {
         });
     }
 
-    async getMedicine(id: string): Promise<MedicineResponse> {
+    async getMedicine(id: string | number): Promise<MedicineResponse> {
         const medicine = await prisma.medicine.findUnique({ 
-            where: { id },
+            where: { id: Number(id) },
             include: { 
                 batches: { where: { isActive: true }, orderBy: { expiryDate: 'asc' } },
                 categoryRel: true
@@ -136,99 +136,165 @@ export class PharmacyService {
         return this.formatMedicine(medicine);
     }
 
+    private async ensureTablesExist() {
+        try {
+            // 1. Categories Table
+            await prisma.$executeRawUnsafe(`
+                CREATE TABLE IF NOT EXISTS categories (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL UNIQUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+            
+            // 2. Medicines Table
+            await prisma.$executeRawUnsafe(`
+                CREATE TABLE IF NOT EXISTS medicines (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    category_id INT,
+                    purchase_price DECIMAL(10,2),
+                    sale_price DECIMAL(10,2),
+                    stock_quantity INT DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (category_id) REFERENCES categories(id)
+                );
+            `);
+            console.log('[PharmacyService] Database tables verified');
+        } catch (error) {
+            console.error('[PharmacyService] Table verification failed:', error);
+        }
+    }
+
     async getMedicines(query: MedicineQueryInput): Promise<PaginatedResponse<any>> {
         const { page = 1, limit = 10, search, category, lowStock, format } = query;
         const skip = (page - 1) * limit;
 
-        const where: Record<string, any> = { isActive: true };
-        if (search) {
-            where.OR = [
-                { name: { contains: search, mode: 'insensitive' } },
-                { genericName: { contains: search, mode: 'insensitive' } },
-            ];
-        }
-        if (category) {
-            // Support both category name and categoryId if needed, but primary should be ID now
-            if (!isNaN(Number(category))) {
-                where.categoryId = Number(category);
-            } else {
-                where.categoryRel = { name: { equals: category, mode: 'insensitive' } };
+        try {
+            await this.ensureTablesExist();
+
+            let whereClause = 'WHERE 1=1';
+            const params: any[] = [];
+
+            if (search) {
+                params.push(`%${search}%`);
+                whereClause += ` AND (m.name ILIKE $${params.length} OR m.id::text ILIKE $${params.length})`;
             }
-        }
-        if (lowStock) {
-            // Simplified low stock check - in production might use fields comparison if supported or raw query
-            where.stockQuantity = { lte: 10 }; 
-        }
 
-        const [medicines, total] = await Promise.all([
-            prisma.medicine.findMany({
-                skip,
-                take: limit,
-                orderBy: { name: 'asc' },
-                include: { 
-                    batches: { where: { isActive: true }, orderBy: { expiryDate: 'asc' } },
-                    categoryRel: true
-                } as any
-            }),
-            ((prisma as any).medicine).count({ where }),
-        ]);
-
-        let formattedItems = medicines.map((m: any) => this.formatMedicine(m));
-
-        if (format === 'returns') {
-            const flatItems: any[] = [];
-            medicines.forEach((m: any) => {
-                if (m.batches && m.batches.length > 0) {
-                    m.batches.forEach((b: any) => {
-                        if (b.isActive && b.stockQuantity > 0) {
-                            flatItems.push({
-                                id: m.id,
-                                name: m.name,
-                                batch: b.batchNumber, // Prompt requested `batch`
-                                batchNumber: b.batchNumber, // Keep consistent with UI expected `batchNumber` if any
-                                stock: b.stockQuantity,
-                                distributor: b.distributorName,
-                                expiry: b.expiryDate,
-                                purchasePrice: b.purchasePrice
-                            });
-                        }
-                    });
+            if (category) {
+                if (!isNaN(Number(category))) {
+                    params.push(Number(category));
+                    whereClause += ` AND m.category_id = $${params.length}`;
+                } else {
+                    params.push(category);
+                    whereClause += ` AND c.name ILIKE $${params.length}`;
                 }
-            });
-            formattedItems = flatItems;
-        }
+            }
 
-        return {
-            items: formattedItems,
-            total,
-            page,
-            limit,
-            totalPages: Math.ceil(total / limit),
-        };
+            const sql = `
+                SELECT 
+                    m.id, 
+                    m.name, 
+                    c.name AS category, 
+                    m.stock_quantity, 
+                    m.sale_price as unit_price,
+                    m.purchase_price
+                FROM medicines m
+                LEFT JOIN categories c ON m.category_id = c.id
+                ${whereClause}
+                ORDER BY m.name ASC
+                LIMIT ${limit} OFFSET ${skip}
+            `;
+
+            let items = await prisma.$queryRawUnsafe<any[]>(sql, ...params);
+            
+            const countSql = `
+                SELECT COUNT(*) 
+                FROM medicines m
+                LEFT JOIN categories c ON m.category_id = c.id
+                ${whereClause}
+            `;
+            const countResult = await prisma.$queryRawUnsafe<any[]>(countSql, ...params);
+            const total = Number(countResult[0]?.count) || 0;
+
+            let formattedItems = items.map(m => ({
+                id: m.id,
+                name: m.name,
+                category: m.category,
+                stock_quantity: Number(m.stock_quantity) || 0,
+                unit_price: Number(m.unit_price) || 0,
+                purchase_price: Number(m.purchase_price) || 0,
+                status: (Number(m.stock_quantity) || 0) <= 10 ? 'low_stock' : 'in_stock'
+            }));
+
+            // Restore returns format for batch-level selection
+            if (format === 'returns') {
+                const batchSql = `
+                    SELECT 
+                        m.id, 
+                        m.name, 
+                        b.batch_number,
+                        b.stock_quantity as stock,
+                        b.distributor_name as distributor,
+                        b.expiry_date as expiry,
+                        b.purchase_price as "purchasePrice"
+                    FROM medicine_batches b
+                    JOIN medicines m ON b.medicine_id = m.id
+                    ${whereClause.replace('m.category_id', 'm.category_id')} -- simple reuse
+                    AND b.is_active = true AND b.stock_quantity > 0
+                    ORDER BY b.expiry_date ASC
+                `;
+                const batchItems = await prisma.$queryRawUnsafe<any[]>(batchSql, ...params);
+                formattedItems = batchItems.map(b => ({
+                    ...b,
+                    stock: Number(b.stock) || 0,
+                    purchasePrice: Number(b.purchasePrice) || 0,
+                    batch: b.batch_number, // StockReturns.tsx expectation
+                    batchNumber: b.batch_number
+                }));
+            }
+
+            return {
+                items: formattedItems,
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+            };
+        } catch (error) {
+            console.error('[PharmacyService] getMedicines DATABASE_ERROR:', error);
+            return {
+                items: [],
+                total: 0,
+                page,
+                limit,
+                totalPages: 0,
+            };
+        }
     }
 
-    async updateMedicine(id: string, input: UpdateMedicineInput): Promise<MedicineResponse> {
-        const existing = await prisma.medicine.findUnique({ where: { id } });
+    async updateMedicine(id: string | number, input: UpdateMedicineInput): Promise<MedicineResponse> {
+        const existing = await prisma.medicine.findUnique({ where: { id: Number(id) } });
         if (!existing) {
             throw new NotFoundError('Medicine');
         }
 
         const medicine = await prisma.medicine.update({
-            where: { id },
+            where: { id: Number(id) },
             data: input,
         });
         return this.formatMedicine(medicine);
     }
 
-    async deleteMedicine(id: string): Promise<void> {
+    async deleteMedicine(id: string | number): Promise<void> {
         console.log('[PharmacyService] Attempting to delete medicine with id:', id);
         // Using findFirst instead of findUnique for resilience
-        const medicine = await prisma.medicine.findFirst({ where: { id } });
+        const medicine = await prisma.medicine.findFirst({ where: { id: Number(id) } });
         if (!medicine) {
             console.error('[PharmacyService] Delete medicine failed - Medicine not found for id:', id);
             throw new NotFoundError('Medicine');
         }
-        await prisma.medicine.delete({ where: { id } });
+        await prisma.medicine.delete({ where: { id: Number(id) } });
         console.log('[PharmacyService] Medicine deleted successfully:', id);
     }
 
@@ -243,7 +309,7 @@ export class PharmacyService {
         // Validate stock for medicine items
         for (const item of input.items) {
             if (item.medicineId) {
-                const medicine = await prisma.medicine.findUnique({ where: { id: item.medicineId } });
+                const medicine = await prisma.medicine.findUnique({ where: { id: Number(item.medicineId) } });
                 if (!medicine) {
                     throw new NotFoundError(`Medicine not found: ${item.medicineId}`);
                 }
@@ -287,14 +353,14 @@ export class PharmacyService {
 
                 if (item.medicineId) {
                     // Resolve medicine name for description snapshot
-                    const medRecord = await tx.medicine.findUnique({ where: { id: item.medicineId } });
+                    const medRecord = await tx.medicine.findUnique({ where: { id: Number(item.medicineId) } });
                     if (!item.description && medRecord) {
                         item.description = medRecord.name;
                     }
 
                     const batches = await (tx as any).medicineBatch.findMany({
                         where: {
-                            medicineId: item.medicineId,
+                            medicineId: Number(item.medicineId),
                             stockQuantity: { gt: 0 },
                             expiryDate: { gt: new Date() },
                             isActive: true,
@@ -321,7 +387,7 @@ export class PharmacyService {
 
                     // Integrated Logging
                     await this.updateStockAndLog(tx, {
-                        medicineId: item.medicineId,
+                        medicineId: Number(item.medicineId),
                         type: 'DISPENSE',
                         quantity: -item.quantity,
                         referenceId: `BILL-${Date.now()}`, // Or real bill ID if available inside tx
@@ -333,7 +399,7 @@ export class PharmacyService {
                 const itemProfit = itemTaxable - (item.quantity * avgPurchasePrice);
 
                 billItemsData.push({
-                    medicineId: item.medicineId,
+                    medicineId: item.medicineId ? Number(item.medicineId) : null,
                     description: item.description,
                     quantity: item.quantity,
                     unitPrice: item.unitPrice,
@@ -413,7 +479,7 @@ export class PharmacyService {
         ]);
 
         return {
-            items: bills.map((b) => this.formatBill(b)),
+            items: bills.map((b) => this.formatBill(b as any)),
             total,
             page,
             limit,
@@ -429,7 +495,7 @@ export class PharmacyService {
         if (!bill) {
             throw new NotFoundError('Bill');
         }
-        return this.formatBill(bill);
+        return this.formatBill(bill as any);
     }
 
     async updateBill(id: string, input: UpdateBillInput): Promise<BillResponse> {
@@ -443,7 +509,7 @@ export class PharmacyService {
             data: input,
             include: { items: true },
         });
-        return this.formatBill(bill);
+        return this.formatBill(bill as any);
     }
 
     async deleteBill(id: string): Promise<void> {
@@ -519,7 +585,7 @@ export class PharmacyService {
             // 2. Calculate refund amount and validate return quantities
             let refundAmount = 0;
             for (const item of input.items) {
-                const billItem = bill.items.find(bi => bi.medicineId === item.medicineId);
+                const billItem = bill.items.find(bi => Number(bi.medicineId) === Number(item.medicineId));
                 if (!billItem) {
                     throw new ValidationError(`Medicine ${item.medicineId} not found in bill ${bill.billNumber}`);
                 }
@@ -575,7 +641,7 @@ export class PharmacyService {
 
                 // Log and Sync
                 await this.updateStockAndLog(tx, {
-                    medicineId: item.medicineId,
+                    medicineId: Number(item.medicineId),
                     batchNumber: item.batchNumber || undefined,
                     type: 'PATIENT_RETURN',
                     quantity: item.returnQty,
@@ -717,7 +783,7 @@ export class PharmacyService {
             // 3. Update master stock quantity
             for (const item of input.items) {
                 await this.updateStockAndLog(tx, {
-                    medicineId: item.medicineId,
+                    medicineId: Number(item.medicineId),
                     batchNumber: item.batchNumber || undefined,
                     type: 'DISTRIBUTOR_RETURN',
                     quantity: -item.returnQty,
@@ -1162,7 +1228,7 @@ export class PharmacyService {
         paidAmount: Decimal;
         items: Array<{
             id: string;
-            medicineId?: string | null;
+            medicineId?: number | null;
             batchNumber?: string | null;
             description: string;
             quantity: number;
@@ -1191,7 +1257,7 @@ export class PharmacyService {
                 unitPrice: Number(item.unitPrice),
                 purchasePrice: Number((item as any).purchasePrice),
                 profit: Number((item as any).profit),
-                medicineId: item.medicineId || null,
+                medicineId: item.medicineId ? Number(item.medicineId) : null,
                 batchNumber: (item as any).batchNumber || null,
                 total: Number(item.total),
             })),
@@ -1396,26 +1462,40 @@ export class PharmacyService {
 
 
     async getCategories() {
-        return (prisma as any).pharmacyCategory.findMany({
-            orderBy: { name: 'asc' }
-        });
+        try {
+            await this.ensureTablesExist();
+            const categories = await prisma.$queryRawUnsafe<any[]>('SELECT id, name FROM categories ORDER BY name ASC');
+            return categories || [];
+        } catch (error) {
+            console.error('[PharmacyService] getCategories DATABASE_ERROR:', error);
+            return [];
+        }
     }
 
     async createCategory(input: any) {
         const { name } = input;
         
-        // Check for duplicate (case-insensitive)
-        const existing = await (prisma as any).pharmacyCategory.findFirst({
-            where: { name: { equals: name, mode: 'insensitive' } }
-        });
+        try {
+            await this.ensureTablesExist();
+            
+            // Check for duplicate (case-insensitive)
+            const existing = await prisma.$queryRawUnsafe<any[]>(
+                'SELECT id FROM categories WHERE name ILIKE $1 LIMIT 1',
+                name
+            );
 
-        if (existing) {
-            throw new Error('Category already exists');
+            if (existing && existing.length > 0) {
+                throw new Error('Category already exists');
+            }
+
+            return await prisma.$executeRawUnsafe(
+                'INSERT INTO categories (name) VALUES ($1)',
+                name
+            );
+        } catch (error) {
+            console.error('[PharmacyService] createCategory DATABASE_ERROR:', error);
+            throw error;
         }
-
-        return (prisma as any).pharmacyCategory.create({
-            data: { name }
-        });
     }
 
     async deleteCategory(id: any) {
@@ -1451,7 +1531,7 @@ export class PharmacyService {
      * Unified Inventory Stock Update & Logger
      */
     async updateStockAndLog(tx: any, data: {
-        medicineId: string;
+        medicineId: number;
         batchNumber?: string;
         type: 'DISPENSE' | 'PATIENT_RETURN' | 'DISTRIBUTOR_RETURN' | 'STOCK_ADD' | 'ADJUSTMENT';
         quantity: number;

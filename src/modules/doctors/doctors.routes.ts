@@ -11,7 +11,7 @@ const router = Router();
 router.use(authGuard);
 
 // Dashboard
-router.get('/dashboard', medicalReadAccess, getDashboardStats);
+router.get('/doctor/dashboard', medicalReadAccess, getDashboardStats);
 
 // Medical Records
 router.get('/medical-records', medicalReadAccess, getAllMedicalRecords);  // List all records (Admin/Pharmacist search)

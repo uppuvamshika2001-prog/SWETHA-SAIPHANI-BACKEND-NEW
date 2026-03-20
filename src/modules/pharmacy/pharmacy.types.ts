@@ -35,7 +35,7 @@ export const createPurchaseSchema = z.object({
     invoiceNumber: z.string().min(1, 'Invoice number is required'),
     purchaseDate: z.string().transform((s) => new Date(s)).optional(),
     items: z.array(z.object({
-        medicineId: z.string().min(1, 'Medicine is required'),
+        medicineId: z.coerce.number().int().min(1, 'Medicine is required'),
         batchNumber: z.string().min(1, 'Batch number is required'),
         manufacturingDate: z.string().transform((s) => new Date(s)).optional(),
         expiryDate: z.string().transform((s) => new Date(s)),
@@ -71,7 +71,7 @@ export const medicineQuerySchema = z.object({
 export const createBillSchema = z.object({
     patientId: z.string().min(1),
     items: z.array(z.object({
-        medicineId: z.string().optional(),
+        medicineId: z.coerce.number().int().optional(),
         description: z.string().min(1),
         quantity: z.number().int().positive(),
         unitPrice: z.number().positive(),
@@ -97,7 +97,7 @@ export type UpdateBillInput = z.infer<typeof updateBillSchema>;
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
 
 export interface MedicineResponse {
-    id: string;
+    id: number;
     name: string;
     genericName: string | null;
     manufacturer: string | null;
@@ -140,7 +140,7 @@ export interface BillResponse {
         unitPrice: number;
         purchasePrice: number;
         profit: number;
-        medicineId: string | null;
+        medicineId: number | null;
         batchNumber: string | null;
         total: number;
     }>;
@@ -152,13 +152,13 @@ export interface MarginReportResponse {
     monthlyMargin: number;
     todayMedicinesCount: number;
     medicineWiseProfit: Array<{
-        medicineId: string;
+        medicineId: number;
         medicineName: string;
         quantitySold: number;
         totalProfit: number;
     }>;
     topMedicines: Array<{
-        medicineId: string;
+        medicineId: number;
         medicineName: string;
         totalProfit: number;
     }>;
@@ -168,7 +168,7 @@ export const createReturnSchema = z.object({
     patientId: z.string().min(1),
     refundMethod: z.string().min(1),
     items: z.array(z.object({
-        medicineId: z.string().min(1),
+        medicineId: z.coerce.number().int().min(1),
         batchNumber: z.string().optional(),
         returnQty: z.number().int().positive(),
         salePrice: z.number().positive(),
@@ -190,7 +190,7 @@ export interface PharmacyReturnResponse {
     status: string;
     items: Array<{
         id: string;
-        medicineId: string;
+        medicineId: number;
         medicineName?: string;
         batchNumber: string | null;
         returnQty: number;
@@ -202,7 +202,7 @@ export const createStockReturnSchema = z.object({
     distributor: z.string().min(1),
     returnType: z.string().min(1),
     items: z.array(z.object({
-        medicineId: z.string().min(1),
+        medicineId: z.coerce.number().int().min(1),
         batchNumber: z.string().optional(),
         returnQty: z.number().int().positive(),
         returnReason: z.string().min(1),
@@ -223,7 +223,7 @@ export interface PharmacyStockReturnResponse {
     status: string;
     items: Array<{
         id: string;
-        medicineId: string;
+        medicineId: number;
         medicineName?: string;
         batchNumber: string | null;
         returnQty: number;
