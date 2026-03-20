@@ -6,7 +6,7 @@ export const billItemSchema = z.object({
     quantity: z.number().int().positive('Quantity must be positive'),
     unitPrice: z.number().nonnegative('Unit price must be non-negative'),
     medicineId: z.string().optional(),
-    type: z.enum(['consultation', 'lab', 'other']).optional(),
+    type: z.enum(['consultation', 'lab', 'other', 'CUSTOM']).optional(),
     lab_order_id: z.string().optional(),
 });
 

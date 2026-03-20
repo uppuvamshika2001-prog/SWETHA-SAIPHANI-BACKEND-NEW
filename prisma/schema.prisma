@@ -213,6 +213,14 @@ model Medicine {
   @@map("medicines")
 }
 
+model PharmacyCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("pharmacy_categories")
+}
+
 model MedicineBatch {
   id                String            @id @default(uuid())
   medicineId        String            @map("medicine_id")

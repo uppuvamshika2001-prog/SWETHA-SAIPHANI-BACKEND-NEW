@@ -326,13 +326,14 @@ export class DoctorsService {
         patient: { firstName: string; lastName: string };
         doctor: { firstName: string; lastName: string };
         createdAt: Date;
+        updatedAt: Date;
     }): MedicalRecordResponse {
         const vitals = record.vitalSigns as Record<string, any> || {};
         // Read prescriptions from JSON column (backward compatible)
         const prescriptions = (record.prescriptions as any[]) || [];
 
         // Remove any leftover prescriptions from vitals (legacy cleanup)
-        const { prescriptions: _, prescriptionStatus: __, dispensedAt: ___, ...cleanVitals } = vitals;
+        const { prescriptions: _, prescriptionStatus: __, dispensedAt, ...cleanVitals } = vitals;
 
         return {
             id: record.id,
@@ -353,6 +354,9 @@ export class DoctorsService {
             patient: record.patient,
             doctor: record.doctor,
             createdAt: record.createdAt,
+            updatedAt: (record as any).updatedAt || record.createdAt,
+            dispensedAt: dispensedAt as string,
+            totalAmount: 0 // Defaulting as medical records don't store billing total
         };
     }
 

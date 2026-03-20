@@ -81,9 +81,11 @@ export interface MedicalRecordResponse {
     followUpDate: Date | null;
     labOrders?: string[];
     dispensedAt?: string;
+    totalAmount?: number;
     patient: { firstName: string; lastName: string };
     doctor: { firstName: string; lastName: string };
     createdAt: Date;
+    updatedAt: Date;
 }
 
 export interface PrescriptionResponse {

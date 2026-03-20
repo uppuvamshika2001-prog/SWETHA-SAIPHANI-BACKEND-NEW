@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { pharmacyService } from '@/modules/pharmacy/pharmacy.service.js';
-import { createMedicineSchema, updateMedicineSchema, medicineQuerySchema, createBillSchema, updateBillSchema, recordPaymentSchema, createPurchaseSchema } from '@/modules/pharmacy/pharmacy.types.js';
+import { createMedicineSchema, updateMedicineSchema, medicineQuerySchema, createBillSchema, updateBillSchema, recordPaymentSchema, createPurchaseSchema, createCategorySchema } from '@/modules/pharmacy/pharmacy.types.js';
 import { sendSuccess, sendCreated } from '@/utils/response.js';
 import { logger } from '@/utils/logger.js';
 
@@ -485,5 +485,141 @@ export async function getPurchasePayments(
     } catch (error) {
         logger.error({ context: 'PharmacyController.getPurchasePayments', error, id: req.params.id }, 'Failed to fetch purchase payments');
         sendSuccess(res, []);
+    }
+}
+
+/**
+ * @swagger
+ * /api/pharmacy/returns:
+ *   post:
+ *     tags: [Pharmacy]
+ *     summary: Process a patient medicine return
+ *     security:
+ *       - bearerAuth: []
+ */
+export async function processReturn(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const pharmacistId = (req as any).user?.userId;
+        const result = await pharmacyService.processReturn({ ...req.body, pharmacistId });
+        sendCreated(res, result, 'Return processed successfully');
+    } catch (error) {
+        logger.error({ context: 'PharmacyController.processReturn', error, body: req.body }, 'Failed to process return');
+        next(error);
+    }
+}
+
+/**
+ * @swagger
+ * /api/pharmacy/returns:
+ *   get:
+ *     tags: [Pharmacy]
+ *     summary: Get medicine return history
+ *     security:
+ *       - bearerAuth: []
+ */
+export async function getReturns(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const result = await pharmacyService.getReturns(req.query);
+        sendSuccess(res, result);
+    } catch (error) {
+        logger.error({ context: 'PharmacyController.getReturns', error, query: req.query }, 'Failed to fetch returns');
+        next(error);
+    }
+}
+
+/**
+ * @swagger
+ * /api/pharmacy/stock-returns:
+ *   post:
+ *     tags: [Pharmacy]
+ *     summary: Process a stock return to distributor
+ *     security:
+ *       - bearerAuth: []
+ */
+export async function processStockReturn(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const pharmacistId = (req as any).user?.userId;
+        const result = await pharmacyService.processStockReturn({ ...req.body, pharmacistId });
+        sendCreated(res, result, 'Stock return processed successfully');
+    } catch (error) {
+        logger.error({ context: 'PharmacyController.processStockReturn', error, body: req.body }, 'Failed to process stock return');
+        next(error);
+    }
+}
+
+/**
+ * @swagger
+ * /api/pharmacy/stock-returns:
+ *   get:
+ *     tags: [Pharmacy]
+ *     summary: Get stock return history
+ *     security:
+ *       - bearerAuth: []
+ */
+export async function getStockReturns(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const result = await pharmacyService.getStockReturns(req.query);
+        sendSuccess(res, result);
+    } catch (error) {
+        logger.error({ context: 'PharmacyController.getStockReturns', error, query: req.query }, 'Failed to fetch stock returns');
+        next(error);
+    }
+}
+
+export async function getCategories(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const result = await pharmacyService.getCategories();
+        sendSuccess(res, result);
+    } catch (error) {
+        logger.error({ context: 'PharmacyController.getCategories', error }, 'Failed to fetch pharmacy categories');
+        next(error);
+    }
+}
+
+export async function createCategory(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const result = await pharmacyService.createCategory(req.body);
+        sendCreated(res, result, 'Category created successfully');
+    } catch (error) {
+        logger.error({ context: 'PharmacyController.createCategory', error, body: req.body }, 'Failed to create pharmacy category');
+        next(error);
+    }
+}
+
+export async function deleteCategory(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        await pharmacyService.deleteCategory(req.params.id as string);
+        sendSuccess(res, null, 'Category deleted successfully');
+    } catch (error) {
+        logger.error({ context: 'PharmacyController.deleteCategory', error, params: req.params }, 'Failed to delete pharmacy category');
+        next(error);
     }
 }
