@@ -362,13 +362,14 @@ export class BillingService {
      * Used by the billing UI to show lab items available for invoicing.
      */
     async getUnbilledLabOrders(patientId: string) {
-        console.log(`[BillingService] Fetching unbilled lab orders for patient UHID: ${patientId}`);
+        console.log(`[BillingService] Fetching unbilled lab orders for patient UHID: "${patientId}"`);
+        
+        // Use case-insensitive matching for robustness
         const orders = await (prisma.labTestOrder as any).findMany({
             where: {
-                patientId,
-                // billingStatus: 'PENDING', // REMOVED strict filter as per senior engineer request
+                patientId: { equals: patientId, mode: 'insensitive' },
                 status: {
-                    notIn: ['CANCELLED', 'PAYMENT_PENDING'] // Include everything except explicit exclusions
+                    notIn: ['CANCELLED'] // Include PAYMENT_PENDING as it's often what needs billing!
                 },
             },
             include: {
@@ -378,7 +379,12 @@ export class BillingService {
             orderBy: { createdAt: 'desc' },
         });
 
-        console.log(`[BillingService] Found ${orders.length} lab orders for patient ${patientId}`);
+        console.log(`[BillingService] Found ${orders.length} lab orders for patient "${patientId}"`);
+        if (orders.length === 0) {
+            // Log a sample order from the DB to see what the patientId format looks like
+            const sample = await (prisma.labTestOrder as any).findFirst({ take: 1 });
+            console.log(`[BillingService] DB Sample Order PatientId: "${sample?.patientId}"`);
+        }
 
         return orders.map((o: any) => ({
             id: o.id,
