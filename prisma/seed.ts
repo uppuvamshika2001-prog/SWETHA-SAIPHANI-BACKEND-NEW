@@ -9,10 +9,10 @@ async function main() {
     console.log('  Clearing existing lab test data...');
     await (prisma as any).labTestParameter.deleteMany({});
     await (prisma as any).labTestCategory.deleteMany({});
-    
+
     // Cleanup for renamed tests to avoid duplicates
-    await (prisma.labTest as any).deleteMany({ 
-        where: { code: { in: ['DENGUE', 'XRAY'] } } 
+    await (prisma.labTest as any).deleteMany({
+        where: { code: { in: ['DENGUE', 'XRAY'] } }
     });
 
     // =========================
