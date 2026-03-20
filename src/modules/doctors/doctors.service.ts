@@ -356,7 +356,8 @@ export class DoctorsService {
             createdAt: record.createdAt,
             updatedAt: (record as any).updatedAt || record.createdAt,
             dispensedAt: dispensedAt as string,
-            totalAmount: 0 // Defaulting as medical records don't store billing total
+            totalAmount: 0, // Legacy support
+            total: 0 // New standard for consistency
         };
     }
 
