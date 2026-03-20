@@ -362,12 +362,13 @@ export class BillingService {
      * Used by the billing UI to show lab items available for invoicing.
      */
     async getUnbilledLabOrders(patientId: string) {
+        console.log(`[BillingService] Fetching unbilled lab orders for patient UHID: ${patientId}`);
         const orders = await (prisma.labTestOrder as any).findMany({
             where: {
                 patientId,
-                billingStatus: 'PENDING',
+                // billingStatus: 'PENDING', // REMOVED strict filter as per senior engineer request
                 status: {
-                    in: ['ORDERED', 'READY_FOR_SAMPLE_COLLECTION', 'SAMPLE_COLLECTED', 'IN_PROGRESS', 'COMPLETED', 'DELIVERED']
+                    notIn: ['CANCELLED', 'PAYMENT_PENDING'] // Include everything except explicit exclusions
                 },
             },
             include: {
@@ -376,6 +377,8 @@ export class BillingService {
             },
             orderBy: { createdAt: 'desc' },
         });
+
+        console.log(`[BillingService] Found ${orders.length} lab orders for patient ${patientId}`);
 
         return orders.map((o: any) => ({
             id: o.id,
@@ -394,12 +397,14 @@ export class BillingService {
      * Get aggregated robust summary for billing UI
      */
     async getPatientBillingSummary(patientId: string) {
+        console.log(`[BillingService] getPatientBillingSummary called for patient UHID: ${patientId}`);
         const patient = await prisma.patient.findUnique({
             where: { uhid: patientId },
             select: { uhid: true, firstName: true, lastName: true }
         });
 
         if (!patient) {
+            console.error(`[BillingService] Patient not found for UHID: ${patientId}`);
             throw new NotFoundError('Patient');
         }
 
@@ -418,7 +423,7 @@ export class BillingService {
             // Fallback to empty array so consultation can still be billed
         }
 
-        return {
+        const result = {
             patient: {
                 id: patient.uhid,
                 name: `${patient.firstName} ${patient.lastName}`,
@@ -427,6 +432,9 @@ export class BillingService {
             consultation,
             lab_orders: labOrders
         };
+
+        console.log(`[BillingService] Returning billing summary for ${patientId}. Lab orders count: ${labOrders.length}`);
+        return result;
     }
 
     private formatBill(bill: any) {
