@@ -25,10 +25,19 @@ export class LabService {
             doctorIdForOrder = orderer.id;
         } else if (input.doctorId) {
             // Receptionist or Admin delegating to a specific doctor
-            const doctor = await prisma.staff.findUnique({
+            // Try finding by Staff.id first, then by Staff.userId (frontend sends userId)
+            let doctor = await prisma.staff.findUnique({
                 where: { id: input.doctorId },
                 include: { user: true }
             });
+
+            if (!doctor) {
+                // Fallback: frontend staffService maps .id to userId
+                doctor = await prisma.staff.findUnique({
+                    where: { userId: input.doctorId },
+                    include: { user: true }
+                });
+            }
 
             if (!doctor || doctor.user.role !== 'DOCTOR') {
                 throw new ValidationError('Invalid doctor selected for lab order');
