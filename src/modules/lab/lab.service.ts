@@ -592,7 +592,7 @@ export class LabService {
         }
 
         // ONLY update payment status and billingStatus — NO invoice/bill creation
-        const updatedOrder = await prisma.labTestOrder.update({
+        const updatedOrder = await (prisma.labTestOrder as any).update({
             where: { id },
             data: {
                 status: LabTestStatus.READY_FOR_SAMPLE_COLLECTION,
