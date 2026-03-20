@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createBill, getBills, getBillById, updateBillStatus, getBillingStats, deleteBill, getUnbilledLabOrders } from './billing.controller.js';
+import { createBill, getBills, getBillById, updateBillStatus, getBillingStats, deleteBill, getUnbilledLabOrders, getPatientBillingSummary } from './billing.controller.js';
 import { authGuard } from '../../middleware/authGuard.js';
 import { roleGuard } from '../../middleware/roleGuard.js';
 import { UserRole } from '@prisma/client';
@@ -16,6 +16,7 @@ const billingRoleGuard = roleGuard(UserRole.ADMIN, UserRole.RECEPTIONIST, UserRo
 router.post('/', billingRoleGuard, createBill);
 router.get('/', billingRoleGuard, getBills);
 router.get('/stats', billingRoleGuard, getBillingStats);
+router.get('/patient-summary/:patientId', billingRoleGuard, getPatientBillingSummary);
 router.get('/unbilled-lab-orders/:patientId', billingRoleGuard, getUnbilledLabOrders);
 router.get('/:id', billingRoleGuard, getBillById);
 router.patch('/:id/status', billingRoleGuard, updateBillStatus);

@@ -75,3 +75,13 @@ export async function getUnbilledLabOrders(req: Request, res: Response, next: Ne
         next(error);
     }
 }
+export async function getPatientBillingSummary(req: Request, res: Response, next: NextFunction) {
+    try {
+        const patientId = req.params.patientId as string;
+        const summary = await billingService.getPatientBillingSummary(patientId);
+        sendSuccess(res, summary);
+    } catch (error) {
+        logger.error({ context: 'BillingController.getPatientBillingSummary', error, patientId: req.params.patientId }, 'Failed to fetch patient billing summary');
+        next(error);
+    }
+}

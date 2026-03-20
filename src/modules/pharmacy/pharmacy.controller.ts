@@ -1,8 +1,24 @@
 import { Request, Response, NextFunction } from 'express';
 import { pharmacyService } from '@/modules/pharmacy/pharmacy.service.js';
-import { createMedicineSchema, updateMedicineSchema, medicineQuerySchema, createBillSchema, updateBillSchema, recordPaymentSchema } from '@/modules/pharmacy/pharmacy.types.js';
+import { createMedicineSchema, updateMedicineSchema, medicineQuerySchema, createBillSchema, updateBillSchema, recordPaymentSchema, createPurchaseSchema } from '@/modules/pharmacy/pharmacy.types.js';
 import { sendSuccess, sendCreated } from '@/utils/response.js';
 import { logger } from '@/utils/logger.js';
+
+export async function createPurchase(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const validated = createPurchaseSchema.parse(req.body);
+        const result = await pharmacyService.createPurchase(validated);
+        // Note: Using sendSuccess with 201 via sendCreated
+        sendCreated(res, result);
+    } catch (error) {
+        logger.error({ context: 'PharmacyController.createPurchase', error, body: req.body }, 'Failed to create purchase');
+        next(error);
+    }
+}
 
 /**
  * @swagger

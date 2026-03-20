@@ -14,7 +14,8 @@ import {
     PharmacyStockReturnResponse,
     MarginReportResponse,
     PharmacyPurchaseResponse,
-    purchaseQuerySchema
+    purchaseQuerySchema,
+    CreatePurchaseInput
 } from './pharmacy.types.js';
 import { PaginatedResponse } from '../users/users.types.js';
 import { Decimal } from '@prisma/client/runtime/library';
@@ -1132,6 +1133,66 @@ export class PharmacyService {
                 pendingByDistributor: {}
             };
         }
+    }
+
+    async createPurchase(input: CreatePurchaseInput): Promise<any> {
+        return await prisma.$transaction(async (tx) => {
+            // 1. Calculate total purchase amount
+            let totalAmount = 0;
+            for (const item of input.items) {
+                totalAmount += item.stockQuantity * item.purchasePrice;
+            }
+
+            // 2. Create the Purchase tracking record
+            const purchase = await (tx as any).pharmacyPurchase.create({
+                data: {
+                    distributorName: input.distributorName,
+                    invoiceNumber: input.invoiceNumber,
+                    purchaseDate: input.purchaseDate || new Date(),
+                    totalAmount: new Decimal(totalAmount),
+                    amountPaid: new Decimal(0),
+                    balanceAmount: new Decimal(totalAmount),
+                    paymentStatus: 'PENDING'
+                }
+            });
+
+            // 3. Create Medicine Batches exactly as items
+            for (const item of input.items) {
+                // Ensure medicine exists
+                const existingMedicine = await (tx as any).medicine.findUnique({
+                    where: { id: item.medicineId }
+                });
+                if (!existingMedicine) {
+                    throw new NotFoundError(`Medicine with ID ${item.medicineId} not found`);
+                }
+
+                await (tx as any).medicineBatch.create({
+                    data: {
+                        medicineId: item.medicineId,
+                        purchaseId: purchase.id,
+                        batchNumber: item.batchNumber,
+                        distributorName: input.distributorName,
+                        manufacturingDate: item.manufacturingDate,
+                        expiryDate: item.expiryDate,
+                        purchasePrice: new Decimal(item.purchasePrice),
+                        salePrice: new Decimal(item.salePrice),
+                        mrp: item.mrp ? new Decimal(item.mrp) : null,
+                        gst: new Decimal(item.gst || 0),
+                        stockQuantity: item.stockQuantity,
+                        isActive: true
+                    }
+                });
+
+                // 4. Update parent medicine total stock
+                const updatedStock = existingMedicine.stockQuantity + item.stockQuantity;
+                await (tx as any).medicine.update({
+                    where: { id: existingMedicine.id },
+                    data: { stockQuantity: updatedStock }
+                });
+            }
+
+            return purchase;
+        });
     }
 
     async getPurchasePayments(purchaseId: string): Promise<any[]> {

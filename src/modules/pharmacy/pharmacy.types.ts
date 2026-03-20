@@ -30,6 +30,25 @@ export const recordPaymentSchema = z.object({
     notes: z.string().optional(),
 });
 
+export const createPurchaseSchema = z.object({
+    distributorName: z.string().min(1, 'Distributor name is required'),
+    invoiceNumber: z.string().min(1, 'Invoice number is required'),
+    purchaseDate: z.string().transform((s) => new Date(s)).optional(),
+    items: z.array(z.object({
+        medicineId: z.string().min(1, 'Medicine is required'),
+        batchNumber: z.string().min(1, 'Batch number is required'),
+        manufacturingDate: z.string().transform((s) => new Date(s)).optional(),
+        expiryDate: z.string().transform((s) => new Date(s)),
+        purchasePrice: z.number().nonnegative(),
+        salePrice: z.number().nonnegative(),
+        mrp: z.number().nonnegative().optional(),
+        gst: z.number().nonnegative().default(0),
+        stockQuantity: z.number().int().positive(),
+    })).min(1, 'At least one item is required')
+});
+
+export type CreatePurchaseInput = z.infer<typeof createPurchaseSchema>;
+
 export const updateMedicineSchema = z.object({
     name: z.string().min(1).optional(),
     genericName: z.string().optional(),

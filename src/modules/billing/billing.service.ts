@@ -54,10 +54,17 @@ export class BillingService {
             }
         });
 
+        // Collect all lab order IDs (both explicit top-level ones AND embedded in item tracking)
+        const embeddedLabOrderIds = (items as any[])
+            .filter((item: any) => item.type === 'lab' && item.lab_order_id)
+            .map((item: any) => item.lab_order_id);
+
+        const allLabOrderIds = [...(labOrderIds || []), ...embeddedLabOrderIds];
+
         // Link Lab Orders if provided — mark them as BILLED to prevent duplicate billing
-        if (labOrderIds && (labOrderIds as any[]).length > 0) {
+        if (allLabOrderIds.length > 0) {
             await (prisma.labTestOrder as any).updateMany({
-                where: { id: { in: labOrderIds } },
+                where: { id: { in: allLabOrderIds } },
                 data: {
                     billId: bill.id,
                     billingStatus: 'BILLED',
@@ -378,7 +385,47 @@ export class BillingService {
             status: o.status,
             billingStatus: o.billingStatus,
             createdAt: o.createdAt,
+            price: 200 // Default placeholder, ideally should come from catalog
         }));
+    }
+
+    /**
+     * Get aggregated robust summary for billing UI
+     */
+    async getPatientBillingSummary(patientId: string) {
+        const patient = await prisma.patient.findUnique({
+            where: { uhid: patientId },
+            select: { uhid: true, firstName: true, lastName: true }
+        });
+
+        if (!patient) {
+            throw new NotFoundError('Patient');
+        }
+
+        // Always provide consultation as a default billable option
+        const consultation = {
+            fee: 300,
+            status: 'pending'
+        };
+
+        // Safely attempt to fetch lab orders without breaking the whole process
+        let labOrders = [];
+        try {
+            labOrders = await this.getUnbilledLabOrders(patientId);
+        } catch (error) {
+            console.error(`[BillingService] Failed to fetch lab orders for patient ${patientId}`, error);
+            // Fallback to empty array so consultation can still be billed
+        }
+
+        return {
+            patient: {
+                id: patient.uhid,
+                name: `${patient.firstName} ${patient.lastName}`,
+                uhid: patient.uhid
+            },
+            consultation,
+            lab_orders: labOrders
+        };
     }
 
     private formatBill(bill: any) {
