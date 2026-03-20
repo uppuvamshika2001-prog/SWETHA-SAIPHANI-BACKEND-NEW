@@ -588,8 +588,11 @@ export async function getStockReturns(
     next: NextFunction
 ): Promise<void> {
     try {
-        const result = await pharmacyService.getStockReturns(req.query);
-        sendSuccess(res, result);
+        const result: any = await pharmacyService.getStockReturns(req.query);
+        res.json({
+            items: result?.items || result || [],
+            total: result?.total || result?.length || 0
+        });
     } catch (error) {
         logger.error({ context: 'PharmacyController.getStockReturns', error, query: req.query }, 'Failed to fetch stock returns');
         next(error);
