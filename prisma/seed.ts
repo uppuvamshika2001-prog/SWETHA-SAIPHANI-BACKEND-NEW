@@ -9,6 +9,11 @@ async function main() {
     console.log('  Clearing existing lab test data...');
     await (prisma as any).labTestParameter.deleteMany({});
     await (prisma as any).labTestCategory.deleteMany({});
+    
+    // Cleanup for renamed tests to avoid duplicates
+    await (prisma.labTest as any).deleteMany({ 
+        where: { code: { in: ['DENGUE', 'XRAY'] } } 
+    });
 
     // =========================
     // 1. CBP - Complete Blood Picture (PANEL)
@@ -207,12 +212,12 @@ async function main() {
     });
 
     // =========================
-    // 9. Dengue (PANEL - Semi-structured)
+    // 9. Dengue Profile (PANEL - Semi-structured)
     // =========================
     const dengue = await (prisma.labTest as any).upsert({
-        where: { code: 'DENGUE' },
-        update: { name: 'Dengue NS1 & Antibodies', department: 'SEROLOGY', type: 'PANEL', price: 1000, isActive: true },
-        create: { code: 'DENGUE', name: 'Dengue NS1 & Antibodies', department: 'SEROLOGY', type: 'PANEL', price: 1000, isActive: true },
+        where: { code: 'DENGUE_PROFILE' },
+        update: { name: 'Dengue Profile', department: 'SEROLOGY', type: 'PANEL', price: 1000, isActive: true },
+        create: { code: 'DENGUE_PROFILE', name: 'Dengue Profile', department: 'SEROLOGY', type: 'PANEL', price: 1000, isActive: true },
     });
 
     const dengueCat = await (prisma as any).labTestCategory.create({ data: { testId: dengue.id, name: 'SEROLOGY', displayOrder: 1 } });
@@ -222,6 +227,42 @@ async function main() {
             { testId: dengue.id, categoryId: dengueCat.id, parameterName: 'Dengue IgG Antibody', unit: '', inputType: 'text', referenceRange: { default: 'Negative' }, displayOrder: 2 },
             { testId: dengue.id, categoryId: dengueCat.id, parameterName: 'Dengue IgM Antibody', unit: '', inputType: 'text', referenceRange: { default: 'Negative' }, displayOrder: 3 },
         ]
+    });
+
+    // =========================
+    // ADDITIONAL SINGLE TESTS
+    // =========================
+    const bg = await (prisma.labTest as any).upsert({
+        where: { code: 'BLOOD_GROUP' },
+        update: { name: 'Blood Grouping and Typing', department: 'HEMATOLOGY', type: 'SINGLE', price: 100, isActive: true },
+        create: { code: 'BLOOD_GROUP', name: 'Blood Grouping and Typing', department: 'HEMATOLOGY', type: 'SINGLE', price: 100, isActive: true },
+    });
+    const bgCat = await (prisma as any).labTestCategory.create({ data: { testId: bg.id, name: 'HEMATOLOGY', displayOrder: 1 } });
+    await (prisma as any).labTestParameter.createMany({
+        data: [
+            { testId: bg.id, categoryId: bgCat.id, parameterName: 'ABO Group', unit: '', inputType: 'text', referenceRange: { default: 'A / B / AB / O' }, displayOrder: 1 },
+            { testId: bg.id, categoryId: bgCat.id, parameterName: 'Rh Factor', unit: '', inputType: 'text', referenceRange: { default: 'Positive / Negative' }, displayOrder: 2 },
+        ]
+    });
+
+    const vitD3 = await (prisma.labTest as any).upsert({
+        where: { code: 'VITAMIN_D3' },
+        update: { name: 'Vitamin D3', department: 'BIOCHEMISTRY', type: 'SINGLE', price: 1800, isActive: true },
+        create: { code: 'VITAMIN_D3', name: 'Vitamin D3', department: 'BIOCHEMISTRY', type: 'SINGLE', price: 1800, isActive: true },
+    });
+    const vitD3Cat = await (prisma as any).labTestCategory.create({ data: { testId: vitD3.id, name: 'BIOCHEMISTRY', displayOrder: 1 } });
+    await (prisma as any).labTestParameter.create({
+        data: { testId: vitD3.id, categoryId: vitD3Cat.id, parameterName: '25-OH Vitamin D', unit: 'ng/mL', inputType: 'number', referenceRange: { deficiency: '< 20', insufficient: '20 - 29', sufficient: '30 - 100', toxicity: '> 100' }, displayOrder: 1 }
+    });
+
+    const sua = await (prisma.labTest as any).upsert({
+        where: { code: 'SERUM_URIC_ACID' },
+        update: { name: 'Serum Uric Acid', department: 'BIOCHEMISTRY', type: 'SINGLE', price: 200, isActive: true },
+        create: { code: 'SERUM_URIC_ACID', name: 'Serum Uric Acid', department: 'BIOCHEMISTRY', type: 'SINGLE', price: 200, isActive: true },
+    });
+    const suaCat = await (prisma as any).labTestCategory.create({ data: { testId: sua.id, name: 'BIOCHEMISTRY', displayOrder: 1 } });
+    await (prisma as any).labTestParameter.create({
+        data: { testId: sua.id, categoryId: suaCat.id, parameterName: 'Serum Uric Acid', unit: 'mg/dL', inputType: 'number', referenceRange: { male: '3.4 - 7.0', female: '2.4 - 5.7' }, displayOrder: 1 }
     });
 
     // =========================
@@ -278,9 +319,21 @@ async function main() {
     console.log('  Seeding Report Tests...');
 
     await (prisma.labTest as any).upsert({
-        where: { code: 'XRAY' },
-        update: { name: 'Chest X-Ray', department: 'RADIOLOGY', type: 'REPORT', price: 500, isActive: true },
-        create: { code: 'XRAY', name: 'Chest X-Ray', department: 'RADIOLOGY', type: 'REPORT', price: 500, isActive: true },
+        where: { code: 'XRAY_CHEST_PA' },
+        update: { name: 'Chest X-Ray PA View', department: 'RADIOLOGY', type: 'REPORT', price: 600, isActive: true },
+        create: { code: 'XRAY_CHEST_PA', name: 'Chest X-Ray PA View', department: 'RADIOLOGY', type: 'REPORT', price: 600, isActive: true },
+    });
+
+    await (prisma.labTest as any).upsert({
+        where: { code: 'XRAY_KNEE_AP_LAT' },
+        update: { name: 'X-Ray Knee Joint AP/LAT', department: 'RADIOLOGY', type: 'REPORT', price: 1600, isActive: true },
+        create: { code: 'XRAY_KNEE_AP_LAT', name: 'X-Ray Knee Joint AP/LAT', department: 'RADIOLOGY', type: 'REPORT', price: 1600, isActive: true },
+    });
+
+    await (prisma.labTest as any).upsert({
+        where: { code: 'XRAY_BOTH_KNEE_AP_LAT' },
+        update: { name: 'Both Knee Joints AP/LAT', department: 'RADIOLOGY', type: 'REPORT', price: 1600, isActive: true },
+        create: { code: 'XRAY_BOTH_KNEE_AP_LAT', name: 'Both Knee Joints AP/LAT', department: 'RADIOLOGY', type: 'REPORT', price: 1600, isActive: true },
     });
 
     // =========================
