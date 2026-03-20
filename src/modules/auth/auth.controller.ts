@@ -157,7 +157,7 @@ export const refreshToken = asyncHandler(async (
 ): Promise<void> => {
     const { refreshToken } = validateRequest(refreshTokenSchema, req.body);
     const tokens = await authService.refreshToken(refreshToken);
-    sendSuccess(res, tokens, 'Token refreshed successfully');
+    res.json(tokens);
 });
 
 /**
