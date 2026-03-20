@@ -749,7 +749,7 @@ export class PharmacyService {
                         data: { stockQuantity: { decrement: item.returnQty } }
                     });
                 } else {
-                    const medicine = await tx.medicine.findUnique({ where: { id: item.medicineId } });
+                    const medicine = await tx.medicine.findUnique({ where: { id: Number(item.medicineId) } });
                     if (!medicine) throw new NotFoundError('Medicine');
                     if (medicine.stockQuantity < item.returnQty) {
                         throw new ValidationError(`Insufficient total stock for ${medicine.name}`);
