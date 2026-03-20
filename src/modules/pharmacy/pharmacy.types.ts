@@ -258,3 +258,15 @@ export const purchaseQuerySchema = z.object({
     distributor: z.string().optional(),
     status: z.string().optional(),
 });
+
+export const createCategorySchema = z.object({
+    name: z.string().min(1, 'Category name is required'),
+});
+
+export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
+
+export interface CategoryResponse {
+    id: string;
+    name: string;
+    createdAt: Date;
+}

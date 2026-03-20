@@ -1314,6 +1314,36 @@ export class PharmacyService {
         }
     }
 
+
+    async getCategories() {
+        return (prisma as any).pharmacyCategory.findMany({
+            orderBy: { name: 'asc' }
+        });
+    }
+
+    async createCategory(input: any) {
+        const { name } = input;
+        
+        // Check for duplicate (case-insensitive)
+        const existing = await (prisma as any).pharmacyCategory.findFirst({
+            where: { name: { equals: name, mode: 'insensitive' } }
+        });
+
+        if (existing) {
+            throw new Error('Category already exists');
+        }
+
+        return (prisma as any).pharmacyCategory.create({
+            data: { name }
+        });
+    }
+
+    async deleteCategory(id: string) {
+        return (prisma as any).pharmacyCategory.delete({
+            where: { id }
+        });
+    }
+
     private formatPurchase(purchase: any): PharmacyPurchaseResponse {
         return {
             id: purchase.id,
