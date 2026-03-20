@@ -465,26 +465,27 @@ export class LabService {
 
             // Fallback for orders without structured categories (legacy support or singles)
             const parameters = testData ? testData.parameters : [];
+            const fallbackParams = (parameters || []).map((p: any) => ({
+                id: p.id,
+                name: p.parameterName,
+                unit: p.unit || '',
+                inputType: p.inputType || 'number',
+                referenceRange: getRange(p),
+                normalMin: p.normalMin,
+                normalMax: p.normalMax
+            }));
+
+            // Return empty categories array when no params exist
+            // The frontend will allow manual parameter entry
             return {
                 orderId: order.id,
                 patientName,
                 patientGender,
                 testName: order.testName,
                 testType: testData?.type || 'PANEL',
-                categories: [
-                    {
-                        name: 'General',
-                        parameters: parameters.map((p: any) => ({
-                            id: p.id,
-                            name: p.parameterName,
-                            unit: p.unit || '',
-                            inputType: p.inputType || 'number',
-                            referenceRange: getRange(p),
-                            normalMin: p.normalMin,
-                            normalMax: p.normalMax
-                        }))
-                    }
-                ]
+                categories: fallbackParams.length > 0
+                    ? [{ name: 'General', parameters: fallbackParams }]
+                    : []
             };
         } catch (error) {
             console.error(`[LabService] Error in getOrderParameters for ${orderId}:`, error);
@@ -530,10 +531,10 @@ export class LabService {
                 },
             });
 
-            // 2. Create individual LabResult entries for structured data
+            // 2. Create individual LabResult entries for structured (catalog) parameters
             if (input.result.parameters && input.result.parameters.length > 0) {
-                const resultsData = input.result.parameters
-                    .filter((p: any) => p.parameterId) // Only save if we have a parameterId
+                const catalogResults = input.result.parameters
+                    .filter((p: any) => p.parameterId && !p.isManual)
                     .map((p: any) => ({
                         orderId: input.orderId,
                         parameterId: p.parameterId!,
@@ -541,10 +542,17 @@ export class LabService {
                         flag: p.flag || 'NORMAL'
                     }));
 
-                if (resultsData.length > 0) {
+                if (catalogResults.length > 0) {
                     await (tx as any).labResult.createMany({
-                        data: resultsData
+                        data: catalogResults
                     });
+                }
+
+                // Manual parameters are already saved in the JSON result blob (step 1).
+                // Log for visibility.
+                const manualCount = input.result.parameters.filter((p: any) => p.isManual || !p.parameterId).length;
+                if (manualCount > 0) {
+                    console.log(`[LabService] Saved ${manualCount} manual parameter(s) for order ${input.orderId}`);
                 }
             }
 

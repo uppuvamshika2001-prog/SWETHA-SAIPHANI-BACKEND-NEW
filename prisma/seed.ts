@@ -284,6 +284,26 @@ async function main() {
     });
 
     // =========================
+    // BT CT - Bleeding Time / Clotting Time (PANEL)
+    // =========================
+    const btct = await (prisma.labTest as any).upsert({
+        where: { code: 'BT_CT' },
+        update: { name: 'BT CT', department: 'HEMATOLOGY', type: 'PANEL', price: 200, isActive: true },
+        create: { code: 'BT_CT', name: 'BT CT', department: 'HEMATOLOGY', type: 'PANEL', price: 200, isActive: true },
+    });
+    console.log('  ✅ BT CT test created/updated');
+
+    const btctCat = await (prisma as any).labTestCategory.create({
+        data: { testId: btct.id, name: 'HEMATOLOGY', displayOrder: 1 },
+    });
+    await (prisma as any).labTestParameter.createMany({
+        data: [
+            { testId: btct.id, categoryId: btctCat.id, parameterName: 'Bleeding Time', unit: 'min', inputType: 'number', referenceRange: { default: '2 - 7' }, normalMin: 2, normalMax: 7, displayOrder: 1 },
+            { testId: btct.id, categoryId: btctCat.id, parameterName: 'Clotting Time', unit: 'min', inputType: 'number', referenceRange: { default: '5 - 11' }, normalMin: 5, normalMax: 11, displayOrder: 2 },
+        ]
+    });
+
+    // =========================
     // 6. BACKFILL: Link existing orders to master tests
     // =========================
     console.log('\n🔗 Backfilling test_id on existing lab orders...');
