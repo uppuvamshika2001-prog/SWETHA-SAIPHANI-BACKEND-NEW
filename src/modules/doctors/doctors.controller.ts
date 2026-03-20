@@ -314,3 +314,50 @@ export async function getPharmacyStats(
         next(error);
     }
 }
+
+/**
+ * @swagger
+ * /api/doctor/dashboard:
+ *   get:
+ *     tags: [Doctor]
+ *     summary: Get doctor dashboard statistics filtered by date
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *         description: Specific date (YYYY-MM-DD)
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *         description: Start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *         description: End date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Dashboard statistics
+ */
+export async function getDashboardStats(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const { date, startDate, endDate } = req.query;
+        const stats = await doctorsService.getDashboardStats(
+            req.user!.userId,
+            date as string,
+            startDate as string,
+            endDate as string
+        );
+        sendSuccess(res, stats);
+    } catch (error) {
+        next(error);
+    }
+}

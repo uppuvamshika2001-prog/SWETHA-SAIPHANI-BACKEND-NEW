@@ -459,6 +459,20 @@ export async function getMarginReport(
     }
 }
 
+export async function getPharmacyReports(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const result = await pharmacyService.getPharmacyReports(req.query);
+        sendSuccess(res, result);
+    } catch (error) {
+        logger.error({ context: 'PharmacyController.getPharmacyReports', error, query: req.query }, 'Failed to fetch comprehensive pharmacy reports');
+        next(error);
+    }
+}
+
 export async function recordPayment(
     req: Request,
     res: Response,

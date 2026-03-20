@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createMedicalRecord, getMedicalRecords, getAllMedicalRecords, getMedicalRecordById, createPrescription, getPrescription, dispensePrescription, getPendingPrescriptions } from './doctors.controller.js';
+import { createMedicalRecord, getMedicalRecords, getAllMedicalRecords, getMedicalRecordById, createPrescription, getPrescription, dispensePrescription, getPendingPrescriptions, getDashboardStats } from './doctors.controller.js';
 import { authGuard } from '../../middleware/authGuard.js';
 import { medicalStaff, medicalReadAccess, clinicalStaff } from '../../middleware/roleGuard.js';
 
@@ -9,6 +9,9 @@ import { patientAccessGuard } from '../../middleware/patientAuth.js';
 const router = Router();
 
 router.use(authGuard);
+
+// Dashboard
+router.get('/dashboard', medicalReadAccess, getDashboardStats);
 
 // Medical Records
 router.get('/medical-records', medicalReadAccess, getAllMedicalRecords);  // List all records (Admin/Pharmacist search)

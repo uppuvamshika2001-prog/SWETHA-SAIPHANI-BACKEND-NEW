@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createMedicine, getMedicines, getMedicine, updateMedicine, deleteMedicine, createBill, getBills, getBill, updateBill, deleteBill, getLowStockMedicines, getDistributorReport, getPurchases, getMarginReport, recordPayment, getPurchasePayments, createPurchase, processReturn, getReturns, processStockReturn, getStockReturns, getCategories, createCategory, deleteCategory } from './pharmacy.controller.js';
+import { createMedicine, getMedicines, getMedicine, updateMedicine, deleteMedicine, createBill, getBills, getBill, updateBill, deleteBill, getLowStockMedicines, getDistributorReport, getPurchases, getMarginReport, recordPayment, getPurchasePayments, createPurchase, processReturn, getReturns, processStockReturn, getStockReturns, getCategories, createCategory, deleteCategory, getPharmacyReports } from './pharmacy.controller.js';
 import { getPendingPrescriptions, getDispensedHistory, getPharmacyStats } from '../doctors/doctors.controller.js';
 import { authGuard } from '../../middleware/authGuard.js';
 import { roleGuard } from '../../middleware/roleGuard.js';
@@ -43,6 +43,7 @@ router.get('/stock-returns', getStockReturns);
 
 // Reports
 router.get('/margin-reports', getMarginReport);
+router.get('/summary', getPharmacyReports);
 router.get('/distributor-report', getDistributorReport);
 
 // Purchases & Payments

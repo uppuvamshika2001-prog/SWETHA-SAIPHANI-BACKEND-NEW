@@ -33,7 +33,7 @@ export class PharmacyService {
             });
 
             if (!medicine) {
-                medicine = await tx.medicine.create({
+                medicine = await (tx as any).medicine.create({
                     data: {
                         name: input.name,
                         genericName: input.genericName,
@@ -89,7 +89,7 @@ export class PharmacyService {
             // 3. Create the new batch
             await (tx as any).medicineBatch.create({
                 data: {
-                    medicineId: medicine.id,
+                    medicineId: medicine!.id,
                     batchNumber: input.batchNumber,
                     distributorName: input.distributorName,
                     manufacturingDate: input.manufacturingDate,
@@ -105,12 +105,12 @@ export class PharmacyService {
 
             // 3. Update aggregated medicine stock
             const totalStock = await (tx as any).medicineBatch.aggregate({
-                where: { medicineId: medicine.id, isActive: true },
+                where: { medicineId: medicine!.id, isActive: true },
                 _sum: { stockQuantity: true }
             });
 
             const updatedMedicine = await tx.medicine.update({
-                where: { id: medicine.id },
+                where: { id: medicine!.id },
                 data: { stockQuantity: totalStock._sum.stockQuantity || 0 },
                 include: { 
                     batches: { where: { isActive: true }, orderBy: { expiryDate: 'asc' } },
@@ -286,6 +286,12 @@ export class PharmacyService {
                 let totalPurchasePrice = 0;
 
                 if (item.medicineId) {
+                    // Resolve medicine name for description snapshot
+                    const medRecord = await tx.medicine.findUnique({ where: { id: item.medicineId } });
+                    if (!item.description && medRecord) {
+                        item.description = medRecord.name;
+                    }
+
                     const batches = await (tx as any).medicineBatch.findMany({
                         where: {
                             medicineId: item.medicineId,
@@ -313,9 +319,13 @@ export class PharmacyService {
                         throw new ValidationError(`Insufficient non-expired stock for medicine: ${item.description}`);
                     }
 
-                    await (tx as any).medicine.update({
-                        where: { id: item.medicineId },
-                        data: { stockQuantity: { decrement: item.quantity } },
+                    // Integrated Logging
+                    await this.updateStockAndLog(tx, {
+                        medicineId: item.medicineId,
+                        type: 'DISPENSE',
+                        quantity: -item.quantity,
+                        referenceId: `BILL-${Date.now()}`, // Or real bill ID if available inside tx
+                        remarks: `Dispensed via billing: ${billNumber}`
                     });
                 }
 
@@ -360,7 +370,7 @@ export class PharmacyService {
                     },
                 },
                 include: {
-                    items: true,
+                    items: { include: { medicine: true } },
                 },
             });
 
@@ -388,8 +398,8 @@ export class PharmacyService {
         }
 
         const includeItems = format === 'returns' 
-            ? { where: { medicineId: { not: null } } }
-            : true;
+            ? { where: { medicineId: { not: null } }, include: { medicine: true } }
+            : { include: { medicine: true } };
 
         const [bills, total] = await Promise.all([
             prisma.bill.findMany({
@@ -414,7 +424,7 @@ export class PharmacyService {
     async getBill(id: string): Promise<BillResponse> {
         const bill = await prisma.bill.findUnique({
             where: { id },
-            include: { items: true },
+            include: { items: { include: { medicine: true } } },
         });
         if (!bill) {
             throw new NotFoundError('Bill');
@@ -547,53 +557,30 @@ export class PharmacyService {
             // 4. Adjust stock (add back to latest batch or specific batch if provided)
             for (const item of input.items) {
                 // Increment batch stock
-                if (item.batchNumber) {
-                    // Find batch to return to
-                    const batch = await ((tx as any).medicineBatch).findFirst({
-                        where: { 
-                            medicineId: item.medicineId, 
-                            batchNumber: item.batchNumber,
-                            isActive: true,
-                        },
-                        orderBy: { expiryDate: 'asc' } // If no batch number, take oldest
-                    });
+                const batch = await ((tx as any).medicineBatch).findFirst({
+                    where: { 
+                        medicineId: item.medicineId, 
+                        batchNumber: item.batchNumber || undefined,
+                        isActive: true,
+                    },
+                    orderBy: { expiryDate: 'asc' } 
+                });
 
-                    if (!batch) {
-                        throw new ValidationError(`Batch not found for medicine ID ${item.medicineId} and batch number ${item.batchNumber}`);
-                    }
-
+                if (batch) {
                     await ((tx as any).medicineBatch).update({
                         where: { id: batch.id },
                         data: { stockQuantity: { increment: item.returnQty } }
                     });
-                } else {
-                    // Find best batch using FIFO (First Expiry First Out) to add stock back to
-                    const batch = await ((tx as any).medicineBatch).findFirst({
-                        where: { medicineId: item.medicineId, isActive: true },
-                        orderBy: { expiryDate: 'asc' }
-                    });
-
-                    if (batch) {
-                        await ((tx as any).medicineBatch).update({
-                            where: { id: batch.id },
-                            data: { stockQuantity: { increment: item.returnQty } }
-                        });
-                    } else {
-                        // If no active batch exists, this scenario might need specific handling,
-                        // e.g., creating a new batch or logging an alert. For now, we'll just update master stock.
-                        console.warn(`No active batch found for medicine ID ${item.medicineId} to return to. Only master stock will be updated.`);
-                    }
                 }
-                
-                // Ensure master stock is sync'd
-                const totalBatchStock = await ((tx as any).medicineBatch).aggregate({
-                    where: { medicineId: item.medicineId, isActive: true },
-                    _sum: { stockQuantity: true }
-                });
 
-                await tx.medicine.update({
-                    where: { id: item.medicineId },
-                    data: { stockQuantity: totalBatchStock._sum.stockQuantity || 0 }
+                // Log and Sync
+                await this.updateStockAndLog(tx, {
+                    medicineId: item.medicineId,
+                    batchNumber: item.batchNumber || undefined,
+                    type: 'PATIENT_RETURN',
+                    quantity: item.returnQty,
+                    referenceId: pharmacyReturn.id,
+                    remarks: `Patient return for bill ${bill.billNumber}`
                 });
             }
 
@@ -729,14 +716,13 @@ export class PharmacyService {
 
             // 3. Update master stock quantity
             for (const item of input.items) {
-                const totalBatchStock = await ((tx as any).medicineBatch).aggregate({
-                    where: { medicineId: item.medicineId, isActive: true },
-                    _sum: { stockQuantity: true }
-                });
-
-                await tx.medicine.update({
-                    where: { id: item.medicineId },
-                    data: { stockQuantity: totalBatchStock._sum.stockQuantity || 0 }
+                await this.updateStockAndLog(tx, {
+                    medicineId: item.medicineId,
+                    batchNumber: item.batchNumber || undefined,
+                    type: 'DISTRIBUTOR_RETURN',
+                    quantity: -item.returnQty,
+                    referenceId: newStockReturn.id,
+                    remarks: `Returned to distributor: ${input.distributor}`
                 });
             }
 
@@ -803,97 +789,73 @@ export class PharmacyService {
             end = new Date(start);
             end.setHours(23, 59, 59, 999);
         }
-        
-        const now = new Date();
-        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-        const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
-        // Helper to fetch valid SALES (bill items) for a range
-        const getProfitData = async (fromDate: Date, toDate: Date) => {
-            return await (prisma as any).billItem.findMany({
-                where: {
-                    bill: {
-                        status: 'PAID',
-                        createdAt: {
-                            gte: fromDate,
-                            lte: toDate
-                        }
-                    },
-                    medicineId: { not: null }
-                },
-                include: {
-                    medicine: {
-                        include: {
-                            batches: {
-                                orderBy: { createdAt: 'desc' },
-                                take: 1
-                            }
-                        }
-                    }
-                }
-            });
-        };
+        // 1. Range Items Query
+        const rangeItemsSql = `
+            SELECT 
+                m.name AS medicine_name,
+                bi.quantity,
+                bi.unit_price,
+                m.price_per_unit AS purchase_price,
+                (bi.unit_price - m.price_per_unit) * bi.quantity AS profit
+            FROM bill_items bi
+            JOIN bills b ON bi.bill_id = b.id
+            JOIN medicines m ON bi.medicine_id = m.id
+            WHERE b.status = 'PAID'
+              AND b.created_at >= $1 
+              AND b.created_at <= $2
+        `;
 
-        const [rangeItems, todayItems, monthItems] = await Promise.all([
-            getProfitData(start, end),
-            getProfitData(todayStart, todayEnd),
-            getProfitData(firstDayOfMonth, lastDayOfMonth)
-        ]);
+        const rangeItems = await prisma.$queryRawUnsafe<any[]>(
+            rangeItemsSql,
+            start,
+            end
+        );
 
-        const calculateProfit = (items: any[]) => {
-            let total = 0;
-            items.forEach(item => {
-                const sellingPrice = Number(item.unitPrice) || 0;
-                let purchasePrice = Number(item.purchasePrice) || 0;
+        // 2. Today's Profit
+        const todaySql = `
+            SELECT 
+                SUM((bi.unit_price - m.price_per_unit) * bi.quantity) AS "todayMargin"
+            FROM bill_items bi
+            JOIN bills b ON bi.bill_id = b.id
+            JOIN medicines m ON bi.medicine_id = m.id
+            WHERE b.status = 'PAID'
+              AND DATE(b.created_at) = CURRENT_DATE
+        `;
+        const todayResult = await prisma.$queryRawUnsafe<any[]>(todaySql);
+        const todayMargin = Number(todayResult[0]?.todayMargin) || 0;
 
-                // Fallbacks requested strictly by user prompt
-                if (purchasePrice === 0 && item.medicine) {
-                    if (item.medicine.batches && item.medicine.batches.length > 0) {
-                        purchasePrice = Number(item.medicine.batches[0].purchasePrice) || 0;
-                    } 
-                    if (purchasePrice === 0) {
-                        purchasePrice = Number(item.medicine.pricePerUnit) || 0;
-                    }
-                }
+        // 3. Monthly Profit
+        const monthlySql = `
+            SELECT 
+                SUM((bi.unit_price - m.price_per_unit) * bi.quantity) AS "monthlyMargin"
+            FROM bill_items bi
+            JOIN bills b ON bi.bill_id = b.id
+            JOIN medicines m ON bi.medicine_id = m.id
+            WHERE b.status = 'PAID'
+              AND EXTRACT(MONTH FROM b.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+              AND EXTRACT(YEAR FROM b.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
+        `;
+        const monthlyResult = await prisma.$queryRawUnsafe<any[]>(monthlySql);
+        const monthlyMargin = Number(monthlyResult[0]?.monthlyMargin) || 0;
 
-                const quantity = Number(item.quantity) || 0;
-                total += (sellingPrice - purchasePrice) * quantity;
-            });
-            return total;
-        };
-
-        const todayProfit = calculateProfit(todayItems);
-        const monthlyProfit = calculateProfit(monthItems);
-
-        let totalProfit = 0;
+        // 4. Aggregate Range Data
+        let totalMargin = 0;
         const medMap = new Map<string, { name: string, quantity: number, profit: number }>();
 
         rangeItems.forEach((item: any) => {
-            const sellingPrice = Number(item.unitPrice) || 0;
-            let purchasePrice = Number(item.purchasePrice) || 0;
-
-            if (purchasePrice === 0 && item.medicine) {
-                if (item.medicine.batches && item.medicine.batches.length > 0) {
-                    purchasePrice = Number(item.medicine.batches[0].purchasePrice) || 0;
-                } 
-                if (purchasePrice === 0) {
-                    purchasePrice = Number(item.medicine.pricePerUnit) || 0;
-                }
-            }
-
             const quantity = Number(item.quantity) || 0;
-            const profit = (sellingPrice - purchasePrice) * quantity;
-            totalProfit += profit;
+            const profitValue = Number(item.profit) || 0;
+            
+            totalMargin += profitValue;
 
-            const name = item.medicine?.name || item.description || 'Unknown';
+            const name = item.medicine_name || 'Unknown';
             if (!medMap.has(name)) {
                 medMap.set(name, { name, quantity: 0, profit: 0 });
             }
             const med = medMap.get(name)!;
             med.quantity += quantity;
-            med.profit += profit;
+            med.profit += profitValue;
         });
 
         const medicineWiseProfit = Array.from(medMap.values());
@@ -909,15 +871,114 @@ export class PharmacyService {
         // Debug logging precisely as requested
         console.log(`[MARGIN REPORT DEBUG] startDate: ${start.toISOString()}, endDate: ${end.toISOString()}`);
         console.log(`[MARGIN REPORT DEBUG] Fetched Records from BillItems: ${rangeItems.length}`);
-        console.log(`[MARGIN REPORT DEBUG] Calculated Total Profit for range: ${totalProfit}`);
+        console.log(`[MARGIN REPORT DEBUG] Calculated Total Margin for range: ${totalMargin}`);
 
         return {
-            totalProfit,
-            todayProfit,
-            monthlyProfit,
+            totalMargin,
+            todayMargin,
+            monthlyMargin,
             topMedicines,
             medicineWiseProfit
         };
+    }
+
+    async getPharmacyReports(query: { startDate?: string; endDate?: string }): Promise<any> {
+        let start: Date;
+        let end: Date;
+
+        if (query.startDate) {
+            start = new Date(query.startDate);
+            start.setHours(0, 0, 0, 0);
+        } else {
+            start = new Date();
+            start.setHours(0, 0, 0, 0);
+        }
+
+        if (query.endDate) {
+            end = new Date(query.endDate);
+            end.setHours(23, 59, 59, 999);
+        } else {
+            end = new Date(start);
+            end.setHours(23, 59, 59, 999);
+        }
+
+        try {
+            // 1. Margin Data (reuse the logic we just fixed)
+            const marginData = await this.getMarginReport({ 
+                startDate: start.toISOString(), 
+                endDate: end.toISOString() 
+            });
+
+            // 2. Sales Summary (Daily aggregation)
+            const salesSummarySql = `
+                SELECT 
+                    DATE(created_at) as "date",
+                    SUM(grand_total) as "total_sales"
+                FROM bills
+                WHERE created_at >= $1 AND created_at <= $2 AND status = 'PAID'
+                GROUP BY DATE(created_at)
+                ORDER BY DATE(created_at) ASC
+            `;
+            const salesResult = await prisma.$queryRawUnsafe<any[]>(salesSummarySql, start, end);
+            const salesSummary = salesResult.map(row => ({
+                date: row.date,
+                total_sales: Number(row.total_sales) || 0
+            }));
+
+            // 3. Inventory Report
+            const inventorySql = `
+                SELECT 
+                    name,
+                    stock_quantity,
+                    reorder_level as "min_stock_level",
+                    (SELECT expiry_date FROM medicine_batches mb WHERE mb.medicine_id = m.id AND mb.is_active = true ORDER BY expiry_date ASC LIMIT 1) as "expiry_date"
+                FROM medicines m
+                ORDER BY name ASC
+            `;
+            const inventoryResult = await prisma.$queryRawUnsafe<any[]>(inventorySql);
+            const inventory = inventoryResult.map(row => ({
+                name: row.name,
+                stock_quantity: Number(row.stock_quantity) || 0,
+                min_stock_level: Number(row.min_stock_level) || 0,
+                expiry_date: row.expiry_date
+            }));
+
+            // 4. Distributor Dues
+            const duesSql = `
+                SELECT 
+                    distributor_name as "distributor_id",
+                    SUM(total_amount) - SUM(amount_paid) as "due_amount"
+                FROM pharmacy_purchases
+                WHERE payment_status IN ('PENDING', 'PARTIALLY_PAID')
+                GROUP BY distributor_name
+            `;
+            const duesResult = await prisma.$queryRawUnsafe<any[]>(duesSql);
+            const distributorDues = duesResult.map(row => ({
+                distributor_id: row.distributor_id,
+                due_amount: Number(row.due_amount) || 0
+            }));
+
+            // Check if entirely empty
+            if (salesSummary.length === 0 && inventory.length === 0 && distributorDues.length === 0 && marginData.totalMargin === 0) {
+                return { message: "No data available for selected range" };
+            }
+
+            return {
+                margin: marginData,
+                salesSummary,
+                inventory,
+                distributorDues
+            };
+
+        } catch (error) {
+            console.error('[PharmacyService] getPharmacyReports failed:', error);
+            return {
+                margin: { totalMargin: 0, todayMargin: 0, monthlyMargin: 0, topMedicines: [], medicineWiseProfit: [] },
+                salesSummary: [],
+                inventory: [],
+                distributorDues: []
+            };
+        }
     }
     
     async recordPayment(input: any): Promise<any> {
@@ -1125,7 +1186,7 @@ export class PharmacyService {
             paidAmount: Number(bill.paidAmount),
             items: bill.items.map((item) => ({
                 id: item.id,
-                description: item.description,
+                description: item.description || (item as any).medicine?.name || 'Medicine',
                 quantity: item.quantity,
                 unitPrice: Number(item.unitPrice),
                 purchasePrice: Number((item as any).purchasePrice),
@@ -1384,6 +1445,50 @@ export class PharmacyService {
                 stockQuantity: b.stockQuantity || 0
             }))
         };
+    }
+
+    /**
+     * Unified Inventory Stock Update & Logger
+     */
+    async updateStockAndLog(tx: any, data: {
+        medicineId: string;
+        batchNumber?: string;
+        type: 'DISPENSE' | 'PATIENT_RETURN' | 'DISTRIBUTOR_RETURN' | 'STOCK_ADD' | 'ADJUSTMENT';
+        quantity: number;
+        referenceId?: string;
+        remarks?: string;
+    }) {
+        const medicine = await tx.medicine.findUnique({ where: { id: data.medicineId } });
+        if (!medicine) throw new NotFoundError('Medicine');
+
+        const prevStock = medicine.stockQuantity;
+        const newStock = prevStock + data.quantity;
+
+        if (newStock < 0) {
+            throw new ValidationError(`Insufficient stock for ${medicine.name}. Available: ${prevStock}, Requested: ${Math.abs(data.quantity)}`);
+        }
+
+        // 1. Update Medicine Master Aggregate
+        await tx.medicine.update({
+            where: { id: data.medicineId },
+            data: { stockQuantity: newStock }
+        });
+
+        // 2. Create Audit Log
+        await (tx as any).inventoryLog.create({
+            data: {
+                medicineId: data.medicineId,
+                batchNumber: data.batchNumber,
+                type: data.type,
+                quantity: data.quantity,
+                previousStock: prevStock,
+                newStock: newStock,
+                referenceId: data.referenceId,
+                remarks: data.remarks
+            }
+        });
+
+        console.log(`[InventoryLog] ${data.type} for ${medicine.name}: ${data.quantity}. Stock: ${prevStock} -> ${newStock}`);
     }
 }
 

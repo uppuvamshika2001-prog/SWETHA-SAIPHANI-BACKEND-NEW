@@ -181,36 +181,88 @@ export class DoctorsService {
             throw new NotFoundError('Medical record not found');
         }
 
-        // If dispensing, deduct stock for each medicine in prescriptions
+        // If dispensing, deduct stock using batch-level FEFO and audit logs
         if (status === 'DISPENSED') {
-            const prescriptions = (record.prescriptions as any[]) || [];
+            await prisma.$transaction(async (tx) => {
+                const prescriptions = (record.prescriptions as any[]) || [];
 
-            for (const prescription of prescriptions) {
-                if (prescription.medicineName) {
-                    // Try to find medicine by name (case-insensitive partial match)
-                    const medicine = await prisma.medicine.findFirst({
-                        where: {
-                            name: { contains: prescription.medicineName, mode: 'insensitive' }
-                        }
-                    });
-
-                    if (medicine && medicine.stockQuantity > 0) {
-                        const deductQty = 1;
-                        await prisma.medicine.update({
-                            where: { id: medicine.id },
-                            data: { stockQuantity: { decrement: deductQty } }
+                for (const prescription of prescriptions) {
+                    if (prescription.medicineName) {
+                        const medicine = await tx.medicine.findFirst({
+                            where: {
+                                name: { contains: prescription.medicineName, mode: 'insensitive' }
+                            }
                         });
-                        console.log(`[Dispense] Deducted ${deductQty} unit(s) of ${medicine.name}. New stock: ${medicine.stockQuantity - deductQty}`);
+
+                        if (!medicine) {
+                            console.warn(`[Dispense] Medicine not found: ${prescription.medicineName}`);
+                            continue;
+                        }
+
+                        // Parse quantity from prescription (default to 1)
+                        const qty = parseInt(prescription.quantity) || 1;
+
+                        if (medicine.stockQuantity < qty) {
+                            throw new ValidationError(`Insufficient stock for ${medicine.name}. Available: ${medicine.stockQuantity}, Requested: ${qty}`);
+                        }
+
+                        // Batch-level FEFO deduction
+                        let remainingQty = qty;
+                        const batches = await (tx as any).medicineBatch.findMany({
+                            where: {
+                                medicineId: medicine.id,
+                                stockQuantity: { gt: 0 },
+                                expiryDate: { gt: new Date() },
+                                isActive: true,
+                            },
+                            orderBy: { expiryDate: 'asc' },
+                        });
+
+                        for (const batch of batches) {
+                            if (remainingQty <= 0) break;
+                            const deductQty = Math.min(batch.stockQuantity, remainingQty);
+                            await (tx as any).medicineBatch.update({
+                                where: { id: batch.id },
+                                data: { stockQuantity: { decrement: deductQty } },
+                            });
+                            remainingQty -= deductQty;
+                        }
+
+                        if (remainingQty > 0) {
+                            console.warn(`[Dispense] Not enough batch stock for ${medicine.name}, but master stock was sufficient. Proceeding.`);
+                        }
+
+                        // Update master stock
+                        const prevStock = medicine.stockQuantity;
+                        const newStock = prevStock - qty;
+                        await tx.medicine.update({
+                            where: { id: medicine.id },
+                            data: { stockQuantity: newStock }
+                        });
+
+                        // Create Audit Log
+                        await (tx as any).inventoryLog.create({
+                            data: {
+                                medicineId: medicine.id,
+                                type: 'DISPENSE',
+                                quantity: -qty,
+                                previousStock: prevStock,
+                                newStock: newStock,
+                                referenceId: recordId,
+                                remarks: `Dispensed via prescription for record ${recordId}`
+                            }
+                        });
+
+                        console.log(`[Dispense] Deducted ${qty} unit(s) of ${medicine.name}. Stock: ${prevStock} -> ${newStock}`);
                     }
                 }
-            }
+            });
         }
 
         const updatedRecord = await prisma.medicalRecord.update({
             where: { id: recordId },
             data: {
                 prescriptionStatus: status as any,
-                // Add dispensed timestamp to vitals if dispensing
                 vitalSigns: status === 'DISPENSED' ? {
                     ...(record.vitalSigns as any || {}),
                     dispensedAt: new Date().toISOString()
@@ -424,6 +476,94 @@ export class DoctorsService {
             patient: prescription.patient,
             doctor: prescription.doctor,
             createdAt: prescription.createdAt,
+        };
+    }
+
+    async getDashboardStats(doctorId: string, selectedDate?: string, startDate?: string, endDate?: string) {
+        const where: any = {};
+        
+        let start: Date;
+        let end: Date;
+
+        if (startDate && endDate) {
+            start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+            end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+        } else if (selectedDate) {
+            start = new Date(selectedDate);
+            start.setHours(0, 0, 0, 0);
+            end = new Date(selectedDate);
+            end.setHours(23, 59, 59, 999);
+        } else {
+            // Default to today
+            start = new Date();
+            start.setHours(0, 0, 0, 0);
+            end = new Date();
+            end.setHours(23, 59, 59, 999);
+        }
+
+        // 1. Appointments for this doctor within the date range
+        const appointments = await prisma.appointment.findMany({
+            where: {
+                doctorId,
+                scheduledAt: { gte: start, lte: end }
+            },
+            include: {
+                patient: {
+                    select: { firstName: true, lastName: true, uhid: true, dateOfBirth: true, bloodGroup: true, phone: true }
+                }
+            },
+            orderBy: { scheduledAt: 'asc' }
+        });
+
+        const pendingConsultations = appointments.filter(a => a.status === 'SCHEDULED' || a.status === 'CONFIRMED').length;
+
+        // 2. Lab Orders linked to this doctor within the date range (Either ordered by or linked to appointments in this range)
+        const labOrders = await prisma.labTestOrder.findMany({
+            where: {
+                doctorId,
+                createdAt: { gte: start, lte: end }
+            },
+            include: {
+                patient: { select: { firstName: true, lastName: true, uhid: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        // 3. Unique patients seen or scheduled in this date range
+        const uniquePatientIds = new Set(appointments.map(a => a.patientId));
+        const patientsData = await prisma.patient.findMany({
+            where: {
+                uhid: { in: Array.from(uniquePatientIds) }
+            }
+        });
+
+        return {
+            appointments: appointments.map(a => ({
+                id: a.id,
+                patientId: a.patientId,
+                patient_name: `${a.patient.firstName} ${a.patient.lastName}`,
+                date: a.scheduledAt.toISOString(),
+                time: a.scheduledAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                status: a.status.toLowerCase(),
+                type: a.reason || 'Consultation'
+            })),
+            pendingConsultations,
+            totalAppointments: appointments.length,
+            labOrders: labOrders.map(l => ({
+                id: l.id,
+                testName: l.testName,
+                status: l.status,
+                patientName: `${l.patient.firstName} ${l.patient.lastName}`
+            })),
+            patients: patientsData.map(p => ({
+                uhid: p.uhid,
+                full_name: `${p.firstName} ${p.lastName}`,
+                age: p.dateOfBirth ? new Date().getFullYear() - new Date(p.dateOfBirth).getFullYear() : 'N/A',
+                blood_group: p.bloodGroup || 'N/A',
+                status: 'active'
+            }))
         };
     }
 }

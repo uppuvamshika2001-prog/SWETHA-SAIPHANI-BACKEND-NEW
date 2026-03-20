@@ -82,6 +82,7 @@ export interface MedicalRecordResponse {
     labOrders?: string[];
     dispensedAt?: string;
     totalAmount?: number;
+    total?: number;
     patient: { firstName: string; lastName: string };
     doctor: { firstName: string; lastName: string };
     createdAt: Date;

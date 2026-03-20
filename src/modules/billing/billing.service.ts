@@ -199,7 +199,7 @@ export class BillingService {
                     orderBy: { createdAt: 'desc' },
                     include: {
                         patient: true,
-                        items: true
+                        items: { include: { medicine: true } }
                     }
                 })
             ]);
@@ -237,7 +237,7 @@ export class BillingService {
             where: { id },
             include: {
                 patient: true,
-                items: true
+                items: { include: { medicine: true } }
             }
         });
 
@@ -460,6 +460,7 @@ export class BillingService {
             } : undefined,
             items: bill.items?.map((item: any) => ({
                 ...item,
+                description: item.description || item.medicine?.name || 'Medicine',
                 unitPrice: Number(item.unitPrice),
                 total: Number(item.total)
             }))
