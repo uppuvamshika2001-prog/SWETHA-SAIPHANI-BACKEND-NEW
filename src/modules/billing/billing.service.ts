@@ -367,11 +367,12 @@ export class BillingService {
                 patientId,
                 billingStatus: 'PENDING',
                 status: {
-                    in: ['READY_FOR_SAMPLE_COLLECTION', 'SAMPLE_COLLECTED', 'IN_PROGRESS', 'COMPLETED', 'DELIVERED']
+                    in: ['ORDERED', 'READY_FOR_SAMPLE_COLLECTION', 'SAMPLE_COLLECTED', 'IN_PROGRESS', 'COMPLETED', 'DELIVERED']
                 },
             },
             include: {
                 patient: { select: { firstName: true, lastName: true } },
+                test: { select: { price: true } },
             },
             orderBy: { createdAt: 'desc' },
         });
@@ -385,7 +386,7 @@ export class BillingService {
             status: o.status,
             billingStatus: o.billingStatus,
             createdAt: o.createdAt,
-            price: 200 // Default placeholder, ideally should come from catalog
+            price: o.test?.price ? Number(o.test.price) : 200
         }));
     }
 
