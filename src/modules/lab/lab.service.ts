@@ -580,7 +580,6 @@ export class LabService {
     async confirmPayment(id: string): Promise<LabOrderResponse> {
         const order = await prisma.labTestOrder.findUnique({
             where: { id },
-            include: { bill: true }
         });
 
         if (!order) {
@@ -592,14 +591,13 @@ export class LabService {
             throw new ValidationError(`Cannot confirm payment for order in ${order.status} status`);
         }
 
-        // Optional: Validate associated bill status if it exists
-        if (order.billId && order.bill?.status !== 'PAID') {
-            throw new ValidationError('Associated bill has not been paid yet');
-        }
-
+        // ONLY update payment status and billingStatus — NO invoice/bill creation
         const updatedOrder = await prisma.labTestOrder.update({
             where: { id },
-            data: { status: LabTestStatus.READY_FOR_SAMPLE_COLLECTION },
+            data: {
+                status: LabTestStatus.READY_FOR_SAMPLE_COLLECTION,
+                billingStatus: 'PENDING', // Will be set to BILLED when invoice is manually generated
+            },
             include: {
                 patient: { select: { firstName: true, lastName: true } },
                 orderedBy: { select: { firstName: true, lastName: true, user: { select: { role: true } } } },

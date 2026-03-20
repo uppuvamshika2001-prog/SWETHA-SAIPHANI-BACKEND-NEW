@@ -287,6 +287,7 @@ model LabTestOrder {
   testCode    String?        @map("test_code")
   priority    String         @default("normal")
   status      LabTestStatus  @default(ORDERED)
+  billingStatus String @default("PENDING") @map("billing_status") // PENDING or BILLED
   notes       String?
   createdAt   DateTime       @default(now()) @map("created_at")
   updatedAt   DateTime       @updatedAt @map("updated_at")

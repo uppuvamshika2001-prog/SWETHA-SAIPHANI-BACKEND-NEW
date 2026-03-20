@@ -64,3 +64,14 @@ export async function deleteBill(req: Request, res: Response, next: NextFunction
         next(error);
     }
 }
+
+export async function getUnbilledLabOrders(req: Request, res: Response, next: NextFunction) {
+    try {
+        const patientId = req.params.patientId as string;
+        const orders = await billingService.getUnbilledLabOrders(patientId);
+        sendSuccess(res, orders);
+    } catch (error) {
+        logger.error({ context: 'BillingController.getUnbilledLabOrders', error, patientId: req.params.patientId }, 'Failed to fetch unbilled lab orders');
+        next(error);
+    }
+}

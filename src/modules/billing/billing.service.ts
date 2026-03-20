@@ -54,16 +54,14 @@ export class BillingService {
             }
         });
 
-        // Link Lab Orders if provided
+        // Link Lab Orders if provided — mark them as BILLED to prevent duplicate billing
         if (labOrderIds && (labOrderIds as any[]).length > 0) {
-            await prisma.$transaction(async (tx: any) => {
-                await tx.labTestOrder.updateMany({
-                    where: { id: { in: labOrderIds } },
-                    data: {
-                        billId: bill.id,
-                        status: 'PAYMENT_PENDING'
-                    }
-                });
+            await (prisma.labTestOrder as any).updateMany({
+                where: { id: { in: labOrderIds } },
+                data: {
+                    billId: bill.id,
+                    billingStatus: 'BILLED',
+                }
             });
         }
 
@@ -350,6 +348,37 @@ export class BillingService {
             });
         });
         console.log('[BillingService] Bill deleted successfully:', id);
+    }
+
+    /**
+     * Get paid-but-unbilled lab orders for a specific patient.
+     * Used by the billing UI to show lab items available for invoicing.
+     */
+    async getUnbilledLabOrders(patientId: string) {
+        const orders = await (prisma.labTestOrder as any).findMany({
+            where: {
+                patientId,
+                billingStatus: 'PENDING',
+                status: {
+                    in: ['READY_FOR_SAMPLE_COLLECTION', 'SAMPLE_COLLECTED', 'IN_PROGRESS', 'COMPLETED', 'DELIVERED']
+                },
+            },
+            include: {
+                patient: { select: { firstName: true, lastName: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        return orders.map((o: any) => ({
+            id: o.id,
+            testName: o.testName,
+            testCode: o.testCode,
+            patientId: o.patientId,
+            patientName: `${o.patient.firstName} ${o.patient.lastName}`,
+            status: o.status,
+            billingStatus: o.billingStatus,
+            createdAt: o.createdAt,
+        }));
     }
 
     private formatBill(bill: any) {
