@@ -77,11 +77,14 @@ export async function getUnbilledLabOrders(req: Request, res: Response, next: Ne
 }
 export async function getPatientBillingSummary(req: Request, res: Response, next: NextFunction) {
     try {
-        const patientId = req.params.patientId as string;
+        const patientId = (req.params.patientId || req.query.patientId) as string;
+        if (!patientId) {
+            return res.status(400).json({ status: 'error', message: 'patientId is required' });
+        }
         const summary = await billingService.getPatientBillingSummary(patientId);
         sendSuccess(res, summary);
-    } catch (error) {
-        logger.error({ context: 'BillingController.getPatientBillingSummary', error, patientId: req.params.patientId }, 'Failed to fetch patient billing summary');
+    } catch (error: any) {
+        logger.error({ context: 'BillingController.getPatientBillingSummary', error, patientId: req.params.patientId || req.query.patientId }, 'Failed to fetch patient billing summary');
         next(error);
     }
 }

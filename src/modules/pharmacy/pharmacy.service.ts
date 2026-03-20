@@ -1082,6 +1082,8 @@ export class PharmacyService {
         paidAmount: Decimal;
         items: Array<{
             id: string;
+            medicineId?: string | null;
+            batchNumber?: string | null;
             description: string;
             quantity: number;
             unitPrice: Decimal;
@@ -1109,6 +1111,8 @@ export class PharmacyService {
                 unitPrice: Number(item.unitPrice),
                 purchasePrice: Number((item as any).purchasePrice),
                 profit: Number((item as any).profit),
+                medicineId: item.medicineId || null,
+                batchNumber: (item as any).batchNumber || null,
                 total: Number(item.total),
             })),
             createdAt: bill.createdAt,

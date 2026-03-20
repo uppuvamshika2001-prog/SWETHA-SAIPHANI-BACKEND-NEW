@@ -139,6 +139,8 @@ export interface BillResponse {
         unitPrice: number;
         purchasePrice: number;
         profit: number;
+        medicineId: string | null;
+        batchNumber: string | null;
         total: number;
     }>;
     createdAt: Date;
