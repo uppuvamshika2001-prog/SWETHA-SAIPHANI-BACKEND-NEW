@@ -65,6 +65,7 @@ export const medicineQuerySchema = z.object({
     search: z.string().optional(),
     category: z.string().optional(),
     lowStock: z.coerce.boolean().optional(),
+    format: z.string().optional(),
 });
 
 export const createBillSchema = z.object({

@@ -130,8 +130,8 @@ export class PharmacyService {
         return this.formatMedicine(medicine);
     }
 
-    async getMedicines(query: MedicineQueryInput): Promise<PaginatedResponse<MedicineResponse>> {
-        const { page, limit, search, category, lowStock } = query;
+    async getMedicines(query: MedicineQueryInput): Promise<PaginatedResponse<any>> {
+        const { page = 1, limit = 10, search, category, lowStock, format } = query;
         const skip = (page - 1) * limit;
 
         const where: Record<string, any> = { isActive: true };
@@ -158,8 +158,33 @@ export class PharmacyService {
             ((prisma as any).medicine).count({ where }),
         ]);
 
+        let formattedItems = medicines.map((m: any) => this.formatMedicine(m));
+
+        if (format === 'returns') {
+            const flatItems: any[] = [];
+            medicines.forEach((m: any) => {
+                if (m.batches && m.batches.length > 0) {
+                    m.batches.forEach((b: any) => {
+                        if (b.isActive && b.stockQuantity > 0) {
+                            flatItems.push({
+                                id: m.id,
+                                name: m.name,
+                                batch: b.batchNumber, // Prompt requested `batch`
+                                batchNumber: b.batchNumber, // Keep consistent with UI expected `batchNumber` if any
+                                stock: b.stockQuantity,
+                                distributor: b.distributorName,
+                                expiry: b.expiryDate,
+                                purchasePrice: b.purchasePrice
+                            });
+                        }
+                    });
+                }
+            });
+            formattedItems = flatItems;
+        }
+
         return {
-            items: medicines.map((m: any) => this.formatMedicine(m)),
+            items: formattedItems,
             total,
             page,
             limit,
@@ -737,72 +762,138 @@ export class PharmacyService {
     }
 
     async getMarginReport(query: { startDate?: string; endDate?: string }): Promise<any> {
-        const start = query.startDate ? new Date(query.startDate) : new Date(new Date().setHours(0, 0, 0, 0));
-        let end = new Date();
+        let start: Date;
+        let end: Date;
+
+        if (query.startDate) {
+            start = new Date(query.startDate);
+            start.setHours(0, 0, 0, 0);
+        } else {
+            start = new Date();
+            start.setHours(0, 0, 0, 0);
+        }
+
         if (query.endDate) {
             end = new Date(query.endDate);
             end.setHours(23, 59, 59, 999);
+        } else {
+            end = new Date(start);
+            end.setHours(23, 59, 59, 999);
         }
         
-        const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-        const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+        const now = new Date();
+        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
-        const [todayStats, monthStats, medicineProfits] = await Promise.all([
-            // Today's summary
-            (prisma as any).billItem.aggregate({
+        // Helper to fetch valid SALES (bill items) for a range
+        const getProfitData = async (fromDate: Date, toDate: Date) => {
+            return await (prisma as any).billItem.findMany({
                 where: {
-                    bill: { createdAt: { gte: todayStart } },
+                    bill: {
+                        status: 'PAID',
+                        createdAt: {
+                            gte: fromDate,
+                            lte: toDate
+                        }
+                    },
                     medicineId: { not: null }
                 },
-                _sum: { profit: true, quantity: true }
-            }),
-            // Monthly summary
-            (prisma as any).billItem.aggregate({
-                where: {
-                    bill: { createdAt: { gte: firstDayOfMonth } },
-                    medicineId: { not: null }
-                },
-                _sum: { profit: true }
-            }),
-            // Medicine-wise profit (filtered)
-            (prisma as any).billItem.groupBy({
-                by: ['medicineId'],
-                where: {
-                    bill: { createdAt: { gte: start, lte: end } },
-                    medicineId: { not: null }
-                },
-                _sum: { profit: true, quantity: true },
-                orderBy: { _sum: { profit: 'desc' } }
-            })
+                include: {
+                    medicine: {
+                        include: {
+                            batches: {
+                                orderBy: { createdAt: 'desc' },
+                                take: 1
+                            }
+                        }
+                    }
+                }
+            });
+        };
+
+        const [rangeItems, todayItems, monthItems] = await Promise.all([
+            getProfitData(start, end),
+            getProfitData(todayStart, todayEnd),
+            getProfitData(firstDayOfMonth, lastDayOfMonth)
         ]);
 
-        // Get medicine names for the table
-        const medicineIds = medicineProfits.map((mp: any) => mp.medicineId as string);
-        const medicines = await prisma.medicine.findMany({
-            where: { id: { in: medicineIds } },
-            select: { id: true, name: true }
-        });
-        const medicineMap = new Map(medicines.map(m => [m.id, m.name]));
+        const calculateProfit = (items: any[]) => {
+            let total = 0;
+            items.forEach(item => {
+                const sellingPrice = Number(item.unitPrice) || 0;
+                let purchasePrice = Number(item.purchasePrice) || 0;
 
-        const medicineWiseProfit = medicineProfits.map((mp: any) => ({
-            medicineId: mp.medicineId as string,
-            medicineName: medicineMap.get(mp.medicineId as string) || 'Unknown',
-            quantitySold: Number(mp._sum?.quantity) || 0,
-            totalProfit: Number(mp._sum?.profit) || 0
+                // Fallbacks requested strictly by user prompt
+                if (purchasePrice === 0 && item.medicine) {
+                    if (item.medicine.batches && item.medicine.batches.length > 0) {
+                        purchasePrice = Number(item.medicine.batches[0].purchasePrice) || 0;
+                    } 
+                    if (purchasePrice === 0) {
+                        purchasePrice = Number(item.medicine.pricePerUnit) || 0;
+                    }
+                }
+
+                const quantity = Number(item.quantity) || 0;
+                total += (sellingPrice - purchasePrice) * quantity;
+            });
+            return total;
+        };
+
+        const todayProfit = calculateProfit(todayItems);
+        const monthlyProfit = calculateProfit(monthItems);
+
+        let totalProfit = 0;
+        const medMap = new Map<string, { name: string, quantity: number, profit: number }>();
+
+        rangeItems.forEach((item: any) => {
+            const sellingPrice = Number(item.unitPrice) || 0;
+            let purchasePrice = Number(item.purchasePrice) || 0;
+
+            if (purchasePrice === 0 && item.medicine) {
+                if (item.medicine.batches && item.medicine.batches.length > 0) {
+                    purchasePrice = Number(item.medicine.batches[0].purchasePrice) || 0;
+                } 
+                if (purchasePrice === 0) {
+                    purchasePrice = Number(item.medicine.pricePerUnit) || 0;
+                }
+            }
+
+            const quantity = Number(item.quantity) || 0;
+            const profit = (sellingPrice - purchasePrice) * quantity;
+            totalProfit += profit;
+
+            const name = item.medicine?.name || item.description || 'Unknown';
+            if (!medMap.has(name)) {
+                medMap.set(name, { name, quantity: 0, profit: 0 });
+            }
+            const med = medMap.get(name)!;
+            med.quantity += quantity;
+            med.profit += profit;
+        });
+
+        const medicineWiseProfit = Array.from(medMap.values());
+        
+        // Sort primarily by highest profit using standard array sort
+        medicineWiseProfit.sort((a, b) => b.profit - a.profit);
+
+        const topMedicines = medicineWiseProfit.slice(0, 10).map(m => ({
+            name: m.name,
+            profit: m.profit
         }));
 
+        // Debug logging precisely as requested
+        console.log(`[MARGIN REPORT DEBUG] startDate: ${start.toISOString()}, endDate: ${end.toISOString()}`);
+        console.log(`[MARGIN REPORT DEBUG] Fetched Records from BillItems: ${rangeItems.length}`);
+        console.log(`[MARGIN REPORT DEBUG] Calculated Total Profit for range: ${totalProfit}`);
+
         return {
-            summary: {
-                todayMargin: Number((todayStats as any)._sum?.profit) || 0,
-                monthlyMargin: Number((monthStats as any)._sum?.profit) || 0,
-                totalSoldToday: Number((todayStats as any)._sum?.quantity) || 0,
-            },
-            medicineWiseProfit,
-            topProfitableMedicines: medicineWiseProfit.slice(0, 10).map((m: any) => ({
-                medicineId: m.medicineId,
-                medicineName: m.medicineName,
-                totalProfit: m.totalProfit
-            }))
+            totalProfit,
+            todayProfit,
+            monthlyProfit,
+            topMedicines,
+            medicineWiseProfit
         };
     }
     
