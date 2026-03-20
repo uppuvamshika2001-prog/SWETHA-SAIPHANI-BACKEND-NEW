@@ -16,9 +16,15 @@ const billingRoleGuard = roleGuard(UserRole.ADMIN, UserRole.RECEPTIONIST, UserRo
 router.post('/', billingRoleGuard, createBill);
 router.get('/', billingRoleGuard, getBills);
 router.get('/stats', billingRoleGuard, getBillingStats);
-router.get('/patient-summary/:patientId', billingRoleGuard, getPatientBillingSummary);
+
+// Patient summary routes (must come BEFORE generic /:id)
+router.get('/patient-summary', billingRoleGuard, getPatientBillingSummary); // Handle ?patientId= query param
+router.get('/patient-summary/:patientId', billingRoleGuard, getPatientBillingSummary); // Handle path param
 router.get('/unbilled-lab-orders/:patientId', billingRoleGuard, getUnbilledLabOrders);
+
+// Generic ID route (must come LAST among GET routes)
 router.get('/:id', billingRoleGuard, getBillById);
+
 router.patch('/:id/status', billingRoleGuard, updateBillStatus);
 router.delete('/:id', roleGuard(UserRole.ADMIN), deleteBill);
 
