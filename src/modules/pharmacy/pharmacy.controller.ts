@@ -478,3 +478,56 @@ export async function getPurchasePayments(
         sendSuccess(res, []);
     }
 }
+
+export async function createPurchase(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const { distributorName, invoiceNumber, purchaseDate, items } = req.body;
+
+        if (!distributorName || !invoiceNumber || !items || items.length === 0) {
+            res.status(400).json({ message: 'Distributor name, invoice number, and at least one item are required' });
+            return;
+        }
+
+        // Process each item through the existing createMedicine flow
+        // which handles purchase record creation and batch/stock management
+        const results = [];
+        for (const item of items) {
+            // Look up the medicine to get its name
+            const medicine = await (await import('../../config/database.js')).prisma.medicine.findUnique({
+                where: { id: item.medicineId }
+            });
+
+            if (!medicine) {
+                res.status(400).json({ message: `Medicine with ID ${item.medicineId} not found` });
+                return;
+            }
+
+            const result = await pharmacyService.createMedicine({
+                name: medicine.name,
+                genericName: medicine.genericName || undefined,
+                category: medicine.category || undefined,
+                manufacturer: medicine.manufacturer || undefined,
+                distributorName,
+                batchNumber: item.batchNumber,
+                manufacturingDate: item.manufacturingDate || undefined,
+                expiryDate: item.expiryDate,
+                purchasePrice: item.purchasePrice,
+                salePrice: item.salePrice,
+                mrp: item.mrp || undefined,
+                gst: item.gst || 0,
+                stockQuantity: item.stockQuantity,
+                reorderLevel: medicine.reorderLevel || 10,
+                invoiceNumber,
+            });
+            results.push(result);
+        }
+
+        sendCreated(res, { items: results, count: results.length }, 'Purchase recorded successfully');
+    } catch (error) {
+        next(error);
+    }
+}

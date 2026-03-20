@@ -20,6 +20,7 @@ export async function authGuard(
         const authHeader = req.headers.authorization;
 
         if (!authHeader?.startsWith('Bearer ')) {
+            console.warn(`[AuthGuard] No token provided for ${req.method} ${req.originalUrl}`);
             sendUnauthorized(res, 'No token provided');
             return;
         }
@@ -34,11 +35,13 @@ export async function authGuard(
         });
 
         if (!user) {
+            console.warn(`[AuthGuard] User not found for userId: ${decoded.userId} on ${req.method} ${req.originalUrl}`);
             sendUnauthorized(res, 'User not found');
             return;
         }
 
         if (user.status !== 'ACTIVE') {
+            console.warn(`[AuthGuard] User ${decoded.userId} is disabled on ${req.method} ${req.originalUrl}`);
             sendUnauthorized(res, 'User account is disabled');
             return;
         }
@@ -48,14 +51,17 @@ export async function authGuard(
     } catch (error) {
         if (error instanceof Error) {
             if (error.name === 'TokenExpiredError') {
+                console.warn(`[AuthGuard] Token expired for ${req.method} ${req.originalUrl}`);
                 sendUnauthorized(res, 'Token expired');
                 return;
             }
             if (error.name === 'JsonWebTokenError') {
+                console.warn(`[AuthGuard] Invalid token for ${req.method} ${req.originalUrl}: ${error.message}`);
                 sendUnauthorized(res, 'Invalid token');
                 return;
             }
         }
+        console.warn(`[AuthGuard] Authentication failed for ${req.method} ${req.originalUrl}`);
         sendUnauthorized(res, 'Authentication failed');
     }
 }
