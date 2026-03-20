@@ -5,7 +5,7 @@ export const createMedicineSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     genericName: z.string().optional(),
     manufacturer: z.string().optional(),
-    category: z.string().optional(),
+    categoryId: z.coerce.number().int().optional(),
     unit: z.string().default('tablet'),
     reorderLevel: z.number().int().nonnegative().default(10),
     // Batch information for initial stock entry
@@ -53,7 +53,7 @@ export const updateMedicineSchema = z.object({
     name: z.string().min(1).optional(),
     genericName: z.string().optional(),
     manufacturer: z.string().optional(),
-    category: z.string().optional(),
+    categoryId: z.coerce.number().int().optional(),
     unit: z.string().optional(),
     reorderLevel: z.number().int().nonnegative().optional(),
     isActive: z.boolean().optional(),
@@ -101,7 +101,8 @@ export interface MedicineResponse {
     name: string;
     genericName: string | null;
     manufacturer: string | null;
-    category: string | null;
+    categoryId: number | null;
+    category?: { id: number; name: string } | null;
     unit: string;
     stockQuantity: number;
     reorderLevel: number;
@@ -266,7 +267,7 @@ export const createCategorySchema = z.object({
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 
 export interface CategoryResponse {
-    id: string;
+    id: number;
     name: string;
     createdAt: Date;
 }

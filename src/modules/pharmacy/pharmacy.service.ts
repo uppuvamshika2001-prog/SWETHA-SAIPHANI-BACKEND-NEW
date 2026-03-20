@@ -37,7 +37,7 @@ export class PharmacyService {
                     data: {
                         name: input.name,
                         genericName: input.genericName,
-                        category: input.category,
+                        categoryId: input.categoryId,
                         manufacturer: input.manufacturer,
                         unit: input.unit,
                         pricePerUnit: new Decimal(input.salePrice || 0),
@@ -112,7 +112,10 @@ export class PharmacyService {
             const updatedMedicine = await tx.medicine.update({
                 where: { id: medicine.id },
                 data: { stockQuantity: totalStock._sum.stockQuantity || 0 },
-                include: { batches: { where: { isActive: true }, orderBy: { expiryDate: 'asc' } } } as any
+                include: { 
+                    batches: { where: { isActive: true }, orderBy: { expiryDate: 'asc' } },
+                    categoryRel: true
+                } as any
             });
 
             return this.formatMedicine(updatedMedicine);
@@ -122,7 +125,10 @@ export class PharmacyService {
     async getMedicine(id: string): Promise<MedicineResponse> {
         const medicine = await prisma.medicine.findUnique({ 
             where: { id },
-            include: { batches: { where: { isActive: true }, orderBy: { expiryDate: 'asc' } } } as any
+            include: { 
+                batches: { where: { isActive: true }, orderBy: { expiryDate: 'asc' } },
+                categoryRel: true
+            } as any
         });
         if (!medicine) {
             throw new NotFoundError('Medicine');
@@ -141,7 +147,14 @@ export class PharmacyService {
                 { genericName: { contains: search, mode: 'insensitive' } },
             ];
         }
-        if (category) where.category = category;
+        if (category) {
+            // Support both category name and categoryId if needed, but primary should be ID now
+            if (!isNaN(Number(category))) {
+                where.categoryId = Number(category);
+            } else {
+                where.categoryRel = { name: { equals: category, mode: 'insensitive' } };
+            }
+        }
         if (lowStock) {
             // Simplified low stock check - in production might use fields comparison if supported or raw query
             where.stockQuantity = { lte: 10 }; 
@@ -149,11 +162,13 @@ export class PharmacyService {
 
         const [medicines, total] = await Promise.all([
             prisma.medicine.findMany({
-                where,
                 skip,
                 take: limit,
                 orderBy: { name: 'asc' },
-                include: { batches: { where: { isActive: true }, orderBy: { expiryDate: 'asc' } } } as any
+                include: { 
+                    batches: { where: { isActive: true }, orderBy: { expiryDate: 'asc' } },
+                    categoryRel: true
+                } as any
             }),
             ((prisma as any).medicine).count({ where }),
         ]);
@@ -1044,7 +1059,11 @@ export class PharmacyService {
             name: medicine.name,
             generic_name: medicine.genericName,
             manufacturer: medicine.manufacturer,
-            category: medicine.category,
+            categoryId: medicine.categoryId,
+            category: medicine.categoryRel ? {
+                id: medicine.categoryRel.id,
+                name: medicine.categoryRel.name
+            } : null,
             unit: medicine.unit,
             stock_quantity: medicine.stockQuantity,
             min_stock_level: medicine.reorderLevel,
@@ -1338,9 +1357,9 @@ export class PharmacyService {
         });
     }
 
-    async deleteCategory(id: string) {
+    async deleteCategory(id: any) {
         return (prisma as any).pharmacyCategory.delete({
-            where: { id }
+            where: { id: Number(id) }
         });
     }
 
