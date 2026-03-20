@@ -356,10 +356,10 @@ export class PharmacyService {
     }
 
     async getBills(query: MedicineQueryInput): Promise<PaginatedResponse<BillResponse>> {
-        const { page, limit, search } = query;
+        const { page = 1, limit = 10, search, format } = query;
         const skip = (page - 1) * limit;
 
-        const where: Record<string, unknown> = {};
+        const where: Record<string, any> = {};
         if (search) {
             where.OR = [
                 { billNumber: { contains: search, mode: 'insensitive' } },
@@ -368,13 +368,21 @@ export class PharmacyService {
             ];
         }
 
+        if (format === 'returns') {
+            where.status = 'PAID';
+        }
+
+        const includeItems = format === 'returns' 
+            ? { where: { medicineId: { not: null } } }
+            : true;
+
         const [bills, total] = await Promise.all([
             prisma.bill.findMany({
                 where,
                 skip,
                 take: limit,
                 orderBy: { createdAt: 'desc' },
-                include: { items: true },
+                include: { items: includeItems },
             }),
             prisma.bill.count({ where }),
         ]);
