@@ -2,6 +2,14 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+async function upsertLabTest(prisma: any, code: string, createData: any, updateData: any) {
+    const existing = await prisma.labTest.findFirst({ where: { code } });
+    if (existing) {
+        return await prisma.labTest.update({ where: { id: existing.id }, data: updateData });
+    }
+    return await prisma.labTest.create({ data: createData });
+}
+
 async function main() {
     console.log('🌱 Seeding lab test master data...');
 
@@ -18,11 +26,7 @@ async function main() {
     // =========================
     // 1. CBP - Complete Blood Picture (PANEL)
     // =========================
-    const cbp = await (prisma.labTest as any).upsert({
-        where: { code: 'CBP' },
-        update: { name: 'Complete Blood Picture (CBP)', department: 'HEMATOLOGY', type: 'PANEL', price: 500, isActive: true },
-        create: { code: 'CBP', name: 'Complete Blood Picture (CBP)', department: 'HEMATOLOGY', type: 'PANEL', price: 500, isActive: true },
-    });
+    const cbp = await upsertLabTest(prisma, 'CBP', { code: 'CBP', name: 'Complete Blood Picture (CBP)', department: 'HEMATOLOGY', type: 'PANEL', price: 500, isActive: true }, { name: 'Complete Blood Picture (CBP)', department: 'HEMATOLOGY', type: 'PANEL', price: 500, isActive: true });
     console.log('  ✅ CBP test created/updated');
 
     const cbpHema = await (prisma as any).labTestCategory.create({
@@ -60,11 +64,7 @@ async function main() {
     // =========================
     // 2. CUE - Complete Urine Examination (PANEL)
     // =========================
-    const cue = await (prisma.labTest as any).upsert({
-        where: { code: 'CUE' },
-        update: { name: 'Complete Urine Examination (CUE)', department: 'PATHOLOGY', type: 'PANEL', price: 300, isActive: true },
-        create: { code: 'CUE', name: 'Complete Urine Examination (CUE)', department: 'PATHOLOGY', type: 'PANEL', price: 300, isActive: true },
-    });
+    const cue = await upsertLabTest(prisma, 'CUE', { code: 'CUE', name: 'Complete Urine Examination (CUE)', department: 'PATHOLOGY', type: 'PANEL', price: 300, isActive: true }, { name: 'Complete Urine Examination (CUE)', department: 'PATHOLOGY', type: 'PANEL', price: 300, isActive: true });
 
     const cuePhys = await (prisma as any).labTestCategory.create({ data: { testId: cue.id, name: 'PHYSICAL EXAMINATION', displayOrder: 1 } });
     const cueChem = await (prisma as any).labTestCategory.create({ data: { testId: cue.id, name: 'CHEMICAL EXAMINATION', displayOrder: 2 } });
@@ -94,11 +94,7 @@ async function main() {
     // =========================
     // 3. LFT - Liver Function Test (PANEL)
     // =========================
-    const lft = await (prisma.labTest as any).upsert({
-        where: { code: 'LFT' },
-        update: { name: 'Liver Function Test (LFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200, isActive: true },
-        create: { code: 'LFT', name: 'Liver Function Test (LFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200, isActive: true },
-    });
+    const lft = await upsertLabTest(prisma, 'LFT', { code: 'LFT', name: 'Liver Function Test (LFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200, isActive: true }, { name: 'Liver Function Test (LFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200, isActive: true });
 
     const lftCat = await (prisma as any).labTestCategory.create({ data: { testId: lft.id, name: 'BIO CHEMISTRY', displayOrder: 1 } });
     await (prisma as any).labTestParameter.createMany({
@@ -119,11 +115,7 @@ async function main() {
     // =========================
     // 4. RFT - Renal Function Test (PANEL)
     // =========================
-    const rft = await (prisma.labTest as any).upsert({
-        where: { code: 'RFT' },
-        update: { name: 'Renal Function Test (RFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1000, isActive: true },
-        create: { code: 'RFT', name: 'Renal Function Test (RFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1000, isActive: true },
-    });
+    const rft = await upsertLabTest(prisma, 'RFT', { code: 'RFT', name: 'Renal Function Test (RFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1000, isActive: true }, { name: 'Renal Function Test (RFT)', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1000, isActive: true });
 
     const rftCat = await (prisma as any).labTestCategory.create({ data: { testId: rft.id, name: 'BIO CHEMISTRY', displayOrder: 1 } });
     await (prisma as any).labTestParameter.createMany({
@@ -138,11 +130,7 @@ async function main() {
     // =========================
     // 5. Lipid Profile (PANEL)
     // =========================
-    const lipid = await (prisma.labTest as any).upsert({
-        where: { code: 'LIPID_PROFILE' },
-        update: { name: 'Lipid Profile', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200, isActive: true },
-        create: { code: 'LIPID_PROFILE', name: 'Lipid Profile', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200, isActive: true },
-    });
+    const lipid = await upsertLabTest(prisma, 'LIPID_PROFILE', { code: 'LIPID_PROFILE', name: 'Lipid Profile', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200, isActive: true }, { name: 'Lipid Profile', department: 'BIOCHEMISTRY', type: 'PANEL', price: 1200, isActive: true });
 
     const lipidCat = await (prisma as any).labTestCategory.create({ data: { testId: lipid.id, name: 'LIPID PROFILE', displayOrder: 1 } });
     await (prisma as any).labTestParameter.createMany({
@@ -159,11 +147,7 @@ async function main() {
     // =========================
     // 6. Thyroid Profile (PANEL)
     // =========================
-    const thyroid = await (prisma.labTest as any).upsert({
-        where: { code: 'THYROID_PROFILE' },
-        update: { name: 'Thyroid Profile', department: 'IMMUNOLOGY', type: 'PANEL', price: 1500, isActive: true },
-        create: { code: 'THYROID_PROFILE', name: 'Thyroid Profile', department: 'IMMUNOLOGY', type: 'PANEL', price: 1500, isActive: true },
-    });
+    const thyroid = await upsertLabTest(prisma, 'THYROID_PROFILE', { code: 'THYROID_PROFILE', name: 'Thyroid Profile', department: 'IMMUNOLOGY', type: 'PANEL', price: 1500, isActive: true }, { name: 'Thyroid Profile', department: 'IMMUNOLOGY', type: 'PANEL', price: 1500, isActive: true });
 
     const thyroidCat = await (prisma as any).labTestCategory.create({ data: { testId: thyroid.id, name: 'THYROID PROFILE', displayOrder: 1 } });
     await (prisma as any).labTestParameter.createMany({
@@ -177,11 +161,7 @@ async function main() {
     // =========================
     // 7. Serum Electrolytes (PANEL)
     // =========================
-    const electrolytes = await (prisma.labTest as any).upsert({
-        where: { code: 'SERUM_ELECTROLYTES' },
-        update: { name: 'Serum Electrolytes', department: 'BIOCHEMISTRY', type: 'PANEL', price: 800, isActive: true },
-        create: { code: 'SERUM_ELECTROLYTES', name: 'Serum Electrolytes', department: 'BIOCHEMISTRY', type: 'PANEL', price: 800, isActive: true },
-    });
+    const electrolytes = await upsertLabTest(prisma, 'SERUM_ELECTROLYTES', { code: 'SERUM_ELECTROLYTES', name: 'Serum Electrolytes', department: 'BIOCHEMISTRY', type: 'PANEL', price: 800, isActive: true }, { name: 'Serum Electrolytes', department: 'BIOCHEMISTRY', type: 'PANEL', price: 800, isActive: true });
 
     const electrolytesCat = await (prisma as any).labTestCategory.create({ data: { testId: electrolytes.id, name: 'SERUM ELECTROLYTES', displayOrder: 1 } });
     await (prisma as any).labTestParameter.createMany({
@@ -195,11 +175,7 @@ async function main() {
     // =========================
     // 8. Widal Test (PANEL)
     // =========================
-    const widal = await (prisma.labTest as any).upsert({
-        where: { code: 'WIDAL' },
-        update: { name: 'Widal Test', department: 'SEROLOGY', type: 'PANEL', price: 350, isActive: true },
-        create: { code: 'WIDAL', name: 'Widal Test', department: 'SEROLOGY', type: 'PANEL', price: 350, isActive: true },
-    });
+    const widal = await upsertLabTest(prisma, 'WIDAL', { code: 'WIDAL', name: 'Widal Test', department: 'SEROLOGY', type: 'PANEL', price: 350, isActive: true }, { name: 'Widal Test', department: 'SEROLOGY', type: 'PANEL', price: 350, isActive: true });
 
     const widalCat = await (prisma as any).labTestCategory.create({ data: { testId: widal.id, name: 'SEROLOGY', displayOrder: 1 } });
     await (prisma as any).labTestParameter.createMany({
@@ -214,11 +190,7 @@ async function main() {
     // =========================
     // 9. Dengue Profile (PANEL - Semi-structured)
     // =========================
-    const dengue = await (prisma.labTest as any).upsert({
-        where: { code: 'DENGUE_PROFILE' },
-        update: { name: 'Dengue Profile', department: 'SEROLOGY', type: 'PANEL', price: 1000, isActive: true },
-        create: { code: 'DENGUE_PROFILE', name: 'Dengue Profile', department: 'SEROLOGY', type: 'PANEL', price: 1000, isActive: true },
-    });
+    const dengue = await upsertLabTest(prisma, 'DENGUE_PROFILE', { code: 'DENGUE_PROFILE', name: 'Dengue Profile', department: 'SEROLOGY', type: 'PANEL', price: 1000, isActive: true }, { name: 'Dengue Profile', department: 'SEROLOGY', type: 'PANEL', price: 1000, isActive: true });
 
     const dengueCat = await (prisma as any).labTestCategory.create({ data: { testId: dengue.id, name: 'SEROLOGY', displayOrder: 1 } });
     await (prisma as any).labTestParameter.createMany({
@@ -232,11 +204,7 @@ async function main() {
     // =========================
     // ADDITIONAL SINGLE TESTS
     // =========================
-    const bg = await (prisma.labTest as any).upsert({
-        where: { code: 'BLOOD_GROUP' },
-        update: { name: 'Blood Grouping and Typing', department: 'HEMATOLOGY', type: 'SINGLE', price: 100, isActive: true },
-        create: { code: 'BLOOD_GROUP', name: 'Blood Grouping and Typing', department: 'HEMATOLOGY', type: 'SINGLE', price: 100, isActive: true },
-    });
+    const bg = await upsertLabTest(prisma, 'BLOOD_GROUP', { code: 'BLOOD_GROUP', name: 'Blood Grouping and Typing', department: 'HEMATOLOGY', type: 'SINGLE', price: 100, isActive: true }, { name: 'Blood Grouping and Typing', department: 'HEMATOLOGY', type: 'SINGLE', price: 100, isActive: true });
     const bgCat = await (prisma as any).labTestCategory.create({ data: { testId: bg.id, name: 'HEMATOLOGY', displayOrder: 1 } });
     await (prisma as any).labTestParameter.createMany({
         data: [
@@ -245,21 +213,13 @@ async function main() {
         ]
     });
 
-    const vitD3 = await (prisma.labTest as any).upsert({
-        where: { code: 'VITAMIN_D3' },
-        update: { name: 'Vitamin D3', department: 'BIOCHEMISTRY', type: 'SINGLE', price: 1800, isActive: true },
-        create: { code: 'VITAMIN_D3', name: 'Vitamin D3', department: 'BIOCHEMISTRY', type: 'SINGLE', price: 1800, isActive: true },
-    });
+    const vitD3 = await upsertLabTest(prisma, 'VITAMIN_D3', { code: 'VITAMIN_D3', name: 'Vitamin D3', department: 'BIOCHEMISTRY', type: 'SINGLE', price: 1800, isActive: true }, { name: 'Vitamin D3', department: 'BIOCHEMISTRY', type: 'SINGLE', price: 1800, isActive: true });
     const vitD3Cat = await (prisma as any).labTestCategory.create({ data: { testId: vitD3.id, name: 'BIOCHEMISTRY', displayOrder: 1 } });
     await (prisma as any).labTestParameter.create({
         data: { testId: vitD3.id, categoryId: vitD3Cat.id, parameterName: '25-OH Vitamin D', unit: 'ng/mL', inputType: 'number', referenceRange: { deficiency: '< 20', insufficient: '20 - 29', sufficient: '30 - 100', toxicity: '> 100' }, displayOrder: 1 }
     });
 
-    const sua = await (prisma.labTest as any).upsert({
-        where: { code: 'SERUM_URIC_ACID' },
-        update: { name: 'Serum Uric Acid', department: 'BIOCHEMISTRY', type: 'SINGLE', price: 200, isActive: true },
-        create: { code: 'SERUM_URIC_ACID', name: 'Serum Uric Acid', department: 'BIOCHEMISTRY', type: 'SINGLE', price: 200, isActive: true },
-    });
+    const sua = await upsertLabTest(prisma, 'SERUM_URIC_ACID', { code: 'SERUM_URIC_ACID', name: 'Serum Uric Acid', department: 'BIOCHEMISTRY', type: 'SINGLE', price: 200, isActive: true }, { name: 'Serum Uric Acid', department: 'BIOCHEMISTRY', type: 'SINGLE', price: 200, isActive: true });
     const suaCat = await (prisma as any).labTestCategory.create({ data: { testId: sua.id, name: 'BIOCHEMISTRY', displayOrder: 1 } });
     await (prisma as any).labTestParameter.create({
         data: { testId: sua.id, categoryId: suaCat.id, parameterName: 'Serum Uric Acid', unit: 'mg/dL', inputType: 'number', referenceRange: { male: '3.4 - 7.0', female: '2.4 - 5.7' }, displayOrder: 1 }
@@ -285,11 +245,7 @@ async function main() {
     ];
 
     for (const st of singleTestsRef) {
-        const test = await (prisma.labTest as any).upsert({
-            where: { code: st.code },
-            update: { name: st.name, department: st.dept, type: 'SINGLE', price: st.price, isActive: true },
-            create: { code: st.code, name: st.name, department: st.dept, type: 'SINGLE', price: st.price, isActive: true },
-        });
+        const test = await upsertLabTest(prisma, st.code, { code: st.code, name: st.name, department: st.dept, type: 'SINGLE', price: st.price, isActive: true }, { name: st.name, department: st.dept, type: 'SINGLE', price: st.price, isActive: true });
 
         // Although SINGLE, we store the parameter at the root level so the UI has the metadata
         // A dummy category is required by the Prisma schema (if the relation is required) although we can link directly
@@ -318,32 +274,16 @@ async function main() {
     // =========================
     console.log('  Seeding Report Tests...');
 
-    await (prisma.labTest as any).upsert({
-        where: { code: 'XRAY_CHEST_PA' },
-        update: { name: 'Chest X-Ray PA View', department: 'RADIOLOGY', type: 'REPORT', price: 600, isActive: true },
-        create: { code: 'XRAY_CHEST_PA', name: 'Chest X-Ray PA View', department: 'RADIOLOGY', type: 'REPORT', price: 600, isActive: true },
-    });
+    await upsertLabTest(prisma, 'XRAY_CHEST_PA', { code: 'XRAY_CHEST_PA', name: 'Chest X-Ray PA View', department: 'RADIOLOGY', type: 'REPORT', price: 600, isActive: true }, { name: 'Chest X-Ray PA View', department: 'RADIOLOGY', type: 'REPORT', price: 600, isActive: true });
 
-    await (prisma.labTest as any).upsert({
-        where: { code: 'XRAY_KNEE_AP_LAT' },
-        update: { name: 'X-Ray Knee Joint AP/LAT', department: 'RADIOLOGY', type: 'REPORT', price: 1600, isActive: true },
-        create: { code: 'XRAY_KNEE_AP_LAT', name: 'X-Ray Knee Joint AP/LAT', department: 'RADIOLOGY', type: 'REPORT', price: 1600, isActive: true },
-    });
+    await upsertLabTest(prisma, 'XRAY_KNEE_AP_LAT', { code: 'XRAY_KNEE_AP_LAT', name: 'X-Ray Knee Joint AP/LAT', department: 'RADIOLOGY', type: 'REPORT', price: 1600, isActive: true }, { name: 'X-Ray Knee Joint AP/LAT', department: 'RADIOLOGY', type: 'REPORT', price: 1600, isActive: true });
 
-    await (prisma.labTest as any).upsert({
-        where: { code: 'XRAY_BOTH_KNEE_AP_LAT' },
-        update: { name: 'Both Knee Joints AP/LAT', department: 'RADIOLOGY', type: 'REPORT', price: 1600, isActive: true },
-        create: { code: 'XRAY_BOTH_KNEE_AP_LAT', name: 'Both Knee Joints AP/LAT', department: 'RADIOLOGY', type: 'REPORT', price: 1600, isActive: true },
-    });
+    await upsertLabTest(prisma, 'XRAY_BOTH_KNEE_AP_LAT', { code: 'XRAY_BOTH_KNEE_AP_LAT', name: 'Both Knee Joints AP/LAT', department: 'RADIOLOGY', type: 'REPORT', price: 1600, isActive: true }, { name: 'Both Knee Joints AP/LAT', department: 'RADIOLOGY', type: 'REPORT', price: 1600, isActive: true });
 
     // =========================
     // BT CT - Bleeding Time / Clotting Time (PANEL)
     // =========================
-    const btct = await (prisma.labTest as any).upsert({
-        where: { code: 'BT_CT' },
-        update: { name: 'BT CT', department: 'HEMATOLOGY', type: 'PANEL', price: 200, isActive: true },
-        create: { code: 'BT_CT', name: 'BT CT', department: 'HEMATOLOGY', type: 'PANEL', price: 200, isActive: true },
-    });
+    const btct = await upsertLabTest(prisma, 'BT_CT', { code: 'BT_CT', name: 'BT CT', department: 'HEMATOLOGY', type: 'PANEL', price: 200, isActive: true }, { name: 'BT CT', department: 'HEMATOLOGY', type: 'PANEL', price: 200, isActive: true });
     console.log('  ✅ BT CT test created/updated');
 
     const btctCat = await (prisma as any).labTestCategory.create({
