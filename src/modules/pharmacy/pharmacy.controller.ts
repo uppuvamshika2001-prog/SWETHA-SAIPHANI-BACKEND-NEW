@@ -119,7 +119,10 @@ export async function getMedicines(
             res.status(200).json(result);
             return;
         }
-        sendSuccess(res, result);
+        res.json({
+            items: result.items || (Array.isArray(result) ? result : []),
+            total: result.total || (Array.isArray(result) ? result.length : 0)
+        });
     } catch (error) {
         logger.error({ context: 'PharmacyController.getMedicines', error, query: req.query }, 'Failed to fetch medicines');
         next(error);
@@ -299,7 +302,10 @@ export async function getBills(
             res.status(200).json(result);
             return;
         }
-        sendSuccess(res, result);
+        res.json({
+            items: result.items || (Array.isArray(result) ? result : []),
+            total: result.total || (Array.isArray(result) ? result.length : 0)
+        });
     } catch (error) {
         logger.error({ context: 'PharmacyController.getBills', error, query: req.query }, 'Failed to fetch bills');
         next(error);
@@ -404,7 +410,10 @@ export async function getLowStockMedicines(
 ): Promise<void> {
     try {
         const medicines = await pharmacyService.getLowStockMedicines();
-        sendSuccess(res, medicines);
+        res.json({
+            items: medicines || [],
+            total: medicines?.length || 0
+        });
     } catch (error) {
         logger.error({ context: 'PharmacyController.getLowStockMedicines', error }, 'Failed to fetch low stock medicines');
         next(error);
@@ -418,7 +427,10 @@ export async function getPurchases(
 ): Promise<void> {
     try {
         const result = await pharmacyService.getPurchases(req.query);
-        sendSuccess(res, result);
+        res.json({
+            items: result.items || (Array.isArray(result) ? result : []),
+            total: result.total || (Array.isArray(result) ? result.length : 0)
+        });
     } catch (error) {
         logger.error({ context: 'PharmacyController.getPurchases', error, query: req.query }, 'Failed to fetch purchases');
         // Safe fallback response
@@ -452,7 +464,10 @@ export async function getMarginReport(
 ): Promise<void> {
     try {
         const result = await pharmacyService.getMarginReport(req.query);
-        sendSuccess(res, result);
+        res.json({
+            items: result.items || result || [],
+            total: result.total || result.length || 0
+        });
     } catch (error) {
         logger.error({ context: 'PharmacyController.getMarginReport', error, query: req.query }, 'Failed to fetch margin report');
         next(error);
@@ -466,7 +481,10 @@ export async function getPharmacyReports(
 ): Promise<void> {
     try {
         const result = await pharmacyService.getPharmacyReports(req.query);
-        sendSuccess(res, result);
+        res.json({
+            items: result.items || result || [],
+            total: result.total || result.length || 0
+        });
     } catch (error) {
         logger.error({ context: 'PharmacyController.getPharmacyReports', error, query: req.query }, 'Failed to fetch comprehensive pharmacy reports');
         next(error);
@@ -542,7 +560,10 @@ export async function getReturns(
 ): Promise<void> {
     try {
         const result = await pharmacyService.getReturns(req.query);
-        sendSuccess(res, result);
+        res.json({
+            items: result.items || (Array.isArray(result) ? result : []),
+            total: result.total || (Array.isArray(result) ? result.length : 0)
+        });
     } catch (error) {
         logger.error({ context: 'PharmacyController.getReturns', error, query: req.query }, 'Failed to fetch returns');
         next(error);
@@ -606,7 +627,10 @@ export async function getCategories(
 ): Promise<void> {
     try {
         const result = await pharmacyService.getCategories();
-        sendSuccess(res, result);
+        res.json({
+            items: result || [],
+            total: result?.length || 0
+        });
     } catch (error) {
         logger.error({ context: 'PharmacyController.getCategories', error }, 'Failed to fetch pharmacy categories');
         next(error);
