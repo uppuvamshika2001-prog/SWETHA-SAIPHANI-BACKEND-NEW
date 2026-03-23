@@ -101,6 +101,11 @@ export class LabService {
         if (!resolvedTestId) {
             throw new ValidationError(`The lab test '${input.testName}' is not in the official catalog. Please select a valid test from the list.`);
         }
+        // Derive walk-in status from all possible frontend signals
+        const isWalkIn = input.isWalkInLab
+            || input.visitType === 'WALK_IN'
+            || (input as any).patientType === 'WALKIN_LAB'
+            || (input as any).patientType === 'WALK_IN';
 
         const order = await (prisma.labTestOrder as any).create({
             data: {
@@ -113,9 +118,9 @@ export class LabService {
                 testId: resolvedTestId,
                 priority: input.priority,
                 notes: input.notes,
-                isWalkInLab: input.isWalkInLab || false,
-                visitType: input.visitType || (input.isWalkInLab ? 'WALK_IN' : 'OP'),
-                opId: (input.visitType === 'WALK_IN' || input.isWalkInLab) ? null : (input.opId || null),
+                isWalkInLab: isWalkIn,
+                visitType: isWalkIn ? 'WALK_IN' : (input.visitType || 'OP'),
+                opId: isWalkIn ? null : (input.opId || null),
                 status: LabTestStatus.PAYMENT_PENDING,
             },
             include: {
