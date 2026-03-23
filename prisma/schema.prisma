@@ -191,7 +191,7 @@ model PrescriptionItem {
 }
 
 model Medicine {
-  id               Int                       @id @default(autoincrement())
+  id               String                    @id @default(uuid())
   name             String
   genericName      String?                   @map("generic_name")
   manufacturer     String?
@@ -227,7 +227,7 @@ model PharmacyCategory {
 
 model MedicineBatch {
   id                String            @id @default(uuid())
-  medicineId        Int               @map("medicine_id")
+  medicineId        String            @map("medicine_id")
   batchNumber       String            @map("batch_number")
   distributorName   String            @map("distributor_name")
   manufacturingDate DateTime?         @map("manufacturing_date")
@@ -273,7 +273,7 @@ model Bill {
 model BillItem {
   id            String    @id @default(uuid())
   billId        String    @map("bill_id")
-  medicineId    Int?      @map("medicine_id")
+  medicineId    String?   @map("medicine_id")
   description   String
   quantity      Int
   unitPrice     Decimal   @default(0) @map("unit_price") @db.Decimal(10, 2)
@@ -585,7 +585,7 @@ model PharmacyReturn {
 model PharmacyReturnItem {
   id          String         @id @default(uuid())
   returnId    String         @map("return_id")
-  medicineId  Int            @map("medicine_id")
+  medicineId  String         @map("medicine_id")
   batchNumber String?        @map("batch_number")
   returnQty   Int            @map("return_qty")
   salePrice   Decimal        @map("sale_price") @db.Decimal(10, 2)
@@ -614,7 +614,7 @@ model PharmacyStockReturn {
 model PharmacyStockReturnItem {
   id           String              @id @default(uuid())
   returnId     String              @map("return_id")
-  medicineId   Int                 @map("medicine_id")
+  medicineId   String              @map("medicine_id")
   batchNumber  String?             @map("batch_number")
   returnQty    Int                 @map("return_qty")
   returnReason String              @map("return_reason")
@@ -627,7 +627,7 @@ model PharmacyStockReturnItem {
 
 model InventoryLog {
   id            String           @id @default(uuid())
-  medicineId    Int              @map("medicine_id")
+  medicineId    String           @map("medicine_id")
   batchNumber   String?          @map("batch_number")
   type          InventoryLogType
   quantity      Int // Positive for add, negative for sub
