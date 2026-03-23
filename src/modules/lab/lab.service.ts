@@ -103,7 +103,6 @@ export class LabService {
         }
         // Derive walk-in status from all possible frontend signals
         const isWalkIn = input.isWalkInLab
-            || input.visitType === 'WALK_IN'
             || (input as any).patientType === 'WALKIN_LAB'
             || (input as any).patientType === 'WALK_IN';
 
@@ -119,7 +118,6 @@ export class LabService {
                 priority: input.priority,
                 notes: input.notes,
                 isWalkInLab: isWalkIn,
-                visitType: isWalkIn ? 'WALK_IN' : (input.visitType || 'OP'),
                 opId: isWalkIn ? null : (input.opId || null),
                 status: LabTestStatus.PAYMENT_PENDING,
             },
@@ -678,7 +676,6 @@ export class LabService {
             completedAt: Date;
         } | null;
         isWalkInLab: boolean;
-        visitType: 'OP' | 'WALK_IN';
         opId: string | null;
         createdAt: Date;
     }): LabOrderResponse {
@@ -699,7 +696,6 @@ export class LabService {
             test: order.test || null,
             result: order.result ? this.formatResult(order.result) : null,
             isWalkInLab: order.isWalkInLab || false,
-            visitType: order.visitType as 'OP' | 'WALK_IN',
             opId: order.opId || null,
             createdAt: order.createdAt,
         };
