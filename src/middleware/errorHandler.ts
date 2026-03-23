@@ -108,9 +108,17 @@ function handlePrismaError(err: Prisma.PrismaClientKnownRequestError): {
                 code: 'RELATION_VIOLATION',
                 statusCode: 400,
             };
+        case 'P2011':
+            // Null constraint violation
+            const nullTarget = (err.meta?.constraint as string[])?.join(', ') || 'required field';
+            return {
+                message: `Missing required value for ${nullTarget}`,
+                code: 'DATABASE_VALIDATION_ERROR',
+                statusCode: 400,
+            };
         default:
             // Log unknown Prisma errors for investigation
-            logger.error({ code: err.code, meta: err.meta }, 'Unknown Prisma error');
+            logger.error({ code: err.code, meta: err.meta, message: err.message, stack: err.stack }, 'Unknown Prisma error');
             return {
                 message: 'Database operation failed',
                 code: 'DATABASE_ERROR',

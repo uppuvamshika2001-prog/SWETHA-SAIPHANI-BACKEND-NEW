@@ -13,7 +13,7 @@ export const createLabOrderSchema = z.object({
     priority: z.enum(['normal', 'urgent', 'stat']).default('normal'),
     notes: z.string().optional(),
     isWalkInLab: z.boolean().optional().default(false),
-    visitType: z.enum(['OP', 'WALK_IN']).optional(),
+    visitType: z.enum(['OP', 'WALK_IN', 'WALKIN_LAB']).optional().transform(v => v === 'WALKIN_LAB' ? 'WALK_IN' : v),
     opId: z.string().optional(),
 });
 

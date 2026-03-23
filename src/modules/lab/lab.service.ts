@@ -107,7 +107,7 @@ export class LabService {
                 patientId: input.patientId,
                 orderedById: orderer.id,
                 orderedByRole: orderedByRoleValue,
-                doctorId: doctorIdForOrder || undefined,
+                doctorId: doctorIdForOrder || null,
                 testName: resolvedTestName,
                 testCode: resolvedTestCode,
                 testId: resolvedTestId,
