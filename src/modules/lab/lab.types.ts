@@ -13,7 +13,8 @@ export const createLabOrderSchema = z.object({
     priority: z.enum(['normal', 'urgent', 'stat']).default('normal'),
     notes: z.string().optional(),
     isWalkInLab: z.boolean().optional().default(false),
-    visitId: z.string().optional(),
+    visitType: z.enum(['OP', 'WALK_IN']).optional(),
+    opId: z.string().optional(),
 });
 
 export const createLabResultSchema = z.object({
@@ -74,8 +75,9 @@ export interface LabOrderResponse {
     status: LabTestStatus;
     notes: string | null;
     isWalkInLab: boolean;
-    visitId: string | null;
-    patient: { firstName: string; lastName: string };
+    visitType: 'OP' | 'WALK_IN';
+    opId: string | null;
+    patient: { firstName: string; lastName: string; uhid?: string | null; gender?: string | null; dateOfBirth?: Date | null; phone?: string | null; age?: number | string | null; };
     orderedBy: { firstName: string; lastName: string; user?: { role: string } };
     doctor?: { firstName: string; lastName: string } | null;
     test?: any | null;

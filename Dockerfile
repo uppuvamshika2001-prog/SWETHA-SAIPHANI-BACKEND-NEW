@@ -3,45 +3,54 @@ FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
 
+# Limit memory to prevent OOM
+ENV NODE_OPTIONS="--max-old-space-size=256"
+
 # Install system dependencies required by Prisma
 RUN apt-get update -y && \
   apt-get install -y openssl ca-certificates && \
   rm -rf /var/lib/apt/lists/*
 
-# Copy package files for dependency installation
-COPY package.json ./
-COPY package-lock.json* ./
-
-# Install all dependencies (including devDependencies for build)
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
-
-# Copy Prisma schema and generate client
+COPY package.json package-lock.json* ./
 COPY prisma ./prisma/
-RUN npx prisma generate
+
+# Generate Prisma client BEFORE heavy npm installs using the lightweight binary engine
+RUN PRISMA_CLI_QUERY_ENGINE_TYPE=binary npx prisma generate
+
+# Install all dependencies (optimized flags for lower memory)
+RUN if [ -f package-lock.json ]; then npm ci --prefer-offline --no-audit --progress=false; else npm install --no-audit --progress=false; fi
 
 # Copy source configuration and files
 COPY tsconfig.json ./
 COPY src ./src/
 
 # Build the application
-RUN export NODE_OPTIONS="--max-old-space-size=2048" && npm run build
+RUN npm run build
 
 # Production stage
 FROM node:20-bookworm-slim
 
 WORKDIR /app
 
+# Ensure garbage collection triggers early in low RAM environments
+ENV NODE_OPTIONS="--max-old-space-size=512"
+
 # Install production-only system dependencies
 RUN apt-get update -y && \
   apt-get install -y openssl ca-certificates wget && \
   rm -rf /var/lib/apt/lists/*
 
+# Install ONLY production dependencies
+COPY package.json package-lock.json* ./
+RUN npm ci --only=production --prefer-offline --no-audit --progress=false
+
 # Copy production artifacts from builder
-COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
-COPY package.json ./
 COPY start.sh ./
+
+# Generate Prisma client for production
+RUN PRISMA_CLI_QUERY_ENGINE_TYPE=binary npx prisma generate
 
 RUN chmod +x start.sh
 
@@ -57,3 +66,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 
 # Note: tsconfig rootDir is "./", so server.js is at dist/src/server.js
 CMD ["./start.sh"]
+

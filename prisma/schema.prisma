@@ -313,7 +313,8 @@ model LabTestOrder {
   labResults               LabResult[]
   isReportVisibleToPatient Boolean        @default(true) @map("is_report_visible")
   isWalkInLab              Boolean        @default(false) @map("is_walk_in_lab")
-  visitId                  String?        @map("visit_id")
+  visitType                VisitType      @default(OP) @map("visit_type")
+  opId                     String?        @map("op_id")
 
   @@map("lab_test_orders")
 }
@@ -426,6 +427,11 @@ enum LabTestType {
   PANEL
   SINGLE
   REPORT
+}
+
+enum VisitType {
+  OP
+  WALK_IN
 }
 
 enum InventoryLogType {

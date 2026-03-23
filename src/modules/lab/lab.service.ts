@@ -114,12 +114,14 @@ export class LabService {
                 priority: input.priority,
                 notes: input.notes,
                 isWalkInLab: input.isWalkInLab || false,
-                visitId: input.visitId || null,
+                visitType: input.visitType || (input.isWalkInLab ? 'WALK_IN' : 'OP'),
+                opId: (input.visitType === 'WALK_IN' || input.isWalkInLab) ? null : (input.opId || null),
                 status: LabTestStatus.PAYMENT_PENDING,
             },
             include: {
-                patient: { select: { firstName: true, lastName: true } },
+                patient: { select: { firstName: true, lastName: true, uhid: true, gender: true, dateOfBirth: true, phone: true } },
                 orderedBy: { select: { firstName: true, lastName: true, user: { select: { role: true } } } },
+                doctor: { select: { firstName: true, lastName: true } },
                 result: true,
             },
         });
@@ -412,28 +414,29 @@ export class LabService {
 
             // Helper to get correct reference range from JSON structure
             const getRange = (p: any) => {
+                let finalRange = '';
                 const range = p.referenceRange;
+                
                 if (!range || typeof range !== 'object') {
                     // Fallback to legacy fields
-                    if (patientGender === 'MALE' && p.referenceRangeMale) return p.referenceRangeMale;
-                    if (patientGender === 'FEMALE' && p.referenceRangeFemale) return p.referenceRangeFemale;
-                    return p.normalRange || (p.normalMin !== null && p.normalMax !== null ? `${p.normalMin} - ${p.normalMax}` : '');
+                    if (patientGender === 'MALE' && p.referenceRangeMale) finalRange = p.referenceRangeMale;
+                    else if (patientGender === 'FEMALE' && p.referenceRangeFemale) finalRange = p.referenceRangeFemale;
+                    else finalRange = p.normalRange || (p.normalMin !== null && p.normalMax !== null ? `${p.normalMin} - ${p.normalMax}` : '');
+                } else {
+                    // New JSON logic
+                    if (patientGender === 'MALE' && range.male) finalRange = range.male;
+                    else if (patientGender === 'FEMALE' && range.female) finalRange = range.female;
+                    // Age based ranges (e.g. for Alkaline Phosphatase)
+                    else if (range.ageBased && Array.isArray(range.ageBased)) {
+                        // Keep current simplified logic bypassed
+                    }
+                    if (!finalRange && range.adults && patientAgeNum >= 18) finalRange = range.adults;
+                    if (!finalRange && range.newborn && patientAgeNum < 1) finalRange = range.newborn;
+                    if (!finalRange) finalRange = range.default || range.general || Object.values(range)[0] || '';
                 }
 
-                // New JSON logic
-                if (patientGender === 'MALE' && range.male) return range.male;
-                if (patientGender === 'FEMALE' && range.female) return range.female;
-
-                // Age based ranges (e.g. for Alkaline Phosphatase)
-                if (range.ageBased && Array.isArray(range.ageBased)) {
-                    // This is a simplified check, can be expanded if needed
-                    // For now, let's just return the first one that matches or all for manual selection
-                }
-
-                if (range.adults && patientAgeNum >= 18) return range.adults;
-                if (range.newborn && patientAgeNum < 1) return range.newborn;
-
-                return range.default || range.general || Object.values(range)[0] || '';
+                if (typeof finalRange !== 'string') finalRange = String(finalRange);
+                return finalRange ? `${finalRange} ${p.unit || ''}`.trim() : '';
             };
 
             const testData = (order as any).test;
@@ -670,7 +673,8 @@ export class LabService {
             completedAt: Date;
         } | null;
         isWalkInLab: boolean;
-        visitId: string | null;
+        visitType: 'OP' | 'WALK_IN';
+        opId: string | null;
         createdAt: Date;
     }): LabOrderResponse {
         return {
@@ -690,7 +694,8 @@ export class LabService {
             test: order.test || null,
             result: order.result ? this.formatResult(order.result) : null,
             isWalkInLab: order.isWalkInLab || false,
-            visitId: order.visitId || null,
+            visitType: order.visitType as 'OP' | 'WALK_IN',
+            opId: order.opId || null,
             createdAt: order.createdAt,
         };
     }
