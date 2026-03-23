@@ -120,7 +120,7 @@ function handlePrismaError(err: Prisma.PrismaClientKnownRequestError): {
             // Log unknown Prisma errors for investigation
             logger.error({ code: err.code, meta: err.meta, message: err.message, stack: err.stack }, 'Unknown Prisma error');
             return {
-                message: 'Database operation failed',
+                message: `Database operation failed: ${err.message}`, // EXPOSING NATIVE ERROR FOR SENIOR DEBUGGING
                 code: 'DATABASE_ERROR',
                 statusCode: 500,
             };
