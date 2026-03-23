@@ -124,7 +124,7 @@ export class PharmacyService {
 
     async getMedicine(id: string | number): Promise<MedicineResponse> {
         const medicine = await prisma.medicine.findUnique({ 
-            where: { id: Number(id) },
+            where: { id: id.toString() },
             include: { 
                 batches: { where: { isActive: true }, orderBy: { expiryDate: 'asc' } },
                 categoryRel: true
@@ -150,7 +150,7 @@ export class PharmacyService {
             // 2. Medicines Table
             await prisma.$executeRawUnsafe(`
                 CREATE TABLE IF NOT EXISTS medicines (
-                    id SERIAL PRIMARY KEY,
+                    id TEXT PRIMARY KEY,
                     name VARCHAR(255) NOT NULL,
                     category_id INT,
                     purchase_price DECIMAL(10,2),
@@ -274,13 +274,13 @@ export class PharmacyService {
     }
 
     async updateMedicine(id: string | number, input: UpdateMedicineInput): Promise<MedicineResponse> {
-        const existing = await prisma.medicine.findUnique({ where: { id: Number(id) } });
+        const existing = await prisma.medicine.findUnique({ where: { id: id.toString() } });
         if (!existing) {
             throw new NotFoundError('Medicine');
         }
 
         const medicine = await prisma.medicine.update({
-            where: { id: Number(id) },
+            where: { id: id.toString() },
             data: input,
         });
         return this.formatMedicine(medicine);
@@ -289,12 +289,12 @@ export class PharmacyService {
     async deleteMedicine(id: string | number): Promise<void> {
         console.log('[PharmacyService] Attempting to delete medicine with id:', id);
         // Using findFirst instead of findUnique for resilience
-        const medicine = await prisma.medicine.findFirst({ where: { id: Number(id) } });
+        const medicine = await prisma.medicine.findFirst({ where: { id: id.toString() } });
         if (!medicine) {
             console.error('[PharmacyService] Delete medicine failed - Medicine not found for id:', id);
             throw new NotFoundError('Medicine');
         }
-        await prisma.medicine.delete({ where: { id: Number(id) } });
+        await prisma.medicine.delete({ where: { id: id.toString() } });
         console.log('[PharmacyService] Medicine deleted successfully:', id);
     }
 
@@ -309,7 +309,7 @@ export class PharmacyService {
         // Validate stock for medicine items
         for (const item of input.items) {
             if (item.medicineId) {
-                const medicine = await prisma.medicine.findUnique({ where: { id: Number(item.medicineId) } });
+                const medicine = await prisma.medicine.findUnique({ where: { id: item.medicineId } });
                 if (!medicine) {
                     throw new NotFoundError(`Medicine not found: ${item.medicineId}`);
                 }
@@ -353,14 +353,14 @@ export class PharmacyService {
 
                 if (item.medicineId) {
                     // Resolve medicine name for description snapshot
-                    const medRecord = await tx.medicine.findUnique({ where: { id: Number(item.medicineId) } });
+                    const medRecord = await tx.medicine.findUnique({ where: { id: item.medicineId } });
                     if (!item.description && medRecord) {
                         item.description = medRecord.name;
                     }
 
                     const batches = await (tx as any).medicineBatch.findMany({
                         where: {
-                            medicineId: Number(item.medicineId),
+                            medicineId: item.medicineId,
                             stockQuantity: { gt: 0 },
                             expiryDate: { gt: new Date() },
                             isActive: true,
@@ -387,7 +387,7 @@ export class PharmacyService {
 
                     // Integrated Logging
                     await this.updateStockAndLog(tx, {
-                        medicineId: Number(item.medicineId),
+                        medicineId: item.medicineId,
                         type: 'DISPENSE',
                         quantity: -item.quantity,
                         referenceId: `BILL-${Date.now()}`, // Or real bill ID if available inside tx
@@ -399,7 +399,7 @@ export class PharmacyService {
                 const itemProfit = itemTaxable - (item.quantity * avgPurchasePrice);
 
                 billItemsData.push({
-                    medicineId: item.medicineId ? Number(item.medicineId) : null,
+                    medicineId: item.medicineId || null,
                     description: item.description,
                     quantity: item.quantity,
                     unitPrice: item.unitPrice,
@@ -585,7 +585,7 @@ export class PharmacyService {
             // 2. Calculate refund amount and validate return quantities
             let refundAmount = 0;
             for (const item of input.items) {
-                const billItem = bill.items.find(bi => Number(bi.medicineId) === Number(item.medicineId));
+                const billItem = bill.items.find(bi => bi.medicineId === item.medicineId);
                 if (!billItem) {
                     throw new ValidationError(`Medicine ${item.medicineId} not found in bill ${bill.billNumber}`);
                 }
@@ -641,7 +641,7 @@ export class PharmacyService {
 
                 // Log and Sync
                 await this.updateStockAndLog(tx, {
-                    medicineId: Number(item.medicineId),
+                    medicineId: item.medicineId,
                     batchNumber: item.batchNumber || undefined,
                     type: 'PATIENT_RETURN',
                     quantity: item.returnQty,
@@ -749,7 +749,7 @@ export class PharmacyService {
                         data: { stockQuantity: { decrement: item.returnQty } }
                     });
                 } else {
-                    const medicine = await tx.medicine.findUnique({ where: { id: Number(item.medicineId) } });
+                    const medicine = await tx.medicine.findUnique({ where: { id: item.medicineId } });
                     if (!medicine) throw new NotFoundError('Medicine');
                     if (medicine.stockQuantity < item.returnQty) {
                         throw new ValidationError(`Insufficient total stock for ${medicine.name}`);
@@ -783,7 +783,7 @@ export class PharmacyService {
             // 3. Update master stock quantity
             for (const item of input.items) {
                 await this.updateStockAndLog(tx, {
-                    medicineId: Number(item.medicineId),
+                    medicineId: item.medicineId,
                     batchNumber: item.batchNumber || undefined,
                     type: 'DISTRIBUTOR_RETURN',
                     quantity: -item.returnQty,
@@ -1228,7 +1228,7 @@ export class PharmacyService {
         paidAmount: Decimal;
         items: Array<{
             id: string;
-            medicineId?: number | null;
+            medicineId?: string | null;
             batchNumber?: string | null;
             description: string;
             quantity: number;
@@ -1257,7 +1257,7 @@ export class PharmacyService {
                 unitPrice: Number(item.unitPrice),
                 purchasePrice: Number((item as any).purchasePrice),
                 profit: Number((item as any).profit),
-                medicineId: item.medicineId ? Number(item.medicineId) : null,
+                medicineId: item.medicineId || null,
                 batchNumber: (item as any).batchNumber || null,
                 total: Number(item.total),
             })),
@@ -1531,7 +1531,7 @@ export class PharmacyService {
      * Unified Inventory Stock Update & Logger
      */
     async updateStockAndLog(tx: any, data: {
-        medicineId: number;
+        medicineId: string;
         batchNumber?: string;
         type: 'DISPENSE' | 'PATIENT_RETURN' | 'DISTRIBUTOR_RETURN' | 'STOCK_ADD' | 'ADJUSTMENT';
         quantity: number;
