@@ -14,11 +14,11 @@ RUN apt-get update -y && \
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma/
 
-# Generate Prisma client BEFORE heavy npm installs using the lightweight binary engine
-RUN PRISMA_CLI_QUERY_ENGINE_TYPE=binary npx prisma generate
-
-# Install all dependencies (optimized flags for lower memory)
+# Install all dependencies FIRST so prisma uses the local v5 (not npx auto-installing v7)
 RUN if [ -f package-lock.json ]; then npm ci --prefer-offline --no-audit --progress=false; else npm install --no-audit --progress=false; fi
+
+# Generate Prisma client using the locally installed version
+RUN npx --no-install prisma generate
 
 # Copy source configuration and files
 COPY tsconfig.json ./
@@ -50,7 +50,7 @@ COPY --from=builder /app/prisma ./prisma
 COPY start.sh ./
 
 # Generate Prisma client for production
-RUN PRISMA_CLI_QUERY_ENGINE_TYPE=binary npx prisma generate
+RUN npx --no-install prisma generate
 
 RUN chmod +x start.sh
 
