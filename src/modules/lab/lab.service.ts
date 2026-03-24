@@ -118,7 +118,6 @@ export class LabService {
                 priority: input.priority,
                 notes: input.notes,
                 isWalkInLab: isWalkIn,
-                opId: isWalkIn ? null : (input.opId || null),
                 status: LabTestStatus.PAYMENT_PENDING,
             },
             include: {
@@ -676,7 +675,6 @@ export class LabService {
             completedAt: Date;
         } | null;
         isWalkInLab: boolean;
-        opId: string | null;
         createdAt: Date;
     }): LabOrderResponse {
         return {
@@ -696,7 +694,6 @@ export class LabService {
             test: order.test || null,
             result: order.result ? this.formatResult(order.result) : null,
             isWalkInLab: order.isWalkInLab || false,
-            opId: order.opId || null,
             createdAt: order.createdAt,
         };
     }
