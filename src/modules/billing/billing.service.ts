@@ -116,10 +116,10 @@ export class BillingService {
             });
         }
 
-        const medicalRecord = await prisma.medicalRecord.findFirst({
+        const medicalRecord = bill.patientId ? await prisma.medicalRecord.findFirst({
             where: { patientId: bill.patientId },
             orderBy: { createdAt: 'desc' }
-        });
+        }) : null;
 
         return this.formatBill({ ...bill, medicalRecord });
     }
@@ -243,10 +243,10 @@ export class BillingService {
 
         if (!bill) throw new NotFoundError('Bill not found');
 
-        const medicalRecord = await prisma.medicalRecord.findFirst({
+        const medicalRecord = bill.patientId ? await prisma.medicalRecord.findFirst({
             where: { patientId: bill.patientId },
             orderBy: { createdAt: 'desc' }
-        });
+        }) : null;
 
         return this.formatBill({ ...bill, medicalRecord });
     }

@@ -445,10 +445,10 @@ export class PatientsService {
 
         // Attach Medical Record Info manually (similar to BillingService)
         const billsWithMR = await Promise.all(bills.map(async (bill) => {
-            const medicalRecord = await prisma.medicalRecord.findFirst({
+            const medicalRecord = bill.patientId ? await prisma.medicalRecord.findFirst({
                 where: { patientId: bill.patientId },
                 orderBy: { createdAt: 'desc' }
-            });
+            }) : null;
 
             return {
                 ...bill,
