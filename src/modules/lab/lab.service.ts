@@ -847,6 +847,11 @@ export class LabService {
                 orderedBy: { include: { user: true } },
                 doctor: true,
                 result: true,
+                labResults: {
+                    include: {
+                        parameter: true
+                    }
+                }
             }
         })) as any;
 
@@ -869,7 +874,41 @@ export class LabService {
             doctorName = `${order.orderedBy.firstName} ${order.orderedBy.lastName}`;
         }
 
-        const resultData = order.result.result;
+        // Merge JSON result blob with catalog parameters to ensure reference ranges are present
+        const resultBlob = order.result.result as any;
+        const processedParameters = (resultBlob.parameters || []).map((p: any) => {
+            // Find corresponding catalog parameter in results join
+            const catalogMatch = order.labResults?.find((lr: any) => lr.parameterId === p.parameterId);
+            
+            // Reconstruct the reference range from catalog if missing or '-' in blob
+            let referenceRange = p.referenceRange || p.normalRange || '-';
+            
+            if ((!referenceRange || referenceRange === '-') && catalogMatch?.parameter) {
+                const param = catalogMatch.parameter;
+                // Reuse logic from getOrderParameters if possible, but keep it simple here
+                // Most catalog items have normalRange or referenceRange (JSON)
+                referenceRange = param.normalRange || '';
+                
+                if (!referenceRange && param.referenceRange) {
+                    const range = param.referenceRange as any;
+                    const patientGender = order.patient.gender;
+                    if (patientGender === 'MALE' && range.male) referenceRange = range.male;
+                    else if (patientGender === 'FEMALE' && range.female) referenceRange = range.female;
+                    else referenceRange = range.default || range.general || '';
+                }
+
+                if (referenceRange && param.unit) {
+                    referenceRange = `${referenceRange} ${param.unit}`.trim();
+                }
+                
+                if (!referenceRange) referenceRange = '-';
+            }
+
+            return {
+                ...p,
+                referenceRange: referenceRange
+            };
+        });
 
         const reportData = {
             orderId: order.id,
@@ -877,9 +916,13 @@ export class LabService {
             patientId: order.patient.uhid,
             gender: order.patient.gender,
             age: this.calculateAge(order.patient.dateOfBirth),
+            phone: order.patient.phone || 'N/A',
             doctorName,
             date: order.createdAt,
-            results: resultData,
+            results: {
+                ...resultBlob,
+                parameters: processedParameters
+            },
             interpretation: order.result.interpretation
         };
 

@@ -178,11 +178,16 @@ export const pdfGenerator = {
 
         // Row 3 (Gender/Age)
         y -= 20;
-        page.drawText('Gender/Age:', { x: leftX, y, size: 10, font: boldFont });
+        page.drawText('Age / Gender:', { x: leftX, y, size: 10, font: boldFont });
         page.drawText(`${data.gender || 'N/A'} / ${data.age || 'N/A'}`, { x: leftX + 80, y, size: 10, font });
 
         page.drawText('Order ID:', { x: midX, y, size: 10, font: boldFont });
         page.drawText(data.orderId || 'N/A', { x: midX + 80, y, size: 10, font });
+
+        // Row 4 (Phone)
+        y -= 20;
+        page.drawText('Phone:', { x: leftX, y, size: 10, font: boldFont });
+        page.drawText(data.phone || 'N/A', { x: leftX + 80, y, size: 10, font });
 
         // Table Header
         y -= 50;
@@ -229,8 +234,9 @@ export const pdfGenerator = {
                 // Draw Unit
                 page.drawText(param.unit || '', { x: 330, y, size: 10, font });
 
-                // Draw Reference Range
-                page.drawText(param.normalRange || 'N/A', { x: 410, y, size: 10, font });
+                // Draw Reference Range (Try both referenceRange and normalRange)
+                const refRange = param.referenceRange || param.normalRange || 'N/A';
+                page.drawText(String(refRange), { x: 410, y, size: 10, font });
 
                 // Add horizontal line between rows
                 page.drawLine({
