@@ -92,6 +92,10 @@ async function main(): Promise<void> {
         logger.info('🔌 Connecting to database...');
         await connectDatabase();
 
+        // Initialize background jobs
+        logger.info('⏰ Initializing background jobs...');
+        await import('./jobs/expiryAlert.job.js');
+
         // Create and start app
         const app = createApp();
         const HOST = '0.0.0.0';

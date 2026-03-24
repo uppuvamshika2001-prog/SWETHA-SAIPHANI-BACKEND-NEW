@@ -238,6 +238,8 @@ model MedicineBatch {
   gst               Decimal           @default(0) @db.Decimal(5, 2)
   stockQuantity     Int               @default(0) @map("stock_quantity")
   isActive          Boolean           @default(true) @map("is_active")
+  expiryAlert3mSent Boolean           @default(false) @map("expiry_alert_3m_sent")
+  expiryAlert1mSent Boolean           @default(false) @map("expiry_alert_1m_sent")
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
   medicine          Medicine          @relation(fields: [medicineId], references: [id], onDelete: Cascade)
@@ -357,6 +359,7 @@ model Notification {
   type        String   @default("info")
   read        Boolean  @default(false)
   actionUrl   String?  @map("action_url")
+  referenceId String?  @map("reference_id")
   createdAt   DateTime @default(now()) @map("created_at")
   recipient   User     @relation(fields: [recipientId], references: [id], onDelete: Cascade)
 

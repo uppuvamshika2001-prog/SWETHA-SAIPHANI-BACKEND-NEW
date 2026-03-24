@@ -195,14 +195,31 @@ export class PharmacyService {
             const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
 
             const sql = Prisma.sql`
+                WITH RankedBatches AS (
+                    SELECT 
+                        medicine_id,
+                        batch_number,
+                        distributor_name,
+                        expiry_date,
+                        ROW_NUMBER() OVER(PARTITION BY medicine_id ORDER BY expiry_date ASC) as rn
+                    FROM medicine_batches
+                    WHERE is_active = true AND stock_quantity > 0
+                )
                 SELECT 
                     m.id, 
                     m.name, 
+                    m.generic_name as "genericName",
+                    m.manufacturer,
+                    m.reorder_level as "min_level",
                     c.name AS category, 
                     m.stock_quantity, 
-                    m.price_per_unit as unit_price
+                    m.price_per_unit as unit_price,
+                    rb.batch_number,
+                    rb.expiry_date,
+                    rb.distributor_name as distributor
                 FROM medicines m
                 LEFT JOIN categories c ON m.category_id = c.id
+                LEFT JOIN RankedBatches rb ON m.id::text = rb.medicine_id::text AND rb.rn = 1
                 ${whereClause}
                 ORDER BY m.name ASC
                 LIMIT ${limit} OFFSET ${skip}
@@ -222,10 +239,18 @@ export class PharmacyService {
             let formattedItems = items.map(m => ({
                 id: m.id,
                 name: m.name,
+                genericName: m.genericName,
+                manufacturer: m.manufacturer,
                 category: m.category,
                 stock_quantity: Number(m.stock_quantity) || 0,
+                min_stock_level: Number(m.min_level) || 0,
                 unit_price: Number(m.unit_price) || 0,
-                status: (Number(m.stock_quantity) || 0) <= 10 ? 'low_stock' : 'in_stock'
+                status: (Number(m.stock_quantity) || 0) <= (Number(m.min_level) || 10) ? ((Number(m.stock_quantity) || 0) <= 0 ? 'out_of_stock' : 'low_stock') : 'in_stock',
+                batch: m.batch_number ? {
+                    batch_number: m.batch_number,
+                    expiry_date: m.expiry_date,
+                    distributor: m.distributor
+                } : null
             }));
 
             // Restore returns format for batch-level selection
