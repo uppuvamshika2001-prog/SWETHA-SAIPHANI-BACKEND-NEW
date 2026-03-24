@@ -249,7 +249,10 @@ model MedicineBatch {
 
 model Bill {
   id           String               @id @default(uuid())
-  patientId    String               @map("patient_id")
+  patientId    String?              @map("patient_id")
+  customerName String?              @map("customer_name")
+  phone        String?
+  isWalkIn     Boolean              @default(false) @map("is_walk_in")
   billNumber   String               @unique @map("bill_number")
   subtotal     Decimal              @db.Decimal(10, 2)
   discount     Decimal              @default(0) @db.Decimal(10, 2)
@@ -262,7 +265,7 @@ model Bill {
   createdAt    DateTime             @default(now()) @map("created_at")
   updatedAt    DateTime             @updatedAt @map("updated_at")
   items        BillItem[]
-  patient      Patient              @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
+  patient      Patient?             @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
   labOrders    LabTestOrder[]
   transactions PaymentTransaction[]
   returns      PharmacyReturn[]
@@ -540,6 +543,8 @@ model PharmacyPurchase {
   amountPaid      Decimal           @default(0) @map("amount_paid") @db.Decimal(10, 2)
   balanceAmount   Decimal           @default(0) @map("balance_amount") @db.Decimal(10, 2)
   paymentStatus   String            @default("PENDING") @map("payment_status") // PENDING, PAID, PARTIALLY_PAID
+  fileUrl         String?           @map("file_url")
+  isDeleted       Boolean           @default(false) @map("is_deleted")
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @updatedAt @map("updated_at")
   batches         MedicineBatch[]

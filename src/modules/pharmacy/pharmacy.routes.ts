@@ -1,9 +1,10 @@
 import { Router } from 'express';
-import { createMedicine, getMedicines, getMedicine, updateMedicine, deleteMedicine, createBill, getBills, getBill, updateBill, deleteBill, getLowStockMedicines, getDistributorReport, getPurchases, getMarginReport, recordPayment, getPurchasePayments, createPurchase, processReturn, getReturns, processStockReturn, getStockReturns, getCategories, createCategory, deleteCategory, getPharmacyReports } from './pharmacy.controller.js';
+import { createMedicine, getMedicines, getMedicine, updateMedicine, deleteMedicine, createBill, getBills, getBill, updateBill, deleteBill, getLowStockMedicines, getDistributorReport, getPurchases, getMarginReport, recordPayment, getPurchasePayments, createPurchase, updatePurchase, deletePurchase, processReturn, getReturns, processStockReturn, getStockReturns, getCategories, createCategory, deleteCategory, getPharmacyReports } from './pharmacy.controller.js';
 import { getPendingPrescriptions, getDispensedHistory, getPharmacyStats } from '../doctors/doctors.controller.js';
 import { authGuard } from '../../middleware/authGuard.js';
 import { roleGuard } from '../../middleware/roleGuard.js';
 import { UserRole } from '@prisma/client';
+import { invoiceUpload } from '../../middleware/invoiceUpload.js';
 
 const router = Router();
 
@@ -48,7 +49,9 @@ router.get('/distributor-report', getDistributorReport);
 
 // Purchases & Payments
 router.get('/purchases', getPurchases);
-router.post('/purchases', createPurchase);
+router.post('/purchases', invoiceUpload.single('invoice'), createPurchase);
+router.put('/purchases/:id', invoiceUpload.single('invoice'), updatePurchase);
+router.delete('/purchases/:id', deletePurchase);
 router.post('/purchases/:id/payments', recordPayment);
 router.get('/purchases/:id/payments', getPurchasePayments);
 

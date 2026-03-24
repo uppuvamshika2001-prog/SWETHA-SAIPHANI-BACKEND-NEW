@@ -69,7 +69,10 @@ export const medicineQuerySchema = z.object({
 });
 
 export const createBillSchema = z.object({
-    patientId: z.string().min(1),
+    patientId: z.string().optional(),
+    customerName: z.string().optional(),
+    phone: z.string().optional(),
+    isWalkIn: z.boolean().default(false),
     items: z.array(z.object({
         medicineId: z.string().optional(),
         description: z.string().min(1),
@@ -124,7 +127,10 @@ export interface MedicineResponse {
 
 export interface BillResponse {
     id: string;
-    patientId: string;
+    patientId: string | null;
+    customerName: string | null;
+    phone: string | null;
+    isWalkIn: boolean;
     billNumber: string;
     subtotal: number;
     discount: number;
@@ -145,6 +151,12 @@ export interface BillResponse {
         total: number;
     }>;
     createdAt: Date;
+    patient?: {
+        uhid: string;
+        firstName: string;
+        lastName: string;
+        phone: string;
+    } | null;
 }
 
 export interface MarginReportResponse {
@@ -243,6 +255,7 @@ export interface PharmacyPurchaseResponse {
     paymentStatus: string;
     paymentDate: Date | null;
     paymentMethod: string | null;
+    fileUrl: string | null;
     createdAt: Date;
     updatedAt: Date;
     batches?: Array<{
@@ -252,6 +265,14 @@ export interface PharmacyPurchaseResponse {
         stockQuantity: number;
     }>;
 }
+
+export const updatePurchaseSchema = z.object({
+    distributorName: z.string().min(1).optional(),
+    invoiceNumber: z.string().min(1).optional(),
+    purchaseDate: z.string().transform((s) => new Date(s)).optional(),
+});
+
+export type UpdatePurchaseInput = z.infer<typeof updatePurchaseSchema>;
 
 export const purchaseQuerySchema = z.object({
     page: z.coerce.number().int().positive().default(1),

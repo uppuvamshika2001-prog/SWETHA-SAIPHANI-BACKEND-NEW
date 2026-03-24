@@ -301,10 +301,15 @@ export class PharmacyService {
 
     // Billing
     async createBill(input: CreateBillInput): Promise<BillResponse> {
-        // Validate patient
-        const patient = await prisma.patient.findUnique({ where: { uhid: input.patientId } });
-        if (!patient) {
-            throw new NotFoundError('Patient');
+        // Validate patient if not walk-in
+        if (!input.isWalkIn) {
+            if (!input.patientId) {
+                throw new ValidationError('Patient ID is required for non-walk-in bills');
+            }
+            const patient = await prisma.patient.findUnique({ where: { uhid: input.patientId } });
+            if (!patient) {
+                throw new NotFoundError('Patient');
+            }
         }
 
         // Validate stock for medicine items
@@ -423,7 +428,10 @@ export class PharmacyService {
 
             const newBill = await (tx as any).bill.create({
                 data: {
-                    patientId: input.patientId,
+                    patientId: input.isWalkIn ? null : input.patientId,
+                    customerName: input.isWalkIn ? input.customerName : null,
+                    phone: input.isWalkIn ? input.phone : null,
+                    isWalkIn: input.isWalkIn || false,
                     billNumber: `PH-${Date.now()}`, 
                     subtotal: subtotal, 
                     discount: totalDiscount, 
@@ -438,6 +446,7 @@ export class PharmacyService {
                 },
                 include: {
                     items: { include: { medicine: true } },
+                    patient: true,
                 },
             });
 
@@ -474,7 +483,7 @@ export class PharmacyService {
                 skip,
                 take: limit,
                 orderBy: { createdAt: 'desc' },
-                include: { items: includeItems },
+                include: { items: includeItems, patient: true },
             }),
             prisma.bill.count({ where }),
         ]);
@@ -491,7 +500,7 @@ export class PharmacyService {
     async getBill(id: string): Promise<BillResponse> {
         const bill = await prisma.bill.findUnique({
             where: { id },
-            include: { items: { include: { medicine: true } } },
+            include: { items: { include: { medicine: true } }, patient: true },
         });
         if (!bill) {
             throw new NotFoundError('Bill');
@@ -508,7 +517,7 @@ export class PharmacyService {
         const bill = await prisma.bill.update({
             where: { id },
             data: input,
-            include: { items: true },
+            include: { items: true, patient: true },
         });
         return this.formatBill(bill as any);
     }
@@ -1214,7 +1223,10 @@ export class PharmacyService {
 
     private formatBill(bill: {
         id: string;
-        patientId: string;
+        patientId: string | null;
+        customerName?: string | null;
+        phone?: string | null;
+        isWalkIn?: boolean;
         billNumber: string;
         subtotal: Decimal;
         discount: Decimal;
@@ -1235,10 +1247,19 @@ export class PharmacyService {
             total: Decimal;
         }>;
         createdAt: Date;
+        patient?: {
+            uhid: string;
+            firstName: string;
+            lastName: string;
+            phone: string;
+        } | null;
     }): BillResponse {
         return {
             id: bill.id,
             patientId: bill.patientId,
+            customerName: bill.customerName || null,
+            phone: bill.phone || null,
+            isWalkIn: bill.isWalkIn || false,
             billNumber: bill.billNumber,
             subtotal: Number(bill.subtotal),
             discount: Number(bill.discount),
@@ -1259,6 +1280,12 @@ export class PharmacyService {
                 total: Number(item.total),
             })),
             createdAt: bill.createdAt,
+            patient: bill.patient ? {
+                uhid: bill.patient.uhid,
+                firstName: bill.patient.firstName,
+                lastName: bill.patient.lastName,
+                phone: bill.patient.phone,
+            } : null,
         };
     }
 
@@ -1267,7 +1294,7 @@ export class PharmacyService {
             const { page = 1, limit = 10, distributor, status } = input || {};
             const skip = (Number(page) - 1) * Number(limit);
 
-            const where: any = {};
+            const where: any = { isDeleted: false };
             if (distributor) where.distributorName = { contains: distributor, mode: 'insensitive' };
             if (status) where.paymentStatus = status;
 
@@ -1398,7 +1425,8 @@ export class PharmacyService {
                     totalAmount: new Decimal(totalAmount),
                     amountPaid: new Decimal(0),
                     balanceAmount: new Decimal(totalAmount),
-                    paymentStatus: 'PENDING'
+                    paymentStatus: 'PENDING',
+                    fileUrl: (input as any).fileUrl || null
                 }
             });
 
@@ -1507,6 +1535,7 @@ export class PharmacyService {
             paymentStatus: purchase.paymentStatus || 'PENDING',
             paymentDate: purchase.paymentDate || null,
             paymentMethod: purchase.paymentMethod || null,
+            fileUrl: purchase.fileUrl || null,
             createdAt: purchase.createdAt,
             updatedAt: purchase.updatedAt,
             batches: (purchase.batches || []).map((b: any) => ({
@@ -1516,6 +1545,43 @@ export class PharmacyService {
                 stockQuantity: b.stockQuantity || 0
             }))
         };
+    }
+
+    async updatePurchase(id: string, input: any, fileUrl?: string): Promise<any> {
+        const existing = await (prisma as any).pharmacyPurchase.findUnique({ where: { id } });
+        if (!existing || existing.isDeleted) {
+            throw new NotFoundError('Purchase not found');
+        }
+
+        const data: any = {};
+        if (input.distributorName) data.distributorName = input.distributorName;
+        if (input.invoiceNumber) data.invoiceNumber = input.invoiceNumber;
+        if (input.purchaseDate) data.purchaseDate = input.purchaseDate;
+        if (fileUrl) data.fileUrl = fileUrl;
+
+        return await (prisma as any).pharmacyPurchase.update({
+            where: { id },
+            data
+        });
+    }
+
+    async deletePurchase(id: string): Promise<void> {
+        const existing = await (prisma as any).pharmacyPurchase.findUnique({
+            where: { id },
+            include: { payments: true }
+        });
+        if (!existing || existing.isDeleted) {
+            throw new NotFoundError('Purchase not found');
+        }
+
+        if (existing.payments && existing.payments.length > 0) {
+            throw new ValidationError('Cannot delete purchase with existing payments. Clear payments first.');
+        }
+
+        await (prisma as any).pharmacyPurchase.update({
+            where: { id },
+            data: { isDeleted: true }
+        });
     }
 
     /**

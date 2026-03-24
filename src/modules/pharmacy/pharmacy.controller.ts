@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { pharmacyService } from '@/modules/pharmacy/pharmacy.service.js';
-import { createMedicineSchema, updateMedicineSchema, medicineQuerySchema, createBillSchema, updateBillSchema, recordPaymentSchema, createPurchaseSchema, createCategorySchema } from '@/modules/pharmacy/pharmacy.types.js';
+import { createMedicineSchema, updateMedicineSchema, medicineQuerySchema, createBillSchema, updateBillSchema, recordPaymentSchema, createPurchaseSchema, updatePurchaseSchema, createCategorySchema } from '@/modules/pharmacy/pharmacy.types.js';
 import { sendSuccess, sendCreated } from '@/utils/response.js';
 import { logger } from '@/utils/logger.js';
 
@@ -10,12 +10,51 @@ export async function createPurchase(
     next: NextFunction
 ): Promise<void> {
     try {
-        const validated = createPurchaseSchema.parse(req.body);
-        const result = await pharmacyService.createPurchase(validated);
-        // Note: Using sendSuccess with 201 via sendCreated
+        // When using multipart/form-data, items arrive as a JSON string
+        let body = req.body;
+        if (typeof body.items === 'string') {
+            body = { ...body, items: JSON.parse(body.items) };
+        }
+        const validated = createPurchaseSchema.parse(body);
+        const fileUrl = req.file ? req.file.path.replace(/\\/g, '/') : undefined;
+        const result = await pharmacyService.createPurchase({ ...validated, fileUrl } as any);
         sendCreated(res, result);
     } catch (error) {
         logger.error({ context: 'PharmacyController.createPurchase', error, body: req.body }, 'Failed to create purchase');
+        next(error);
+    }
+}
+
+export async function updatePurchase(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        let body = req.body;
+        if (typeof body.purchaseDate === 'string' && body.purchaseDate) {
+            body.purchaseDate = body.purchaseDate;
+        }
+        const validated = updatePurchaseSchema.parse(body);
+        const fileUrl = req.file ? req.file.path.replace(/\\/g, '/') : undefined;
+        const result = await pharmacyService.updatePurchase(req.params.id as string, validated, fileUrl);
+        sendSuccess(res, result, 'Purchase updated successfully');
+    } catch (error) {
+        logger.error({ context: 'PharmacyController.updatePurchase', error, id: req.params.id }, 'Failed to update purchase');
+        next(error);
+    }
+}
+
+export async function deletePurchase(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        await pharmacyService.deletePurchase(req.params.id as string);
+        sendSuccess(res, null, 'Purchase deleted successfully');
+    } catch (error) {
+        logger.error({ context: 'PharmacyController.deletePurchase', error, id: req.params.id }, 'Failed to delete purchase');
         next(error);
     }
 }
