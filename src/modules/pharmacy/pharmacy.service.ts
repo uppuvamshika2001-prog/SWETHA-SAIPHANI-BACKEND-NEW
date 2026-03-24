@@ -1,4 +1,5 @@
 import { prisma } from '../../config/database.js';
+import { Prisma } from '@prisma/client';
 import { NotFoundError, ValidationError } from '../../middleware/errorHandler.js';
 import {
     CreateMedicineInput,
@@ -177,25 +178,23 @@ export class PharmacyService {
         try {
             await this.ensureTablesExist();
 
-            let whereClause = 'WHERE 1=1';
-            const params: any[] = [];
+            const conditions: Prisma.Sql[] = [Prisma.sql`1=1`];
 
             if (search) {
-                params.push(`%${search}%`);
-                whereClause += ` AND (m.name ILIKE $${params.length} OR m.id::text ILIKE $${params.length})`;
+                conditions.push(Prisma.sql`(m.name ILIKE ${'%' + search + '%'} OR m.id::text ILIKE ${'%' + search + '%'})`);
             }
 
             if (category) {
                 if (!isNaN(Number(category))) {
-                    params.push(Number(category));
-                    whereClause += ` AND m.category_id = $${params.length}`;
+                    conditions.push(Prisma.sql`m.category_id = ${Number(category)}`);
                 } else {
-                    params.push(category);
-                    whereClause += ` AND c.name ILIKE $${params.length}`;
+                    conditions.push(Prisma.sql`c.name ILIKE ${category}`);
                 }
             }
 
-            const sql = `
+            const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
+
+            const sql = Prisma.sql`
                 SELECT 
                     m.id, 
                     m.name, 
@@ -209,15 +208,15 @@ export class PharmacyService {
                 LIMIT ${limit} OFFSET ${skip}
             `;
 
-            let items = await prisma.$queryRawUnsafe<any[]>(sql, ...params);
+            let items = await prisma.$queryRaw<any[]>(sql);
             
-            const countSql = `
+            const countSql = Prisma.sql`
                 SELECT COUNT(*) 
                 FROM medicines m
                 LEFT JOIN categories c ON m.category_id = c.id
                 ${whereClause}
             `;
-            const countResult = await prisma.$queryRawUnsafe<any[]>(countSql, ...params);
+            const countResult = await prisma.$queryRaw<any[]>(countSql);
             const total = Number(countResult[0]?.count) || 0;
 
             let formattedItems = items.map(m => ({
@@ -231,7 +230,7 @@ export class PharmacyService {
 
             // Restore returns format for batch-level selection
             if (format === 'returns') {
-                const batchSql = `
+                const batchSql = Prisma.sql`
                     SELECT 
                         m.id, 
                         m.name, 
@@ -241,12 +240,12 @@ export class PharmacyService {
                         b.expiry_date as expiry,
                         b.purchase_price as "purchasePrice"
                     FROM medicine_batches b
-                    JOIN medicines m ON b.medicine_id = m.id
-                    ${whereClause.replace('m.category_id', 'm.category_id')} -- simple reuse
+                    JOIN medicines m ON b.medicine_id::text = m.id::text
+                    ${whereClause}
                     AND b.is_active = true AND b.stock_quantity > 0
                     ORDER BY b.expiry_date ASC
                 `;
-                const batchItems = await prisma.$queryRawUnsafe<any[]>(batchSql, ...params);
+                const batchItems = await prisma.$queryRaw<any[]>(batchSql);
                 formattedItems = batchItems.map(b => ({
                     ...b,
                     stock: Number(b.stock) || 0,
@@ -859,7 +858,7 @@ export class PharmacyService {
         }
 
         // 1. Range Items Query
-        const rangeItemsSql = `
+        const rangeItemsSql = Prisma.sql`
             SELECT 
                 m.name AS medicine_name,
                 bi.quantity,
@@ -867,44 +866,40 @@ export class PharmacyService {
                 m.price_per_unit AS purchase_price,
                 (bi.unit_price - m.price_per_unit) * bi.quantity AS profit
             FROM bill_items bi
-            JOIN bills b ON bi.bill_id = b.id
-            JOIN medicines m ON bi.medicine_id = m.id
+            JOIN bills b ON bi.bill_id::text = b.id::text
+            JOIN medicines m ON bi.medicine_id::text = m.id::text
             WHERE b.status = 'PAID'
-              AND b.created_at >= $1 
-              AND b.created_at <= $2
+              AND b.created_at >= ${start} 
+              AND b.created_at <= ${end}
         `;
 
-        const rangeItems = await prisma.$queryRawUnsafe<any[]>(
-            rangeItemsSql,
-            start,
-            end
-        );
+        const rangeItems = await prisma.$queryRaw<any[]>(rangeItemsSql);
 
         // 2. Today's Profit
-        const todaySql = `
+        const todaySql = Prisma.sql`
             SELECT 
                 SUM((bi.unit_price - m.price_per_unit) * bi.quantity) AS "todayMargin"
             FROM bill_items bi
-            JOIN bills b ON bi.bill_id = b.id
-            JOIN medicines m ON bi.medicine_id = m.id
+            JOIN bills b ON bi.bill_id::text = b.id::text
+            JOIN medicines m ON bi.medicine_id::text = m.id::text
             WHERE b.status = 'PAID'
               AND DATE(b.created_at) = CURRENT_DATE
         `;
-        const todayResult = await prisma.$queryRawUnsafe<any[]>(todaySql);
+        const todayResult = await prisma.$queryRaw<any[]>(todaySql);
         const todayMargin = Number(todayResult[0]?.todayMargin) || 0;
 
         // 3. Monthly Profit
-        const monthlySql = `
+        const monthlySql = Prisma.sql`
             SELECT 
                 SUM((bi.unit_price - m.price_per_unit) * bi.quantity) AS "monthlyMargin"
             FROM bill_items bi
-            JOIN bills b ON bi.bill_id = b.id
-            JOIN medicines m ON bi.medicine_id = m.id
+            JOIN bills b ON bi.bill_id::text = b.id::text
+            JOIN medicines m ON bi.medicine_id::text = m.id::text
             WHERE b.status = 'PAID'
               AND EXTRACT(MONTH FROM b.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
               AND EXTRACT(YEAR FROM b.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
         `;
-        const monthlyResult = await prisma.$queryRawUnsafe<any[]>(monthlySql);
+        const monthlyResult = await prisma.$queryRaw<any[]>(monthlySql);
         const monthlyMargin = Number(monthlyResult[0]?.monthlyMargin) || 0;
 
         // 4. Aggregate Range Data
@@ -978,32 +973,32 @@ export class PharmacyService {
             });
 
             // 2. Sales Summary (Daily aggregation)
-            const salesSummarySql = `
+            const salesSummarySql = Prisma.sql`
                 SELECT 
                     DATE(created_at) as "date",
                     SUM(grand_total) as "total_sales"
                 FROM bills
-                WHERE created_at >= $1 AND created_at <= $2 AND status = 'PAID'
+                WHERE created_at >= ${start} AND created_at <= ${end} AND status = 'PAID'
                 GROUP BY DATE(created_at)
                 ORDER BY DATE(created_at) ASC
             `;
-            const salesResult = await prisma.$queryRawUnsafe<any[]>(salesSummarySql, start, end);
+            const salesResult = await prisma.$queryRaw<any[]>(salesSummarySql);
             const salesSummary = salesResult.map(row => ({
                 date: row.date,
                 total_sales: Number(row.total_sales) || 0
             }));
 
             // 3. Inventory Report
-            const inventorySql = `
+            const inventorySql = Prisma.sql`
                 SELECT 
                     name,
                     stock_quantity,
                     reorder_level as "min_stock_level",
-                    (SELECT expiry_date FROM medicine_batches mb WHERE mb.medicine_id = m.id AND mb.is_active = true ORDER BY expiry_date ASC LIMIT 1) as "expiry_date"
+                    (SELECT expiry_date FROM medicine_batches mb WHERE mb.medicine_id::text = m.id::text AND mb.is_active = true ORDER BY expiry_date ASC LIMIT 1) as "expiry_date"
                 FROM medicines m
                 ORDER BY name ASC
             `;
-            const inventoryResult = await prisma.$queryRawUnsafe<any[]>(inventorySql);
+            const inventoryResult = await prisma.$queryRaw<any[]>(inventorySql);
             const inventory = inventoryResult.map(row => ({
                 name: row.name,
                 stock_quantity: Number(row.stock_quantity) || 0,
@@ -1012,7 +1007,7 @@ export class PharmacyService {
             }));
 
             // 4. Distributor Dues
-            const duesSql = `
+            const duesSql = Prisma.sql`
                 SELECT 
                     distributor_name as "distributor_id",
                     SUM(total_amount) - SUM(amount_paid) as "due_amount"
@@ -1020,7 +1015,7 @@ export class PharmacyService {
                 WHERE payment_status IN ('PENDING', 'PARTIALLY_PAID')
                 GROUP BY distributor_name
             `;
-            const duesResult = await prisma.$queryRawUnsafe<any[]>(duesSql);
+            const duesResult = await prisma.$queryRaw<any[]>(duesSql);
             const distributorDues = duesResult.map(row => ({
                 distributor_id: row.distributor_id,
                 due_amount: Number(row.due_amount) || 0
@@ -1466,7 +1461,7 @@ export class PharmacyService {
     async getCategories() {
         try {
             await this.ensureTablesExist();
-            const categories = await prisma.$queryRawUnsafe<any[]>('SELECT id, name FROM categories ORDER BY name ASC');
+            const categories = await prisma.$queryRaw<any[]>(Prisma.sql`SELECT id, name FROM categories ORDER BY name ASC`);
             return categories || [];
         } catch (error) {
             console.error('[PharmacyService] getCategories DATABASE_ERROR:', error);
@@ -1481,19 +1476,13 @@ export class PharmacyService {
             await this.ensureTablesExist();
             
             // Check for duplicate (case-insensitive)
-            const existing = await prisma.$queryRawUnsafe<any[]>(
-                'SELECT id FROM categories WHERE name ILIKE $1 LIMIT 1',
-                name
-            );
+            const existing = await prisma.$queryRaw<any[]>(Prisma.sql`SELECT id FROM categories WHERE name ILIKE ${name} LIMIT 1`);
 
             if (existing && existing.length > 0) {
                 throw new Error('Category already exists');
             }
 
-            return await prisma.$executeRawUnsafe(
-                'INSERT INTO categories (name) VALUES ($1)',
-                name
-            );
+            return await prisma.$executeRaw(Prisma.sql`INSERT INTO categories (name) VALUES (${name})`);
         } catch (error) {
             console.error('[PharmacyService] createCategory DATABASE_ERROR:', error);
             throw error;
