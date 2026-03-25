@@ -106,8 +106,28 @@ export class LabService {
             || (input as any).patientType === 'WALKIN_LAB'
             || (input as any).patientType === 'WALK_IN';
 
+        // Generate Human-Readable Order Number (LAB-YYYYMMDD-XXX)
+        const today = new Date();
+        const dateStr = today.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
+        
+        const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+        const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+        
+        const countToday = await prisma.labTestOrder.count({
+            where: {
+                createdAt: {
+                    gte: startOfDay,
+                    lte: endOfDay
+                }
+            }
+        });
+        
+        const sequence = countToday + 1;
+        const newOrderNumber = `LAB-${dateStr}-${sequence.toString().padStart(3, '0')}`;
+
         const order = await (prisma.labTestOrder as any).create({
             data: {
+                orderNumber: newOrderNumber,
                 patientId: input.patientId,
                 orderedById: orderer.id,
                 orderedByRole: orderedByRoleValue,
@@ -654,6 +674,7 @@ export class LabService {
 
     private formatOrder(order: {
         id: string;
+        orderNumber?: string | null;
         patientId: string;
         orderedById: string;
         orderedByRole?: string | null;
@@ -681,6 +702,7 @@ export class LabService {
     }): LabOrderResponse {
         return {
             id: order.id,
+            orderNumber: order.orderNumber || null,
             patientId: order.patientId,
             orderedById: order.orderedById,
             orderedByRole: order.orderedByRole ?? null,

@@ -66,6 +66,7 @@ export type UpdateLabTestInput = z.infer<typeof updateLabTestSchema>;
 
 export interface LabOrderResponse {
     id: string;
+    orderNumber: string | null;
     patientId: string;
     orderedById: string;
     orderedByRole: string | null;

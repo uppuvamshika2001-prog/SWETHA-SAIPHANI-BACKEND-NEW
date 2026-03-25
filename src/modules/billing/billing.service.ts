@@ -7,11 +7,59 @@ export class BillingService {
     async create(input: CreateBillInput) {
         const { items, labOrderIds, isWalkInLab, creatorId, patientId, discount, gstPercent, notes, status } = input as any;
 
-        // Calculate totals
+        // Calculate totals and fetch purchase prices for profit tracking
         let subtotal = 0;
+        const medicineItems = (items as any[]).filter(item => item.medicineId && item.batchNumber);
+        
+        // Fetch batches in bulk to get purchase prices
+        const batches = medicineItems.length > 0 ? await prisma.medicineBatch.findMany({
+            where: {
+                OR: medicineItems.map(item => ({
+                    medicineId: item.medicineId,
+                    batchNumber: item.batchNumber
+                }))
+            }
+        }) : [];
+
+        // Fetch medicines for fallback purchase price if batch not found
+        const medicineIds = (items as any[]).filter(item => item.medicineId).map(item => item.medicineId);
+        const medicines = medicineIds.length > 0 ? await prisma.medicine.findMany({
+            where: { id: { in: medicineIds } }
+        }) : [];
+
         const billItems = (items as any[]).map((item: any) => {
-            const total = Number(item.unitPrice) * Number(item.quantity);
+            const unitPrice = Number(item.unitPrice) || 0;
+            const quantity = Number(item.quantity) || 0;
+            const total = unitPrice * quantity;
             subtotal += total;
+
+            // Determine purchase price
+            let purchasePrice = 0;
+            if (item.medicineId && item.batchNumber) {
+                const batch = batches.find(b => b.medicineId === item.medicineId && b.batchNumber === item.batchNumber);
+                if (batch) {
+                    purchasePrice = Number(batch.purchasePrice) || 0;
+                } else {
+                    // Fallback to medicine's last purchase price
+                    const med = medicines.find(m => m.id === item.medicineId);
+                    purchasePrice = Number(med?.pricePerUnit) || 0;
+                }
+            } else if (item.medicineId) {
+                const med = medicines.find(m => m.id === item.medicineId);
+                purchasePrice = Number(med?.pricePerUnit) || 0;
+            }
+
+            const itemDiscountPercent = item.discount ? Number(item.discount) : 0;
+            const itemGstPercent = item.gst ? Number(item.gst) : 0;
+            
+            const baseAmount = unitPrice * quantity;
+            const itemDiscountAmount = (baseAmount * itemDiscountPercent) / 100;
+            const afterDiscount = baseAmount - itemDiscountAmount;
+            const itemGstAmount = (afterDiscount * itemGstPercent) / 100;
+            const itemTotalAmount = afterDiscount + itemGstAmount;
+
+            const profit = (unitPrice - purchasePrice) * quantity;
+
             return {
                 description: item.description,
                 quantity: item.quantity,
@@ -20,17 +68,24 @@ export class BillingService {
                 batchNumber: item.batchNumber || undefined,
                 expiryDate: item.expiryDate ? new Date(item.expiryDate) : undefined,
                 hsnCode: item.hsnCode || undefined,
-                discount: item.discount ? Number(item.discount) : 0,
-                gst: item.gst ? Number(item.gst) : 0,
-                total
+                discount: itemDiscountPercent,
+                gst: itemGstPercent,
+                discountAmount: itemDiscountAmount,
+                gstAmount: itemGstAmount,
+                totalAmount: itemTotalAmount,
+                total: baseAmount, // Keeping legacy 'total' as base subtotal for safety
+                purchasePrice,
+                profit
             };
         });
 
-        const discountAmount = Number(discount || 0);
-        const discountedSubtotal = subtotal - discountAmount;
+        // Recalculate bill-level totals based on item sums for 100% accuracy
+        const totalDiscountAmt = billItems.reduce((sum, item) => sum + item.discountAmount, 0);
+        const totalGstAmt = billItems.reduce((sum, item) => sum + item.gstAmount, 0);
+        const totalGrandTotal = billItems.reduce((sum, item) => sum + Number(item.totalAmount), 0);
+        const totalSubtotal = billItems.reduce((sum, item) => sum + Number(item.total), 0);
+
         const gstRate = Number(gstPercent || 0);
-        const gstAmount = (discountedSubtotal * gstRate) / 100;
-        const grandTotal = discountedSubtotal + gstAmount;
 
         // Generate Bill Number (Simple format: INV-YYYYMMDD-XXXX)
         const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -42,11 +97,11 @@ export class BillingService {
             data: {
                 patientId,
                 billNumber,
-                subtotal,
-                discount: discountAmount,
+                subtotal: totalSubtotal,
+                discount: totalDiscountAmt,
                 gstPercent: gstRate,
-                gstAmount,
-                grandTotal,
+                gstAmount: totalGstAmt,
+                grandTotal: totalGrandTotal,
                 status: status || 'PENDING',
                 notes: notes || undefined,
                 items: {

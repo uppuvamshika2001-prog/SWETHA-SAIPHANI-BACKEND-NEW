@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createMedicine, getMedicines, getMedicine, updateMedicine, deleteMedicine, createBill, getBills, getBill, updateBill, deleteBill, getLowStockMedicines, getDistributorReport, getPurchases, getMarginReport, recordPayment, getPurchasePayments, createPurchase, updatePurchase, deletePurchase, processReturn, getReturns, processStockReturn, getStockReturns, getCategories, createCategory, deleteCategory, getPharmacyReports } from './pharmacy.controller.js';
+import { createMedicine, getMedicines, getMedicine, updateMedicine, updateBatch, deleteMedicine, createBill, getBills, getBill, updateBill, deleteBill, getLowStockMedicines, getDistributorReport, getPurchases, getMarginReport, recordPayment, getPurchasePayments, createPurchase, updatePurchase, deletePurchase, processReturn, getReturns, processStockReturn, getStockReturns, getCategories, createCategory, deleteCategory, getPharmacyReports } from './pharmacy.controller.js';
 import { getPendingPrescriptions, getDispensedHistory, getPharmacyStats } from '../doctors/doctors.controller.js';
 import { authGuard } from '../../middleware/authGuard.js';
 import { roleGuard } from '../../middleware/roleGuard.js';
@@ -22,6 +22,7 @@ router.get('/medicines', getMedicines);
 router.get('/medicines/low-stock', getLowStockMedicines);
 router.get('/medicines/:id', getMedicine);
 router.patch('/medicines/:id', updateMedicine);
+router.patch('/batches/:id', updateBatch);
 router.delete('/medicines/:id', deleteMedicine);
 
 // Categories
