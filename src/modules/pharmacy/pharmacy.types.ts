@@ -59,6 +59,19 @@ export const updateMedicineSchema = z.object({
     isActive: z.boolean().optional(),
 });
 
+export const updateBatchSchema = z.object({
+    batchNumber: z.string().min(1).optional(),
+    distributorName: z.string().min(1).optional(),
+    manufacturingDate: z.string().transform((s) => new Date(s)).optional(),
+    expiryDate: z.string().transform((s) => new Date(s)).optional(),
+    purchasePrice: z.number().nonnegative().optional(),
+    salePrice: z.number().nonnegative().optional(),
+    mrp: z.number().nonnegative().optional(),
+    gst: z.number().nonnegative().optional(),
+    stockQuantity: z.number().int().nonnegative().optional(),
+    isActive: z.boolean().optional(),
+});
+
 export const medicineQuerySchema = z.object({
     page: z.coerce.number().int().positive().default(1),
     limit: z.coerce.number().int().positive().max(100, "Maximum limit allowed is 100 records per request").default(10),
@@ -66,6 +79,7 @@ export const medicineQuerySchema = z.object({
     category: z.string().optional(),
     lowStock: z.coerce.boolean().optional(),
     format: z.string().optional(),
+    allBatches: z.coerce.boolean().optional(),
 });
 
 export const createBillItemSchema = z.object({
@@ -99,6 +113,7 @@ export const updateBillSchema = z.object({
 
 export type CreateMedicineInput = z.infer<typeof createMedicineSchema>;
 export type UpdateMedicineInput = z.infer<typeof updateMedicineSchema>;
+export type UpdateBatchInput = z.infer<typeof updateBatchSchema>;
 export type MedicineQueryInput = z.infer<typeof medicineQuerySchema>;
 export type CreateBillInput = z.infer<typeof createBillSchema>;
 export type CreateBillItem = z.infer<typeof createBillItemSchema>;

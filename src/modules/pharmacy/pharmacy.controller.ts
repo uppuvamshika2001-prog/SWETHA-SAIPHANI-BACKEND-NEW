@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { pharmacyService } from '@/modules/pharmacy/pharmacy.service.js';
-import { createMedicineSchema, updateMedicineSchema, medicineQuerySchema, createBillSchema, updateBillSchema, recordPaymentSchema, createPurchaseSchema, updatePurchaseSchema, createCategorySchema } from '@/modules/pharmacy/pharmacy.types.js';
+import { createMedicineSchema, updateMedicineSchema, updateBatchSchema, medicineQuerySchema, createBillSchema, updateBillSchema, recordPaymentSchema, createPurchaseSchema, updatePurchaseSchema, createCategorySchema } from '@/modules/pharmacy/pharmacy.types.js';
 import { sendSuccess, sendCreated } from '@/utils/response.js';
 import { logger } from '@/utils/logger.js';
 
@@ -229,6 +229,21 @@ export async function updateMedicine(
         sendSuccess(res, medicine, 'Medicine updated successfully');
     } catch (error) {
         logger.error({ context: 'PharmacyController.updateMedicine', error, id: req.params.id, body: req.body }, 'Failed to update medicine');
+        next(error);
+    }
+}
+
+export async function updateBatch(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const input = updateBatchSchema.parse(req.body);
+        const batch = await pharmacyService.updateBatch(req.params.id as string, input);
+        sendSuccess(res, batch, 'Batch updated successfully');
+    } catch (error) {
+        logger.error({ context: 'PharmacyController.updateBatch', error, id: req.params.id, body: req.body }, 'Failed to update batch');
         next(error);
     }
 }

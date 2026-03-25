@@ -10,6 +10,7 @@ import {
     UpdateBillInput,
     MedicineResponse,
     BillResponse,
+    UpdateBatchInput,
     CreateReturnInput,
     PharmacyReturnResponse,
     CreateStockReturnInput,
@@ -173,7 +174,7 @@ export class PharmacyService {
     }
 
     async getMedicines(query: MedicineQueryInput): Promise<PaginatedResponse<any>> {
-        const { page = 1, limit = 10, search, category, lowStock, format } = query;
+        const { page = 1, limit = 10, search, category, lowStock, format, allBatches } = query;
         const skip = (page - 1) * limit;
 
         try {
@@ -214,6 +215,76 @@ export class PharmacyService {
                     stock: b.stockQuantity,
                     expiry: b.expiryDate,
                     purchasePrice: b.purchasePrice
+                }));
+
+                return {
+                    items,
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit)
+                };
+            }
+
+            if (allBatches) {
+                const conditions: any[] = [{ isActive: true }];
+                if (search) {
+                    conditions.push({
+                        OR: [
+                            { medicine: { name: { contains: search, mode: 'insensitive' } } },
+                            { batchNumber: { contains: search, mode: 'insensitive' } },
+                            { distributorName: { contains: search, mode: 'insensitive' } }
+                        ]
+                    });
+                }
+                if (category) {
+                    if (!isNaN(Number(category))) {
+                        conditions.push({ medicine: { categoryId: Number(category) } });
+                    } else {
+                        conditions.push({ medicine: { categoryRel: { name: { contains: category, mode: 'insensitive' } } } });
+                    }
+                }
+                if (lowStock) {
+                    // This is tricky with allBatches. Usually lowStock is at medicine level.
+                    // But here we can show batches where stock is low.
+                    conditions.push({ stockQuantity: { lte: 10 } });
+                }
+
+                const total = await (prisma as any).medicineBatch.count({
+                    where: { AND: conditions }
+                });
+
+                const batches = await (prisma as any).medicineBatch.findMany({
+                    where: { AND: conditions },
+                    include: { medicine: { include: { categoryRel: true } } },
+                    take: limit,
+                    skip,
+                    orderBy: [
+                        { medicine: { name: 'asc' } },
+                        { expiryDate: 'asc' }
+                    ]
+                });
+
+                const items = batches.map((b: any) => ({
+                    id: b.id, // Batch ID is primary for batch-wise view
+                    medicineId: b.medicine.id,
+                    name: b.medicine.name,
+                    genericName: b.medicine.genericName,
+                    manufacturer: b.medicine.manufacturer,
+                    category: b.medicine.categoryRel?.name || b.medicine.category || '-',
+                    stock_quantity: b.stockQuantity,
+                    total_stock: b.medicine.stockQuantity,
+                    min_stock_level: b.medicine.reorderLevel,
+                    unit_price: Number(b.salePrice),
+                    purchase_price: Number(b.purchasePrice),
+                    gst: Number(b.gst),
+                    mrp: Number(b.mrp),
+                    distributor: b.distributorName,
+                    batch_number: b.batchNumber,
+                    expiry_date: b.expiryDate,
+                    status: b.stockQuantity <= b.medicine.reorderLevel ? (b.stockQuantity <= 0 ? 'out_of_stock' : 'low_stock') : 'in_stock',
+                    isBatchDetail: true,
+                    unit: b.medicine.unit
                 }));
 
                 return {
@@ -357,6 +428,57 @@ export class PharmacyService {
             data: input,
         });
         return this.formatMedicine(medicine);
+    }
+
+    async updateBatch(id: string, input: UpdateBatchInput): Promise<any> {
+        const existing = await (prisma as any).medicineBatch.findUnique({ 
+            where: { id },
+            include: { medicine: true } 
+        });
+        if (!existing) {
+            throw new NotFoundError('Batch');
+        }
+
+        // Validate expiry date if provided
+        if (input.expiryDate) {
+            const expDate = new Date(input.expiryDate);
+            if (expDate <= new Date()) {
+                throw new ValidationError('Expiry date must be in the future');
+            }
+        }
+
+        // Validate prices/stock
+        if (input.stockQuantity !== undefined && input.stockQuantity < 0) {
+            throw new ValidationError('Stock quantity cannot be negative');
+        }
+        if (input.purchasePrice !== undefined && input.purchasePrice < 0) {
+            throw new ValidationError('Purchase price cannot be negative');
+        }
+        if (input.salePrice !== undefined && input.salePrice < 0) {
+            throw new ValidationError('Sale price cannot be negative');
+        }
+
+        return await prisma.$transaction(async (tx: any) => {
+            const updatedBatch = await tx.medicineBatch.update({
+                where: { id },
+                data: input,
+            });
+
+            // Update aggregated medicine stock if quantity changed
+            if (input.stockQuantity !== undefined) {
+                const totalStock = await tx.medicineBatch.aggregate({
+                    where: { medicineId: existing.medicineId, isActive: true },
+                    _sum: { stockQuantity: true }
+                });
+
+                await tx.medicine.update({
+                    where: { id: existing.medicineId },
+                    data: { stockQuantity: totalStock._sum.stockQuantity || 0 }
+                });
+            }
+
+            return updatedBatch;
+        });
     }
 
     async deleteMedicine(id: string | number): Promise<void> {
@@ -975,11 +1097,11 @@ export class PharmacyService {
                 m.name AS medicine_name,
                 bi.quantity,
                 bi.unit_price,
-                m.price_per_unit AS purchase_price,
-                (bi.unit_price - m.price_per_unit) * bi.quantity AS profit
+                bi.purchase_price,
+                bi.profit
             FROM bill_items bi
             JOIN bills b ON bi.bill_id::text = b.id::text
-            JOIN medicines m ON bi.medicine_id::text = m.id::text
+            LEFT JOIN medicines m ON bi.medicine_id::text = m.id::text
             WHERE b.status = 'PAID'
               AND b.created_at >= ${start} 
               AND b.created_at <= ${end}
@@ -990,10 +1112,9 @@ export class PharmacyService {
         // 2. Today's Profit
         const todaySql = Prisma.sql`
             SELECT 
-                SUM((bi.unit_price - m.price_per_unit) * bi.quantity) AS "todayMargin"
+                SUM(bi.profit) AS "todayMargin"
             FROM bill_items bi
             JOIN bills b ON bi.bill_id::text = b.id::text
-            JOIN medicines m ON bi.medicine_id::text = m.id::text
             WHERE b.status = 'PAID'
               AND DATE(b.created_at) = CURRENT_DATE
         `;
@@ -1003,10 +1124,9 @@ export class PharmacyService {
         // 3. Monthly Profit
         const monthlySql = Prisma.sql`
             SELECT 
-                SUM((bi.unit_price - m.price_per_unit) * bi.quantity) AS "monthlyMargin"
+                SUM(bi.profit) AS "monthlyMargin"
             FROM bill_items bi
             JOIN bills b ON bi.bill_id::text = b.id::text
-            JOIN medicines m ON bi.medicine_id::text = m.id::text
             WHERE b.status = 'PAID'
               AND EXTRACT(MONTH FROM b.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
               AND EXTRACT(YEAR FROM b.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
