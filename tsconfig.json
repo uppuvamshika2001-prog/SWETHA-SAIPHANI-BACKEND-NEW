@@ -7,7 +7,7 @@
         "lib": [
             "ES2022"
         ],
-        "outDir": "./dist",
+        "outDir": "./build_output",
         "rootDir": "src",
         "strict": true,
         "esModuleInterop": true,
