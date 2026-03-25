@@ -68,19 +68,24 @@ export const medicineQuerySchema = z.object({
     format: z.string().optional(),
 });
 
+export const createBillItemSchema = z.object({
+    medicineId: z.string().optional(),
+    description: z.string().min(1),
+    quantity: z.number().int().positive(),
+    unitPrice: z.number().nonnegative(),
+    batchNumber: z.string().optional(),
+    expiryDate: z.coerce.date().optional(),
+    hsnCode: z.string().optional(),
+    discount: z.number().nonnegative().default(0),
+    gst: z.number().nonnegative().default(0),
+});
+
 export const createBillSchema = z.object({
     patientId: z.string().optional(),
     customerName: z.string().optional(),
     phone: z.string().optional(),
     isWalkIn: z.boolean().default(false),
-    items: z.array(z.object({
-        medicineId: z.string().optional(),
-        description: z.string().min(1),
-        quantity: z.number().int().positive(),
-        unitPrice: z.number().positive(),
-        discount: z.number().nonnegative().default(0),
-        gst: z.number().nonnegative().default(0),
-    })).min(1, 'At least one item is required'),
+    items: z.array(createBillItemSchema).min(1, 'At least one item is required'),
     discount: z.number().nonnegative().default(0),
     gstPercent: z.number().nonnegative().default(18),
     notes: z.string().optional(),
@@ -96,6 +101,7 @@ export type CreateMedicineInput = z.infer<typeof createMedicineSchema>;
 export type UpdateMedicineInput = z.infer<typeof updateMedicineSchema>;
 export type MedicineQueryInput = z.infer<typeof medicineQuerySchema>;
 export type CreateBillInput = z.infer<typeof createBillSchema>;
+export type CreateBillItem = z.infer<typeof createBillItemSchema>;
 export type UpdateBillInput = z.infer<typeof updateBillSchema>;
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
 
@@ -148,6 +154,10 @@ export interface BillResponse {
         profit: number;
         medicineId: string | null;
         batchNumber: string | null;
+        expiryDate: Date | null;
+        hsnCode: string | null;
+        discount: number;
+        gst: number;
         total: number;
     }>;
     createdAt: Date;

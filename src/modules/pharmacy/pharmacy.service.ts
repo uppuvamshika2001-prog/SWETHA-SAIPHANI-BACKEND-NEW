@@ -6,6 +6,7 @@ import {
     UpdateMedicineInput,
     MedicineQueryInput,
     CreateBillInput,
+    CreateBillItem,
     UpdateBillInput,
     MedicineResponse,
     BillResponse,
@@ -384,7 +385,7 @@ export class PharmacyService {
         }
 
         // Validate stock for medicine items
-        for (const item of input.items) {
+        for (const item of input.items as CreateBillItem[]) {
             if (item.medicineId) {
                 const medicine = await (prisma as any).medicine.findUnique({ where: { id: item.medicineId } });
                 if (!medicine) {
@@ -397,7 +398,7 @@ export class PharmacyService {
         }
 
         // Calculate totals
-        const subtotal = input.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+        const subtotal = (input.items as CreateBillItem[]).reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
         const discountedSubtotal = subtotal - input.discount;
         const gstAmount = (discountedSubtotal * input.gstPercent) / 100;
         const grandTotal = discountedSubtotal + gstAmount;
@@ -413,7 +414,7 @@ export class PharmacyService {
             let totalGstAmount = 0;
             const billItemsData = [];
 
-            for (const item of input.items) {
+            for (const item of input.items as CreateBillItem[]) {
                 const itemBase = item.quantity * item.unitPrice;
                 const itemDiscount = itemBase * ((item.discount || 0) / 100);
                 const itemTaxable = itemBase - itemDiscount;
