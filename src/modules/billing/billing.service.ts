@@ -5,7 +5,17 @@ import { Prisma } from '@prisma/client';
 
 export class BillingService {
     async create(input: CreateBillInput) {
-        const { items, labOrderIds, isWalkInLab, creatorId, patientId, discount, gstPercent, notes, status } = input as any;
+        const { items, labOrderIds, isWalkInLab, creatorId, patientId, discount, gstPercent, notes, status, billType: explicitBillType } = input as any;
+
+        // Derive billType: explicit > lab orders > item types > default CONSULTATION
+        let billType = explicitBillType || 'CONSULTATION';
+        if (!explicitBillType) {
+            const hasLabOrders = (labOrderIds && labOrderIds.length > 0);
+            const hasLabItems = (items as any[]).some((item: any) => item.type === 'lab');
+            if (hasLabOrders || hasLabItems || isWalkInLab) {
+                billType = 'LAB';
+            }
+        }
 
         // Calculate totals and fetch purchase prices for profit tracking
         let subtotal = 0;
@@ -97,6 +107,7 @@ export class BillingService {
             data: {
                 patientId,
                 billNumber,
+                billType,
                 subtotal: totalSubtotal,
                 discount: totalDiscountAmt,
                 gstPercent: gstRate,
@@ -190,7 +201,10 @@ export class BillingService {
         const { patientId, status, startDate, endDate, search } = query;
         const skip = (page - 1) * limit;
 
-        const where: any = {};
+        const where: any = {
+            // Exclude PHARMACY bills from reception/billing views
+            billType: { not: 'PHARMACY' }
+        };
 
         if (patientId && patientId.trim() !== '') {
             where.patientId = patientId;

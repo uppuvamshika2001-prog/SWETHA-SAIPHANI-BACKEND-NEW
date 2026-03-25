@@ -263,6 +263,7 @@ model Bill {
   gstAmount    Decimal              @map("gst_amount") @db.Decimal(10, 2)
   grandTotal   Decimal              @map("grand_total") @db.Decimal(10, 2)
   status       BillStatus           @default(PENDING)
+  billType     String               @default("PHARMACY") @map("bill_type")
   paidAmount   Decimal              @default(0) @map("paid_amount") @db.Decimal(10, 2)
   notes        String?
   createdAt    DateTime             @default(now()) @map("created_at")
@@ -273,6 +274,7 @@ model Bill {
   transactions PaymentTransaction[]
   returns      PharmacyReturn[]
 
+  @@index([billType])
   @@map("bills")
 }
 

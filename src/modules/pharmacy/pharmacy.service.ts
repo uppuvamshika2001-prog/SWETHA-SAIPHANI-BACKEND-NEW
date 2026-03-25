@@ -596,7 +596,7 @@ export class PharmacyService {
                 }
 
                 const avgPurchasePrice = item.medicineId ? totalPurchasePrice / item.quantity : 0;
-                const itemProfit = itemTaxable - (item.quantity * avgPurchasePrice);
+                const itemProfit = (item.unitPrice - avgPurchasePrice) * item.quantity;
 
                 billItemsData.push({
                     medicineId: item.medicineId || null,
@@ -629,7 +629,8 @@ export class PharmacyService {
                     customerName: input.isWalkIn ? input.customerName : null,
                     phone: input.isWalkIn ? input.phone : null,
                     isWalkIn: input.isWalkIn || false,
-                    billNumber: `PH-${Date.now()}`, 
+                    billNumber: `PH-${Date.now()}`,
+                    billType: 'PHARMACY',
                     subtotal: subtotal, 
                     discount: totalDiscount, 
                     gstPercent: input.gstPercent, 
@@ -1091,7 +1092,7 @@ export class PharmacyService {
             end.setHours(23, 59, 59, 999);
         }
 
-        // 1. Range Items Query
+        // 1. Range Items Query — PHARMACY only, exclude null medicineId
         const rangeItemsSql = Prisma.sql`
             SELECT 
                 m.name AS medicine_name,
@@ -1101,33 +1102,39 @@ export class PharmacyService {
                 bi.profit
             FROM bill_items bi
             JOIN bills b ON bi.bill_id::text = b.id::text
-            LEFT JOIN medicines m ON bi.medicine_id::text = m.id::text
+            JOIN medicines m ON bi.medicine_id::text = m.id::text
             WHERE b.status = 'PAID'
+              AND b.bill_type = 'PHARMACY'
+              AND bi.medicine_id IS NOT NULL
               AND b.created_at >= ${start} 
               AND b.created_at <= ${end}
         `;
 
         const rangeItems = await prisma.$queryRaw<any[]>(rangeItemsSql);
 
-        // 2. Today's Profit
+        // 2. Today's Profit — PHARMACY only
         const todaySql = Prisma.sql`
             SELECT 
                 SUM(bi.profit) AS "todayMargin"
             FROM bill_items bi
             JOIN bills b ON bi.bill_id::text = b.id::text
             WHERE b.status = 'PAID'
+              AND b.bill_type = 'PHARMACY'
+              AND bi.medicine_id IS NOT NULL
               AND DATE(b.created_at) = CURRENT_DATE
         `;
         const todayResult = await prisma.$queryRaw<any[]>(todaySql);
         const todayMargin = Number(todayResult[0]?.todayMargin) || 0;
 
-        // 3. Monthly Profit
+        // 3. Monthly Profit — PHARMACY only
         const monthlySql = Prisma.sql`
             SELECT 
                 SUM(bi.profit) AS "monthlyMargin"
             FROM bill_items bi
             JOIN bills b ON bi.bill_id::text = b.id::text
             WHERE b.status = 'PAID'
+              AND b.bill_type = 'PHARMACY'
+              AND bi.medicine_id IS NOT NULL
               AND EXTRACT(MONTH FROM b.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
               AND EXTRACT(YEAR FROM b.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
         `;
@@ -1144,7 +1151,7 @@ export class PharmacyService {
             
             totalMargin += profitValue;
 
-            const name = item.medicine_name || 'Unknown';
+            const name = item.medicine_name;
             if (!medMap.has(name)) {
                 medMap.set(name, { name, quantity: 0, profit: 0 });
             }
