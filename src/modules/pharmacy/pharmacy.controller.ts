@@ -337,14 +337,7 @@ export async function getBills(
         // use medicineQuerySchema which now includes optional format
         const query = medicineQuerySchema.parse(req.query);
         const result = await pharmacyService.getBills(query);
-        if (query.format === 'returns') {
-            res.status(200).json(result);
-            return;
-        }
-        res.json({
-            items: result.items || (Array.isArray(result) ? result : []),
-            total: result.total || (Array.isArray(result) ? result.length : 0)
-        });
+        sendSuccess(res, result);
     } catch (error) {
         logger.error({ context: 'PharmacyController.getBills', error, query: req.query }, 'Failed to fetch bills');
         next(error);
@@ -649,10 +642,7 @@ export async function getStockReturns(
 ): Promise<void> {
     try {
         const result: any = await pharmacyService.getStockReturns(req.query);
-        res.json({
-            items: result?.items || result || [],
-            total: result?.total || result?.length || 0
-        });
+        sendSuccess(res, result);
     } catch (error) {
         logger.error({ context: 'PharmacyController.getStockReturns', error, query: req.query }, 'Failed to fetch stock returns');
         next(error);

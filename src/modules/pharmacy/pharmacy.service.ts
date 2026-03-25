@@ -480,6 +480,9 @@ export class PharmacyService {
                     description: item.description,
                     quantity: item.quantity,
                     unitPrice: item.unitPrice,
+                    batchNumber: item.batchNumber || null,
+                    expiryDate: item.expiryDate || null,
+                    hsnCode: item.hsnCode || null,
                     discount: item.discount || 0,
                     gst: item.gst || 0,
                     total: itemTotal,
@@ -900,10 +903,29 @@ export class PharmacyService {
             ];
         }
         if (distributor) where.distributor = { contains: distributor, mode: 'insensitive' };
+        
         if (startDate || endDate) {
-            where.returnDate = {};
-            if (startDate) where.returnDate.gte = new Date(startDate);
-            if (endDate) where.returnDate.lte = new Date(endDate);
+            const dateFilter: any = {};
+            
+            if (startDate) {
+                const sDate = new Date(startDate);
+                if (!isNaN(sDate.getTime())) {
+                    sDate.setHours(0, 0, 0, 0);
+                    dateFilter.gte = sDate;
+                }
+            }
+            
+            if (endDate) {
+                const eDate = new Date(endDate);
+                if (!isNaN(eDate.getTime())) {
+                    eDate.setHours(23, 59, 59, 999);
+                    dateFilter.lte = eDate;
+                }
+            }
+            
+            if (Object.keys(dateFilter).length > 0) {
+                where.createdAt = dateFilter;
+            }
         }
 
         const [returns, total] = await Promise.all([
@@ -1325,6 +1347,10 @@ export class PharmacyService {
             purchasePrice?: Decimal;
             profit?: Decimal;
             total: Decimal;
+            expiryDate?: Date | null;
+            hsnCode?: string | null;
+            discount?: Decimal;
+            gst?: Decimal;
         }>;
         createdAt: Date;
         patient?: {
@@ -1357,6 +1383,10 @@ export class PharmacyService {
                 profit: Number((item as any).profit),
                 medicineId: item.medicineId || null,
                 batchNumber: (item as any).batchNumber || null,
+                expiryDate: (item as any).expiryDate || null,
+                hsnCode: (item as any).hsnCode || null,
+                discount: Number((item as any).discount || 0),
+                gst: Number((item as any).gst || 0),
                 total: Number(item.total),
             })),
             createdAt: bill.createdAt,
