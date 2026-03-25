@@ -19,7 +19,8 @@
     "seed:admin": "tsx prisma/seed-admin.ts",
     "seed:master-lab": "tsx src/seed-master-lab-data.ts",
     "migrate:lab-orders": "tsx src/migrate-lab-orders.ts",
-    "seed:lab": "tsx prisma/seed.ts"
+    "seed:lab": "tsx prisma/seed.ts",
+    "backfill": "node dist/scripts/backfill-profit.js"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
