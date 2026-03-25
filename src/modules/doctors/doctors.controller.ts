@@ -295,7 +295,11 @@ export async function getDispensedHistory(
     next: NextFunction
 ): Promise<void> {
     try {
-        const records = await doctorsService.getDispensedHistory();
+        const { startDate, endDate } = req.query;
+        const records = await doctorsService.getDispensedHistory(
+            startDate as string,
+            endDate as string
+        );
         sendSuccess(res, records);
     } catch (error) {
         next(error);

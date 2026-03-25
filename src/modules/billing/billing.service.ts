@@ -17,6 +17,11 @@ export class BillingService {
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
                 medicineId: item.medicineId || undefined,
+                batchNumber: item.batchNumber || undefined,
+                expiryDate: item.expiryDate ? new Date(item.expiryDate) : undefined,
+                hsnCode: item.hsnCode || undefined,
+                discount: item.discount ? Number(item.discount) : 0,
+                gst: item.gst ? Number(item.gst) : 0,
                 total
             };
         });
@@ -199,7 +204,8 @@ export class BillingService {
                     orderBy: { createdAt: 'desc' },
                     include: {
                         patient: true,
-                        items: { include: { medicine: true } }
+                        items: { include: { medicine: true } },
+                        transactions: true
                     }
                 })
             ]);
@@ -237,7 +243,8 @@ export class BillingService {
             where: { id },
             include: {
                 patient: true,
-                items: { include: { medicine: true } }
+                items: { include: { medicine: true } },
+                transactions: true
             }
         });
 
@@ -458,6 +465,9 @@ export class BillingService {
                 treatment: bill.medicalRecord.treatment,
                 notes: bill.medicalRecord.notes
             } : undefined,
+            transactions: bill.transactions,
+            paymentMode: bill.transactions && bill.transactions.length > 0 ? bill.transactions[0].paymentMode : undefined,
+            createdBy: bill.transactions && bill.transactions.length > 0 ? bill.transactions[0].createdBy : undefined,
             items: bill.items?.map((item: any) => ({
                 ...item,
                 description: item.description || item.medicine?.name || 'Medicine',

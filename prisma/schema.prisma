@@ -196,6 +196,7 @@ model Medicine {
   genericName      String?                   @map("generic_name")
   manufacturer     String?
   category         String?
+  hsnCode          String?                   @map("hsn_code")
   unit             String                    @default("tablet")
   pricePerUnit     Decimal                   @default(0) @map("price_per_unit") @db.Decimal(10, 2)
   stockQuantity    Int                       @default(0) @map("stock_quantity")
@@ -280,6 +281,9 @@ model BillItem {
   billId        String    @map("bill_id")
   medicineId    String?   @map("medicine_id")
   description   String
+  batchNumber   String?   @map("batch_number")
+  expiryDate    DateTime? @map("expiry_date")
+  hsnCode       String?   @map("hsn_code")
   quantity      Int
   unitPrice     Decimal   @default(0) @map("unit_price") @db.Decimal(10, 2)
   discount      Decimal   @default(0) @db.Decimal(5, 2)

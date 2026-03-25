@@ -178,6 +178,52 @@ export class PharmacyService {
         try {
             await this.ensureTablesExist();
 
+            if (format === 'returns') {
+                const conditions: any[] = [{ stockQuantity: { gt: 0 } }, { isActive: true }];
+                if (search) {
+                    conditions.push({
+                        OR: [
+                            { medicine: { name: { contains: search, mode: 'insensitive' } } },
+                            { batchNumber: { contains: search, mode: 'insensitive' } },
+                            { distributorName: { contains: search, mode: 'insensitive' } }
+                        ]
+                    });
+                }
+
+                // Count total matching batches
+                const total = await (prisma as any).medicineBatch.count({
+                    where: { AND: conditions }
+                });
+
+                // Fetch batches with medicine relations
+                const batches = await (prisma as any).medicineBatch.findMany({
+                    where: { AND: conditions },
+                    include: { medicine: true },
+                    take: limit,
+                    skip,
+                    orderBy: { expiryDate: 'asc' }
+                });
+
+                const items = batches.map((b: any) => ({
+                    id: b.medicine.id,
+                    name: b.medicine.name,
+                    genericName: b.medicine.genericName,
+                    batch: b.batchNumber,
+                    distributor: b.distributorName,
+                    stock: b.stockQuantity,
+                    expiry: b.expiryDate,
+                    purchasePrice: b.purchasePrice
+                }));
+
+                return {
+                    items,
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit)
+                };
+            }
+
             const conditions: Prisma.Sql[] = [Prisma.sql`1=1`];
 
             if (search) {
@@ -482,16 +528,21 @@ export class PharmacyService {
     }
 
     async getBills(query: MedicineQueryInput): Promise<PaginatedResponse<BillResponse>> {
-        const { page = 1, limit = 10, search, format } = query;
+        const { page = 1, limit = 10, search: rawSearch, format } = query;
+        const search = rawSearch?.trim();
         const skip = (page - 1) * limit;
 
         const where: Record<string, any> = {};
         if (search) {
             where.OR = [
                 { billNumber: { contains: search, mode: 'insensitive' } },
+                { customerName: { contains: search, mode: 'insensitive' } },
+                { phone: { contains: search, mode: 'insensitive' } },
                 { patient: { firstName: { contains: search, mode: 'insensitive' } } },
                 { patient: { lastName: { contains: search, mode: 'insensitive' } } },
+                { patient: { phone: { contains: search, mode: 'insensitive' } } },
             ];
+            console.log(`[PharmacyService.getBills] Searching with query: "${search}"`);
         }
 
         if (format === 'returns') {
@@ -512,6 +563,10 @@ export class PharmacyService {
             }),
             prisma.bill.count({ where }),
         ]);
+
+        if (search) {
+            console.log(`[PharmacyService.getBills] Found ${total} bills for search: "${search}"`);
+        }
 
         return {
             items: bills.map((b) => this.formatBill(b as any)),

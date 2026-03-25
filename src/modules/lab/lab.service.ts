@@ -193,8 +193,9 @@ export class LabService {
                     take: Number(limit),
                     orderBy: { createdAt: 'desc' },
                     include: {
-                        patient: { select: { firstName: true, lastName: true } },
+                        patient: { select: { uhid: true, firstName: true, lastName: true, phone: true, gender: true, dateOfBirth: true } },
                         orderedBy: { select: { firstName: true, lastName: true, user: { select: { role: true } } } },
+                        doctor: { select: { firstName: true, lastName: true } },
                         test: true,
                         bill: true,
                         result: true,
@@ -220,8 +221,9 @@ export class LabService {
         const order = await prisma.labTestOrder.findUnique({
             where: { id },
             include: {
-                patient: { select: { firstName: true, lastName: true } },
+                patient: { select: { uhid: true, firstName: true, lastName: true, phone: true, gender: true, dateOfBirth: true } },
                 orderedBy: { select: { firstName: true, lastName: true, user: { select: { role: true } } } },
+                doctor: { select: { firstName: true, lastName: true } },
                 bill: true,
                 result: true,
             },

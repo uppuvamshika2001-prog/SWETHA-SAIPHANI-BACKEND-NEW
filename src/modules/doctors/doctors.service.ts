@@ -218,6 +218,9 @@ export class DoctorsService {
                             orderBy: { expiryDate: 'asc' },
                         });
 
+                        let currentStock = medicine.stockQuantity;
+                        let batchLogsCreated = false;
+
                         for (const batch of batches) {
                             if (remainingQty <= 0) break;
                             const deductQty = Math.min(batch.stockQuantity, remainingQty);
@@ -225,11 +228,53 @@ export class DoctorsService {
                                 where: { id: batch.id },
                                 data: { stockQuantity: { decrement: deductQty } },
                             });
+                            
+                            // Log batch-specific deduction
+                            await (tx as any).inventoryLog.create({
+                                data: {
+                                    medicineId: medicine.id,
+                                    batchNumber: batch.batchNumber, // NOW BATCH TRACKING IS TRUE
+                                    type: 'DISPENSE',
+                                    quantity: -deductQty,
+                                    previousStock: currentStock,
+                                    newStock: currentStock - deductQty,
+                                    referenceId: recordId,
+                                    remarks: `Dispensed batch ${batch.batchNumber} via prescription for record ${recordId}`
+                                }
+                            });
+                            
+                            currentStock -= deductQty;
                             remainingQty -= deductQty;
+                            batchLogsCreated = true;
                         }
 
                         if (remainingQty > 0) {
                             console.warn(`[Dispense] Not enough batch stock for ${medicine.name}, but master stock was sufficient. Proceeding.`);
+                            // Create generic log for remainder to balance books if batches ran out prematurely
+                            await (tx as any).inventoryLog.create({
+                                data: {
+                                    medicineId: medicine.id,
+                                    type: 'DISPENSE',
+                                    quantity: -remainingQty,
+                                    previousStock: currentStock,
+                                    newStock: currentStock - remainingQty,
+                                    referenceId: recordId,
+                                    remarks: `Dispensed generic stock via prescription for record ${recordId}`
+                                }
+                            });
+                        } else if (!batchLogsCreated) {
+                            // Fallback if no batches found at all
+                            await (tx as any).inventoryLog.create({
+                                data: {
+                                    medicineId: medicine.id,
+                                    type: 'DISPENSE',
+                                    quantity: -qty,
+                                    previousStock: medicine.stockQuantity,
+                                    newStock: medicine.stockQuantity - qty,
+                                    referenceId: recordId,
+                                    remarks: `Dispensed generic stock via prescription for record ${recordId}`
+                                }
+                            });
                         }
 
                         // Update master stock
@@ -238,19 +283,6 @@ export class DoctorsService {
                         await tx.medicine.update({
                             where: { id: medicine.id },
                             data: { stockQuantity: newStock }
-                        });
-
-                        // Create Audit Log
-                        await (tx as any).inventoryLog.create({
-                            data: {
-                                medicineId: medicine.id,
-                                type: 'DISPENSE',
-                                quantity: -qty,
-                                previousStock: prevStock,
-                                newStock: newStock,
-                                referenceId: recordId,
-                                remarks: `Dispensed via prescription for record ${recordId}`
-                            }
                         });
 
                         console.log(`[Dispense] Deducted ${qty} unit(s) of ${medicine.name}. Stock: ${prevStock} -> ${newStock}`);
@@ -413,11 +445,21 @@ export class DoctorsService {
         };
     }
 
-    async getDispensedHistory() {
+    async getDispensedHistory(startDate?: string, endDate?: string) {
+        const where: any = { prescriptionStatus: 'DISPENSED' };
+        
+        if (startDate || endDate) {
+            where.updatedAt = {};
+            if (startDate) {
+                where.updatedAt.gte = new Date(`${startDate}T00:00:00.000Z`);
+            }
+            if (endDate) {
+                where.updatedAt.lte = new Date(`${endDate}T23:59:59.999Z`);
+            }
+        }
+
         const records = await prisma.medicalRecord.findMany({
-            where: {
-                prescriptionStatus: 'DISPENSED'
-            },
+            where,
             include: {
                 patient: true,
                 doctor: true
@@ -425,9 +467,64 @@ export class DoctorsService {
             orderBy: {
                 updatedAt: 'desc'
             },
-            take: 10
+            take: startDate || endDate ? undefined : 50 // Limit when no dates applied
         });
-        return records.map(r => this.formatMedicalRecord(r as any));
+
+        // For each record, dynamically fetch its batch-level deductions to construct the 'items' explicitly requested
+        const recordIds = records.map(r => r.id);
+        const inventoryLogs = await prisma.inventoryLog.findMany({
+            where: {
+                referenceId: { in: recordIds },
+                type: 'DISPENSE'
+            },
+            include: {
+                medicine: {
+                    include: {
+                        batches: {
+                            where: { isActive: true }
+                        }
+                    }
+                }
+            }
+        });
+
+        const formattedRecords = records.map(record => {
+            const formatted = this.formatMedicalRecord(record as any);
+            const logsForRecord = inventoryLogs.filter(log => log.referenceId === record.id);
+            
+            let totalAmount = 0;
+            const items = logsForRecord.map(log => {
+                // Determine retail price matching the dispensed batch
+                const batch = log.medicine.batches.find(b => b.batchNumber === log.batchNumber);
+                const unitPrice = batch ? Number(batch.salePrice) : Number(log.medicine.pricePerUnit);
+                const quantity = Math.abs(log.quantity);
+                const itemTotal = unitPrice * quantity;
+                totalAmount += itemTotal;
+
+                return {
+                    id: log.id,
+                    medicineId: log.medicineId,
+                    medicineName: log.medicine.name,
+                    quantity: quantity,
+                    batchNumber: log.batchNumber || 'N/A',
+                    unitPrice: unitPrice,
+                    total: itemTotal,
+                    medicine: {
+                        ...log.medicine,
+                        pricePerUnit: Number(log.medicine.pricePerUnit)
+                    }
+                };
+            });
+
+            return {
+                ...formatted,
+                items: items.length > 0 ? items : undefined,
+                totalAmount: totalAmount, // For legacy frontend fallback
+                total: totalAmount
+            };
+        });
+
+        return formattedRecords;
     }
 
     async getPharmacyStats() {

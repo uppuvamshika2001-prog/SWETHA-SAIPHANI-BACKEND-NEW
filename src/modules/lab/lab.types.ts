@@ -26,6 +26,7 @@ export const createLabResultSchema = z.object({
             value: z.string().min(1),
             unit: z.string().optional(),
             normalRange: z.string().optional(),
+            referenceRange: z.string().optional(),
             flag: z.string().optional(),
         })),
     }),
@@ -94,6 +95,7 @@ export interface LabResultResponse {
             value: string;
             unit?: string;
             normalRange?: string;
+            referenceRange?: string;
             flag?: string;
         }>;
     };
