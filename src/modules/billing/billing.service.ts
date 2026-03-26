@@ -2,7 +2,6 @@ import { prisma } from '../../config/database.js';
 import { NotFoundError } from '../../middleware/errorHandler.js';
 import { CreateBillInput, BillQueryInput, UpdateBillStatusInput } from './billing.types.js';
 import { Prisma } from '@prisma/client';
-import { patientsService } from '../patients/patients.service.js';
 import { logger } from '../../utils/logger.js';
 
 export class BillingService {
@@ -133,18 +132,6 @@ export class BillingService {
             }
         });
 
-        // Handle OP Visit recording
-        if (input.visitType === 'OP' && patientId) {
-            try {
-                // If it's medical billing (not just pharmacy), record the visit
-                await patientsService.createOP(patientId);
-                console.log(`[BillingService] Created auto-OP record for patient ${patientId}`);
-            } catch (error) {
-                // Non-blocking error
-                console.error(`[BillingService] Failed to create auto-OP record for patient ${patientId}`, error);
-            }
-        }
-
         // Collect all lab order IDs (both explicit top-level ones AND embedded in item tracking)
         const embeddedLabOrderIds = (items as any[])
             .filter((item: any) => item.type === 'lab' && item.lab_order_id)
@@ -163,51 +150,6 @@ export class BillingService {
             });
         }
 
-        // Auto-create lab orders for lab items NOT linked to existing orders
-        const labItems = billItems.filter((item: any) =>
-            item.description.trim().toLowerCase().startsWith('lab:')
-        );
-
-        if (labItems.length > 0) {
-            let staffIdForOrder: string;
-
-            if (creatorId) {
-                const staff = await prisma.staff.findUnique({ where: { userId: creatorId } });
-                if (staff) {
-                    staffIdForOrder = staff.id;
-                } else {
-                    const fallbackStaff = await prisma.staff.findFirst();
-                    if (!fallbackStaff) throw new Error('No staff found in system to assign as test orderer.');
-                    staffIdForOrder = fallbackStaff.id;
-                }
-            } else {
-                const fallbackStaff = await prisma.staff.findFirst();
-                if (!fallbackStaff) throw new Error('No staff found in system to assign as test orderer.');
-                staffIdForOrder = fallbackStaff.id;
-            }
-
-            await prisma.$transaction(async (tx: any) => {
-                for (const labItem of labItems) {
-                    // Extract test name from "Lab: CBC" format
-                    const testName = labItem.description.replace(/^Lab:\s*/i, '').trim();
-                    if (!testName) continue;
-
-                    await tx.labTestOrder.create({
-                        data: {
-                            patientId: patientId || undefined,
-                            walkInName: customerName || undefined,
-                            walkInPhone: phone || undefined,
-                            orderedById: staffIdForOrder,
-                            testName,
-                            priority: 'normal',
-                            status: 'PAYMENT_PENDING',
-                            billId: bill.id,
-                            isWalkInLab: isWalkInLab || false,
-                        }
-                    });
-                }
-            });
-        }
 
         const medicalRecord = bill.patientId ? await prisma.medicalRecord.findFirst({
             where: { patientId: bill.patientId },
