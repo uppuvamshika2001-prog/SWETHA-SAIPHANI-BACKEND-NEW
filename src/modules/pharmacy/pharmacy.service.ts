@@ -857,7 +857,7 @@ export class PharmacyService {
                             medicineId: item.medicine_id,
                             batchNumber: item.batch_number,
                             returnQty: item.return_qty,
-                            salePrice: item.selling_price,
+                            sellingPrice: item.selling_price,
                             reason: item.reason
                         }))
                     }
@@ -963,7 +963,7 @@ export class PharmacyService {
                 medicine_name: item.medicine?.name,
                 batch_number: item.batchNumber,
                 return_qty: item.returnQty,
-                selling_price: Number(item.salePrice),
+                selling_price: Number(item.sellingPrice),
                 reason: item.reason
             }))
         };

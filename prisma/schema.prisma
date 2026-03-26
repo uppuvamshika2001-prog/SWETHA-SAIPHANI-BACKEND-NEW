@@ -615,7 +615,7 @@ model PharmacyReturnItem {
   medicineId  String         @map("medicine_id")
   batchNumber String?        @map("batch_number")
   returnQty   Int            @map("return_qty")
-  salePrice   Decimal        @map("sale_price") @db.Decimal(10, 2)
+  sellingPrice   Decimal        @map("selling_price") @db.Decimal(10, 2)
   reason      String
   return      PharmacyReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
   medicine    Medicine       @relation(fields: [medicineId], references: [id], onDelete: Cascade)
