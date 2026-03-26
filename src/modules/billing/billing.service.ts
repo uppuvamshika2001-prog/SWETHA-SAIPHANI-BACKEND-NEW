@@ -186,24 +186,19 @@ export class BillingService {
             where.status = (status as string).toUpperCase();
         }
 
-        // Date Filter Fix: Convert to proper UTC range boundaries to include the full day
+        // Date Filter Fix: Convert to proper range boundaries to include the full day
         if (startDate || endDate) {
             const dateFilter: any = {};
             
             if (startDate) {
-                // Ensure we only take the date part if it's a full ISO string
-                const datePart = (startDate as string).split('T')[0];
-                const start = new Date(`${datePart}T00:00:00.000Z`);
-                // Subtract 330 mins to convert IST 00:00:00 to UTC (18:30 previous day)
-                start.setMinutes(start.getMinutes() - 330);
+                const start = new Date(startDate);
+                start.setHours(0, 0, 0, 0);
                 dateFilter.gte = start;
             }
             
             if (endDate) {
-                const datePart = (endDate as string).split('T')[0];
-                const end = new Date(`${datePart}T23:59:59.999Z`);
-                // Subtract 330 mins to convert IST 23:59:59 to UTC (18:29 current day)
-                end.setMinutes(end.getMinutes() - 330);
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
                 dateFilter.lte = end;
             }
             
