@@ -219,13 +219,23 @@ export class BillingService {
     async findAll(query: BillQueryInput) {
         const page = Number(query.page || 1);
         const limit = Number(query.limit || 10);
-        const { patientId, status, startDate, endDate, search } = query;
+        const { patientId, status, startDate, endDate, search, billType } = query;
         const skip = (page - 1) * limit;
 
-        const where: any = {
-            // Exclude PHARMACY bills from reception/billing views
-            billType: { not: 'PHARMACY' }
-        };
+        const where: any = {};
+        
+        if (billType) {
+            if (Array.isArray(billType)) {
+                where.billType = { in: billType };
+            } else if (typeof billType === 'string' && billType.includes(',')) {
+                where.billType = { in: billType.split(',') };
+            } else {
+                where.billType = billType;
+            }
+        } else {
+            // Default: Show LAB and CONSULTATION for general reception/billing views
+            where.billType = { in: ['LAB', 'CONSULTATION'] };
+        }
 
         if (patientId && patientId.trim() !== '') {
             where.patientId = patientId;

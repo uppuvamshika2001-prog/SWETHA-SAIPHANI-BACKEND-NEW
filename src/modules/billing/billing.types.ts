@@ -38,6 +38,7 @@ export const billQuerySchema = z.object({
     startDate: z.string().optional(),
     endDate: z.string().optional(),
     search: z.string().optional(),
+    billType: z.union([z.string(), z.array(z.string())]).optional(),
 });
 
 export type CreateBillInput = z.infer<typeof createBillSchema> & {
