@@ -538,15 +538,14 @@ export class PharmacyService {
 
             for (const item of input.items as CreateBillItem[]) {
                 const itemBase = item.quantity * item.unitPrice;
-                const itemDiscount = itemBase * ((item.discount || 0) / 100);
-                const itemTaxable = itemBase - itemDiscount;
-                const itemGst = itemTaxable * ((item.gst || 0) / 100);
-                const itemTotal = itemTaxable + itemGst;
+                const itemDiscountAmt = itemBase * ((item.discount || 0) / 100);
+                const itemTaxable = itemBase - itemDiscountAmt;
+                const itemGstAmt = itemTaxable * ((item.gst || 0) / 100);
+                const itemTotalAmt = itemTaxable + itemGstAmt;
 
                 subtotal += itemBase;
-                // Accumulate item-level discounts
-                totalDiscount += itemDiscount;
-                totalGstAmount += itemGst;
+                totalDiscount += itemDiscountAmt;
+                totalGstAmount += itemGstAmt;
 
                 let remainingQty = item.quantity;
                 let totalPurchasePrice = 0;
@@ -590,8 +589,8 @@ export class PharmacyService {
                         medicineId: item.medicineId,
                         type: 'DISPENSE',
                         quantity: -item.quantity,
-                        referenceId: `BILL-${Date.now()}`, // Or real bill ID if available inside tx
-                        remarks: `Dispensed via billing: ${billNumber}`
+                        referenceId: `BILL-${Date.now()}`, 
+                        remarks: `Dispensed via pharmacy billing: ${billNumber}`
                     });
                 }
 
@@ -608,20 +607,17 @@ export class PharmacyService {
                     hsnCode: item.hsnCode || null,
                     discount: item.discount || 0,
                     gst: item.gst || 0,
-                    total: itemTotal,
+                    discountAmount: itemDiscountAmt,
+                    gstAmount: itemGstAmt,
+                    totalAmount: itemTotalAmt,
+                    total: itemBase, // Keeping legacy 'total' as subtotal for safety
                     purchasePrice: avgPurchasePrice,
                     profit: itemProfit,
                 });
             }
 
-            // Apply overall bill discount if any (this logic might need adjustment based on how overall discount interacts with item discounts)
-            // For simplicity, assuming input.discount is an additional discount applied to the subtotal after item discounts.
-            // If input.discount is meant to be the *total* discount, then totalDiscount should be input.discount.
-            // Here, I'm interpreting input.discount as an additional discount on the total taxable amount.
-            const finalSubtotalAfterItemDiscounts = subtotal - totalDiscount;
-            const finalDiscountedSubtotal = finalSubtotalAfterItemDiscounts; 
-            const finalGstAmount = totalGstAmount; 
-            const grandTotal = finalDiscountedSubtotal + finalGstAmount;
+            const finalDiscountedSubtotal = subtotal - totalDiscount;
+            const grandTotal = finalDiscountedSubtotal + totalGstAmount;
 
             const newBill = await (tx as any).bill.create({
                 data: {
@@ -634,8 +630,8 @@ export class PharmacyService {
                     billType: 'PHARMACY',
                     subtotal: subtotal, 
                     discount: totalDiscount, 
-                    gstPercent: input.gstPercent, 
-                    gstAmount: finalGstAmount,
+                    gstPercent: input.gstPercent || 0, 
+                    gstAmount: totalGstAmount,
                     grandTotal,
                     status: 'PAID', 
                     notes: input.notes,
@@ -656,12 +652,12 @@ export class PharmacyService {
     }
 
     async getBills(query: MedicineQueryInput): Promise<PaginatedResponse<BillResponse>> {
-        const { page = 1, limit = 10, search: rawSearch, format } = query;
+        const { page = 1, limit = 10, search: rawSearch, format, billType } = query;
         const search = rawSearch?.trim();
         const skip = (page - 1) * limit;
 
         const where: Record<string, any> = {
-            billType: 'PHARMACY'
+            billType: billType || 'PHARMACY'
         };
         if (search) {
             where.OR = [

@@ -80,6 +80,7 @@ export const medicineQuerySchema = z.object({
     lowStock: z.coerce.boolean().optional(),
     format: z.string().optional(),
     allBatches: z.coerce.boolean().optional(),
+    billType: z.enum(['PHARMACY', 'CONSULTATION', 'LAB']).optional(),
 });
 
 export const createBillItemSchema = z.object({
