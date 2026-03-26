@@ -105,6 +105,8 @@ export class BillingService {
         const count = await prisma.bill.count();
         const billNumber = `INV-${dateStr}-${(count + 1).toString().padStart(4, '0')}`;
 
+        console.log("[BillingService] DEBUG: Creating bill with type:", billType, "for patient:", patientId);
+        
         // Only pass valid Bill model fields — NOT items/labOrderIds/isWalkInLab/creatorId
         const bill = await (prisma.bill as any).create({
             data: {
@@ -178,10 +180,12 @@ export class BillingService {
         else if (user?.role === 'PHARMACIST') {
             where.billType = 'PHARMACY';
         } 
+        /*
         else {
             // Default for RECEPTIONIST, ADMIN or any other staff
             where.billType = 'CONSULTATION';
         }
+        */
 
         console.log(`[BillingService] Role: ${user?.role}, Initial where.billType:`, where.billType);
 
@@ -194,7 +198,7 @@ export class BillingService {
             where.status = (status as string).toUpperCase();
         }
 
-        // Date Filter Final Fix: Use local time boundaries to include the full day
+        /*
         if (startDate || endDate) {
             const dateFilter: any = {};
             
@@ -210,6 +214,7 @@ export class BillingService {
             where.createdAt = dateFilter;
             console.log(`[BillingService] Date Filter applied (Local):`, JSON.stringify(dateFilter, null, 2));
         }
+        */
 
         if (search && search.trim() !== '') {
             where.OR = [
@@ -230,6 +235,10 @@ export class BillingService {
         console.log(`[BillingService] findAll Incoming Filters:`, query);
         console.log("FINAL QUERY WHERE.billType:", where.billType);
         console.log("FINAL QUERY WHERE:", JSON.stringify(where, null, 2));
+
+        // DEBUG: Catch-all to see what's in the DB
+        const allRecent = await prisma.bill.findMany({ take: 5, orderBy: { createdAt: 'desc' } });
+        console.log("[BillingService] DEBUG: Recent 5 bills in DB:", JSON.stringify(allRecent, null, 2));
 
         try {
             const [total, items] = await Promise.all([
