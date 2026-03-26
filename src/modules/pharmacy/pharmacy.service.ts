@@ -656,8 +656,9 @@ export class PharmacyService {
         const search = rawSearch?.trim();
         const skip = (page - 1) * limit;
 
+        // Strictly enforce PHARMACY bill type for this service unless explicitly overridden
         const finalBillType = this.mapBillType(billType as string || 'PHARMACY');
-        const where: Record<string, any> = {
+        const where: any = {
             billType: finalBillType
         };
         if (search) {
