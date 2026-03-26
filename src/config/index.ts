@@ -1,6 +1,9 @@
+import dotenv from 'dotenv';
+
 if (process.env.NODE_ENV !== 'production') {
-    import('dotenv').then(d => d.config());
+    dotenv.config();
 }
+
 
 export const config = {
     // Server

@@ -284,6 +284,7 @@ model Bill {
   @@map("bills")
 }
 
+
 model BillItem {
   id            String    @id @default(uuid())
   billId        String    @map("bill_id")
