@@ -159,7 +159,7 @@ export class BillingService {
         return this.formatBill({ ...bill, medicalRecord });
     }
 
-    async findAll(query: BillQueryInput) {
+    async findAll(query: BillQueryInput, user?: any) {
         const page = Number(query.page || 1);
         const limit = Number(query.limit || 10);
         const { patientId, status, startDate, endDate, search, billType } = query;
@@ -167,15 +167,23 @@ export class BillingService {
 
         const where: any = {};
         
-        let finalBillTypes: string[] = [];
+        // --- Bill Type Filtering Logic ---
+        // 1. If explicit billType is provided in query, use it
         if (billType) {
             const rawTypes = Array.isArray(billType) ? billType : (typeof billType === 'string' && billType.includes(',') ? billType.split(',') : [billType as string]);
-            finalBillTypes = rawTypes.map(t => this.mapBillType(t));
+            const finalBillTypes = rawTypes.map(t => this.mapBillType(t));
             where.billType = { in: finalBillTypes };
-        } else {
-            // Default: Show LAB and CONSULTATION for general reception/billing views
+        } 
+        // 2. Otherwise, use role-based defaults
+        else if (user?.role === 'PHARMACIST') {
+            where.billType = 'PHARMACY';
+        } 
+        else {
+            // Default for RECEPTIONIST, ADMIN or any other staff
             where.billType = { in: ['LAB', 'CONSULTATION'] };
         }
+
+        console.log(`[BillingService] Role: ${user?.role}, Initial where.billType:`, where.billType);
 
         if (patientId && patientId.trim() !== '') {
             where.patientId = patientId;
