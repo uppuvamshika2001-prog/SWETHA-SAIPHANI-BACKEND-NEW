@@ -5,6 +5,7 @@ import { pdfGenerator } from '../../services/pdfGenerator.js';
 import { NotFoundError, ValidationError } from '../../middleware/errorHandler.js';
 import { CreateLabOrderInput, CreateLabResultInput, LabOrderQueryInput, LabOrderResponse, LabResultResponse, CreateLabTestInput, UpdateLabTestInput } from './lab.types.js';
 import { PaginatedResponse } from '../users/users.types.js';
+import { patientsService } from '../patients/patients.service.js';
 
 export class LabService {
     async createOrder(orderedByUserId: string, userRole: any, input: CreateLabOrderInput): Promise<LabOrderResponse> {
@@ -48,6 +49,7 @@ export class LabService {
 
         // Derive walk-in status from all possible frontend signals
         const isWalkIn = input.isWalkInLab
+            || input.visitType === 'WALK_IN'
             || (input as any).patientType === 'WALKIN_LAB'
             || (input as any).patientType === 'WALK_IN';
 
@@ -112,6 +114,17 @@ export class LabService {
             throw new ValidationError(`The lab test '${input.testName}' is not in the official catalog. Please select a valid test from the list.`);
         }
 
+        // Handle OP Visit recording
+        let visitRecordId = null;
+        if (input.visitType === 'OP' && input.patientId && !isWalkIn) {
+            try {
+                visitRecordId = await patientsService.createOP(input.patientId, input.doctorId);
+                console.log(`[LabService] Created auto-OP record ${visitRecordId} for patient ${input.patientId}`);
+            } catch (error) {
+                logger.error({ error, patientId: input.patientId }, 'Failed to create auto-OP record for lab order. Continuing order creation.');
+            }
+        }
+
         // Generate Human-Readable Order Number (LAB-YYYYMMDD-XXX)
         const today = new Date();
         const dateStr = today.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
@@ -146,6 +159,7 @@ export class LabService {
                 priority: input.priority,
                 notes: input.notes,
                 isWalkInLab: isWalkIn,
+                visitType: (input.visitType as any) || 'OP',
                 status: LabTestStatus.PAYMENT_PENDING,
             },
             include: {

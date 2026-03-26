@@ -12,10 +12,11 @@ export const createLabOrderSchema = z.object({
     doctorId: z.string().optional(),
     priority: z.enum(['normal', 'urgent', 'stat']).default('normal'),
     notes: z.string().optional(),
-    isWalkInLab: z.boolean().optional().default(false),
-    walkInName: z.string().optional(), // Name for walk-in patients
-    walkInPhone: z.string().optional(), // Phone for walk-in patients
-    patientType: z.string().optional(), // Frontend sends patientType (e.g. 'WALKIN_LAB', 'OP')
+    isWalkInLab: z.boolean().optional(),
+    patientType: z.string().optional(), // Legacy support for frontend
+    visitType: z.enum(['OP', 'WALK_IN']).optional().default('OP'),
+    walkInName: z.string().optional(),
+    walkInPhone: z.string().optional(),
     createdFromModule: z.string().optional(), // Frontend context (e.g. 'lab_billing')
 });
 

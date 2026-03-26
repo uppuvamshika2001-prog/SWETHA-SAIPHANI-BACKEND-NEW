@@ -584,6 +584,56 @@ export class PatientsService {
 
         return this.formatPatient(patient as any);
     }
+
+    /**
+     * Creates an OP record (Appointment) for a patient.
+     * Used when a visit is explicitly marked as OP.
+     */
+    async createOP(patientId: string, doctorId?: string): Promise<string> {
+        // 1. Validate patient
+        const patient = await prisma.patient.findUnique({ where: { uhid: patientId } });
+        if (!patient) throw new NotFoundError('Patient not found');
+
+        // 2. Determine Doctor
+        let staffId: string;
+        if (doctorId) {
+            const doc = await prisma.staff.findFirst({
+                where: { 
+                    OR: [
+                        { id: doctorId }, 
+                        { userId: doctorId }
+                    ], 
+                    user: { role: 'DOCTOR' } 
+                }
+            });
+            if (doc) {
+                staffId = doc.id;
+            } else {
+                const fallback = await prisma.staff.findFirst({ where: { user: { role: 'DOCTOR' } } });
+                if (!fallback) throw new Error('No doctor found in system to assign OP visit.');
+                staffId = fallback.id;
+            }
+        } else {
+            const fallback = await prisma.staff.findFirst({ where: { user: { role: 'DOCTOR' } } });
+            if (!fallback) throw new Error('No doctor found in system to assign OP visit.');
+            staffId = fallback.id;
+        }
+
+        // 3. Create Appointment (The OP Record)
+        const appointment = await prisma.appointment.create({
+            data: {
+                patientId: patient.uhid,
+                doctorId: staffId,
+                scheduledAt: new Date(),
+                duration: 30,
+                status: 'IN_PROGRESS',
+                reason: 'OP Consultation',
+                notes: 'Automatically created for OP visit'
+            }
+        });
+
+        return appointment.id;
+    }
 }
 
 export const patientsService = new PatientsService();

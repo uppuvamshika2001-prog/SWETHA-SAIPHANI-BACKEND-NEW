@@ -2,6 +2,7 @@ import { prisma } from '../../config/database.js';
 import { NotFoundError } from '../../middleware/errorHandler.js';
 import { CreateBillInput, BillQueryInput, UpdateBillStatusInput } from './billing.types.js';
 import { Prisma } from '@prisma/client';
+import { patientsService } from '../patients/patients.service.js';
 
 export class BillingService {
     async create(input: CreateBillInput) {
@@ -105,7 +106,7 @@ export class BillingService {
         const billNumber = `INV-${dateStr}-${(count + 1).toString().padStart(4, '0')}`;
 
         // Only pass valid Bill model fields — NOT items/labOrderIds/isWalkInLab/creatorId
-        const bill = await prisma.bill.create({
+        const bill = await (prisma.bill as any).create({
             data: {
                 patientId: patientId || undefined,
                 customerName: customerName || undefined,
@@ -120,6 +121,7 @@ export class BillingService {
                 grandTotal: totalGrandTotal,
                 status: status || 'PENDING',
                 notes: notes || undefined,
+                visitType: input.visitType || 'OP',
                 items: {
                     create: billItems
                 }
@@ -129,6 +131,18 @@ export class BillingService {
                 patient: true
             }
         });
+
+        // Handle OP Visit recording
+        if (input.visitType === 'OP' && patientId) {
+            try {
+                // If it's medical billing (not just pharmacy), record the visit
+                await patientsService.createOP(patientId);
+                console.log(`[BillingService] Created auto-OP record for patient ${patientId}`);
+            } catch (error) {
+                // Non-blocking error
+                console.error(`[BillingService] Failed to create auto-OP record for patient ${patientId}`, error);
+            }
+        }
 
         // Collect all lab order IDs (both explicit top-level ones AND embedded in item tracking)
         const embeddedLabOrderIds = (items as any[])

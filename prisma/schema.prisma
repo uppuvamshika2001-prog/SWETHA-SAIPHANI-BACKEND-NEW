@@ -264,6 +264,7 @@ model Bill {
   grandTotal   Decimal              @map("grand_total") @db.Decimal(10, 2)
   status       BillStatus           @default(PENDING)
   billType     String               @default("PHARMACY") @map("bill_type")
+  visitType    VisitType            @default(OP) @map("visit_type")
   paidAmount   Decimal              @default(0) @map("paid_amount") @db.Decimal(10, 2)
   notes        String?
   createdAt    DateTime             @default(now()) @map("created_at")
@@ -329,7 +330,8 @@ model LabTestOrder {
   result                   LabTestResult?
   labResults               LabResult[]
   isReportVisibleToPatient Boolean        @default(true) @map("is_report_visible")
-  isWalkInLab              Boolean        @default(false) @map("is_walk_in_lab")
+  isWalkInLab              Boolean?       @default(false) @map("is_walk_in_lab")
+  visitType                VisitType      @default(OP) @map("visit_type")
 
   @@map("lab_test_orders")
 }
