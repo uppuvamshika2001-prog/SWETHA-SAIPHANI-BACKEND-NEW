@@ -194,24 +194,21 @@ export class BillingService {
             where.status = (status as string).toUpperCase();
         }
 
-        // Date Filter Fix: Convert to proper range boundaries to include the full day
+        // Date Filter Final Fix: Use local time boundaries to include the full day
         if (startDate || endDate) {
             const dateFilter: any = {};
             
             if (startDate) {
-                const start = new Date(startDate);
-                start.setHours(0, 0, 0, 0);
-                dateFilter.gte = start;
+                // Using template literal without 'Z' uses server local time (IST)
+                dateFilter.gte = new Date(`${(startDate as string).split('T')[0]}T00:00:00`);
             }
             
             if (endDate) {
-                const end = new Date(endDate);
-                end.setHours(23, 59, 59, 999);
-                dateFilter.lte = end;
+                dateFilter.lte = new Date(`${(endDate as string).split('T')[0]}T23:59:59.999`);
             }
             
             where.createdAt = dateFilter;
-            console.log(`[BillingService] Date Filter applied:`, JSON.stringify(dateFilter, null, 2));
+            console.log(`[BillingService] Date Filter applied (Local):`, JSON.stringify(dateFilter, null, 2));
         }
 
         if (search && search.trim() !== '') {
@@ -231,7 +228,8 @@ export class BillingService {
 
         // Debug Logging
         console.log(`[BillingService] findAll Incoming Filters:`, query);
-        console.log(`[BillingService] findAll Prisma Where:`, JSON.stringify(where, null, 2));
+        console.log("FINAL QUERY WHERE.billType:", where.billType);
+        console.log("FINAL QUERY WHERE:", JSON.stringify(where, null, 2));
 
         try {
             const [total, items] = await Promise.all([
