@@ -180,8 +180,11 @@ export class BillingService {
         else if (user?.role === 'PHARMACIST') {
             where.billType = 'PHARMACY';
         } 
+        else if (user?.role === 'RECEPTIONIST' || user?.role === 'ADMIN') {
+            // Receptionists and Admins should see all types in the main billing dashboard
+            where.billType = { in: ['CONSULTATION', 'PHARMACY', 'LAB'] };
+        }
         else {
-            // Default for RECEPTIONIST, ADMIN or any other staff
             where.billType = 'CONSULTATION';
         }
 
@@ -499,6 +502,18 @@ export class BillingService {
             is_walk_in: bill.isWalkIn,
             customer_name: bill.customerName,
             created_at: bill.createdAt,
+            // Explicit Patient Mapping for UI
+            patient: bill.patient ? {
+                id: bill.patient.id,
+                uhid: bill.patient.uhid,
+                firstName: bill.patient.firstName,
+                lastName: bill.patient.lastName,
+                first_name: bill.patient.firstName,
+                last_name: bill.patient.lastName,
+                full_name: `${bill.patient.firstName || ''} ${bill.patient.lastName || ''}`.trim(),
+                phone: bill.patient.phone
+            } : null,
+            patientName: bill.patient ? `${bill.patient.firstName || ''} ${bill.patient.lastName || ''}`.trim() : (bill.customerName || "N/A"),
             // Keep camelCase for legacy compatibility
             billNumber: bill.billNumber,
             grandTotal: Number(bill.grandTotal),
@@ -532,11 +547,12 @@ export class BillingService {
     }
 
     private mapBillType(type: string | string[]): string {
-        if (!type) return 'CONSULTATION';
-        const t = String(type).toUpperCase().trim();
+        if (!type || (Array.isArray(type) && type.length === 0)) return 'CONSULTATION';
+        const raw = Array.isArray(type) ? type[0] : type;
+        const t = String(raw).toUpperCase().trim();
         if (t === 'CONSULT' || t === 'CONSULTATION') return 'CONSULTATION';
-        if (t === 'PHARMACY') return 'PHARMACY';
-        if (t === 'LAB') return 'LAB';
+        if (t === 'PHARMACY' || t === 'MEDICINE') return 'PHARMACY';
+        if (t === 'LAB' || t === 'LABORATORY') return 'LAB';
         return t;
     }
 }
