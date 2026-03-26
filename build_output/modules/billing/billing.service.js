@@ -113,7 +113,7 @@ export class BillingService {
                 }
             },
             include: {
-                items: true,
+                items: { include: { medicine: true } },
                 patient: true
             }
         });
@@ -155,8 +155,11 @@ export class BillingService {
         else if (user?.role === 'PHARMACIST') {
             where.billType = 'PHARMACY';
         }
+        else if (user?.role === 'RECEPTIONIST' || user?.role === 'ADMIN') {
+            // Receptionists and Admins should see all types in the main billing dashboard
+            where.billType = { in: ['CONSULTATION', 'PHARMACY', 'LAB'] };
+        }
         else {
-            // Default for RECEPTIONIST, ADMIN or any other staff
             where.billType = 'CONSULTATION';
         }
         if (patientId && patientId.trim() !== '') {
@@ -166,15 +169,24 @@ export class BillingService {
         if (status && status.trim() !== '') {
             where.status = status.toUpperCase();
         }
-        // Date Filter Final Fix: Use local time boundaries to include the full day
+        // Date Filter Final Fix: Use robust range boundary (start of day to start of next day)
         if (startDate || endDate) {
             const dateFilter = {};
             if (startDate) {
-                // Using template literal without 'Z' uses server local time (IST)
-                dateFilter.gte = new Date(`${startDate.split('T')[0]}T00:00:00`);
+                const s = new Date(startDate);
+                s.setHours(0, 0, 0, 0);
+                dateFilter.gte = s;
             }
             if (endDate) {
-                dateFilter.lte = new Date(`${endDate.split('T')[0]}T23:59:59.999`);
+                const e = new Date(endDate);
+                e.setHours(23, 59, 59, 999);
+                dateFilter.lte = e;
+            }
+            else if (startDate) {
+                // If only startDate is provided, include the full day
+                const e = new Date(startDate);
+                e.setHours(23, 59, 59, 999);
+                dateFilter.lte = e;
             }
             where.createdAt = dateFilter;
         }
@@ -428,12 +440,35 @@ export class BillingService {
     formatBill(bill) {
         return {
             ...bill,
+            bill_number: bill.billNumber,
+            bill_type: bill.billType,
             subtotal: Number(bill.subtotal),
             discount: Number(bill.discount),
-            gstPercent: Number(bill.gstPercent),
-            gstAmount: Number(bill.gstAmount),
+            gst_percent: Number(bill.gstPercent),
+            gst_amount: Number(bill.gstAmount),
+            grand_total: Number(bill.grandTotal),
+            paid_amount: Number(bill.paidAmount),
+            is_walk_in: bill.isWalkIn,
+            customer_name: bill.customerName,
+            created_at: bill.createdAt,
+            // Explicit Patient Mapping for UI
+            patient: bill.patient ? {
+                id: bill.patient.id,
+                uhid: bill.patient.uhid,
+                firstName: bill.patient.firstName,
+                lastName: bill.patient.lastName,
+                first_name: bill.patient.firstName,
+                last_name: bill.patient.lastName,
+                full_name: `${bill.patient.firstName || ''} ${bill.patient.lastName || ''}`.trim(),
+                phone: bill.patient.phone
+            } : null,
+            patientName: bill.patient ? `${bill.patient.firstName || ''} ${bill.patient.lastName || ''}`.trim() : (bill.customerName || "N/A"),
+            // Keep camelCase for legacy compatibility
+            billNumber: bill.billNumber,
             grandTotal: Number(bill.grandTotal),
-            paidAmount: Number(bill.paidAmount),
+            createdAt: bill.createdAt,
+            isWalkIn: bill.isWalkIn,
+            customerName: bill.customerName,
             // Include Medical Record Info
             medicalRecord: bill.medicalRecord ? {
                 diagnosis: bill.medicalRecord.diagnosis,
@@ -447,19 +482,28 @@ export class BillingService {
                 ...item,
                 description: item.description || item.medicine?.name || 'Medicine',
                 unitPrice: Number(item.unitPrice),
+                unit_price: Number(item.unitPrice),
+                batch_number: item.batchNumber,
+                expiry_date: item.expiryDate,
+                hsn_code: item.hsnCode,
+                discount_amount: Number(item.discountAmount || 0),
+                gst_percent: Number(item.gst || item.gstPercent || 0),
+                gst_amount: Number(item.gstAmount || 0),
+                total_amount: Number(item.totalAmount || item.total || 0),
                 total: Number(item.total)
             }))
         };
     }
     mapBillType(type) {
-        if (!type)
+        if (!type || (Array.isArray(type) && type.length === 0))
             return 'CONSULTATION';
-        const t = String(type).toUpperCase().trim();
+        const raw = Array.isArray(type) ? type[0] : type;
+        const t = String(raw).toUpperCase().trim();
         if (t === 'CONSULT' || t === 'CONSULTATION')
             return 'CONSULTATION';
-        if (t === 'PHARMACY')
+        if (t === 'PHARMACY' || t === 'MEDICINE')
             return 'PHARMACY';
-        if (t === 'LAB')
+        if (t === 'LAB' || t === 'LABORATORY')
             return 'LAB';
         return t;
     }

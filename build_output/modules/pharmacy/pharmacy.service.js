@@ -611,7 +611,7 @@ export class PharmacyService {
         return this.formatBill(bill);
     }
     async getBills(query) {
-        const { page = 1, limit = 10, search: rawSearch, format, bill_type } = query;
+        const { page = 1, limit = 10, search: rawSearch, format, bill_type, startDate, endDate } = query;
         const search = rawSearch?.trim();
         const skip = (page - 1) * limit;
         // Strictly enforce PHARMACY bill type for this service unless explicitly overridden
@@ -619,6 +619,26 @@ export class PharmacyService {
         const where = {
             billType: finalBillType
         };
+        // Date Filter: Use robust range boundary
+        if (startDate || endDate) {
+            const dateFilter = {};
+            if (startDate) {
+                const s = new Date(startDate);
+                s.setHours(0, 0, 0, 0);
+                dateFilter.gte = s;
+            }
+            if (endDate) {
+                const e = new Date(endDate);
+                e.setHours(23, 59, 59, 999);
+                dateFilter.lte = e;
+            }
+            else if (startDate) {
+                const e = new Date(startDate);
+                e.setHours(23, 59, 59, 999);
+                dateFilter.lte = e;
+            }
+            where.createdAt = dateFilter;
+        }
         if (search) {
             where.OR = [
                 { billNumber: { contains: search, mode: 'insensitive' } },

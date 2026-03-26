@@ -197,17 +197,25 @@ export class BillingService {
             where.status = (status as string).toUpperCase();
         }
 
-        // Date Filter Final Fix: Use local time boundaries to include the full day
+        // Date Filter Final Fix: Use robust range boundary (start of day to start of next day)
         if (startDate || endDate) {
             const dateFilter: any = {};
             
             if (startDate) {
-                // Using template literal without 'Z' uses server local time (IST)
-                dateFilter.gte = new Date(`${(startDate as string).split('T')[0]}T00:00:00`);
+                const s = new Date(startDate);
+                s.setHours(0, 0, 0, 0);
+                dateFilter.gte = s;
             }
             
             if (endDate) {
-                dateFilter.lte = new Date(`${(endDate as string).split('T')[0]}T23:59:59.999`);
+                const e = new Date(endDate);
+                e.setHours(23, 59, 59, 999);
+                dateFilter.lte = e;
+            } else if (startDate) {
+                // If only startDate is provided, include the full day
+                const e = new Date(startDate);
+                e.setHours(23, 59, 59, 999);
+                dateFilter.lte = e;
             }
             
             where.createdAt = dateFilter;
