@@ -186,33 +186,29 @@ export class BillingService {
             where.status = (status as string).toUpperCase();
         }
 
-        // Date Filter Fix: Convert to proper UTC range boundaries for the given date string
+        // Date Filter Fix: Convert to proper UTC range boundaries to include the full day
         if (startDate || endDate) {
             const dateFilter: any = {};
             
             if (startDate) {
-                // Example startDate: '2026-03-18' -> Create exactly at 00:00:00 UTC
-                const startStr = `${startDate}T00:00:00.000Z`;
-                const start = new Date(startStr);
-                
-                // If the user's timezone is IST (+05:30), the local '00:00:00' is '18:30:00' UTC of the previous day
-                // To be robust and match the local day, we shift back 5.5 hours to align UTC with IST midnight.
-                // Assuming the clinic operates in IST timezone (+05:30)
+                // Ensure we only take the date part if it's a full ISO string
+                const datePart = (startDate as string).split('T')[0];
+                const start = new Date(`${datePart}T00:00:00.000Z`);
+                // Subtract 330 mins to convert IST 00:00:00 to UTC (18:30 previous day)
                 start.setMinutes(start.getMinutes() - 330);
-                
                 dateFilter.gte = start;
             }
+            
             if (endDate) {
-                const endStr = `${endDate}T23:59:59.999Z`;
-                const end = new Date(endStr);
-                
-                // Shift back 5.5 hours to align UTC with IST end of day
+                const datePart = (endDate as string).split('T')[0];
+                const end = new Date(`${datePart}T23:59:59.999Z`);
+                // Subtract 330 mins to convert IST 23:59:59 to UTC (18:29 current day)
                 end.setMinutes(end.getMinutes() - 330);
-                
                 dateFilter.lte = end;
             }
             
             where.createdAt = dateFilter;
+            console.log(`[BillingService] Date Filter applied:`, JSON.stringify(dateFilter, null, 2));
         }
 
         if (search && search.trim() !== '') {
