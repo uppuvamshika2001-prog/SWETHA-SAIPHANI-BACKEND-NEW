@@ -180,7 +180,7 @@ export class BillingService {
         } 
         else {
             // Default for RECEPTIONIST, ADMIN or any other staff
-            where.billType = { in: ['LAB', 'CONSULTATION'] };
+            where.billType = 'CONSULTATION';
         }
 
         console.log(`[BillingService] Role: ${user?.role}, Initial where.billType:`, where.billType);
