@@ -129,7 +129,7 @@ export class BillingService {
                 }
             },
             include: {
-                items: true,
+                items: { include: { medicine: true } },
                 patient: true
             }
         });
@@ -488,12 +488,23 @@ export class BillingService {
     private formatBill(bill: any) {
         return {
             ...bill,
+            bill_number: bill.billNumber,
+            bill_type: bill.billType,
             subtotal: Number(bill.subtotal),
             discount: Number(bill.discount),
-            gstPercent: Number(bill.gstPercent),
-            gstAmount: Number(bill.gstAmount),
+            gst_percent: Number(bill.gstPercent),
+            gst_amount: Number(bill.gstAmount),
+            grand_total: Number(bill.grandTotal),
+            paid_amount: Number(bill.paidAmount),
+            is_walk_in: bill.isWalkIn,
+            customer_name: bill.customerName,
+            created_at: bill.createdAt,
+            // Keep camelCase for legacy compatibility
+            billNumber: bill.billNumber,
             grandTotal: Number(bill.grandTotal),
-            paidAmount: Number(bill.paidAmount),
+            createdAt: bill.createdAt,
+            isWalkIn: bill.isWalkIn,
+            customerName: bill.customerName,
             // Include Medical Record Info
             medicalRecord: bill.medicalRecord ? {
                 diagnosis: bill.medicalRecord.diagnosis,
@@ -507,6 +518,14 @@ export class BillingService {
                 ...item,
                 description: item.description || item.medicine?.name || 'Medicine',
                 unitPrice: Number(item.unitPrice),
+                unit_price: Number(item.unitPrice),
+                batch_number: item.batchNumber,
+                expiry_date: item.expiryDate,
+                hsn_code: item.hsnCode,
+                discount_amount: Number(item.discountAmount || 0),
+                gst_percent: Number(item.gst || item.gstPercent || 0),
+                gst_amount: Number(item.gstAmount || 0),
+                total_amount: Number(item.totalAmount || item.total || 0),
                 total: Number(item.total)
             }))
         };
