@@ -17,7 +17,13 @@ export const createMedicineSchema = z.object({
     salePrice: z.number().nonnegative(),
     mrp: z.number().nonnegative().optional(),
     gst: z.number().nonnegative().default(0),
-    stockQuantity: z.number().int().positive(),
+    stockQuantity: z.number().int().nonnegative(),
+    freeQuantity: z.number().int().nonnegative().default(0),
+    ptr: z.number().nonnegative().default(0),
+    rate: z.number().nonnegative().default(0),
+    taxableAmount: z.number().nonnegative().default(0),
+    gstAmount: z.number().nonnegative().default(0),
+    totalAmount: z.number().nonnegative().default(0),
     // Purchase payment tracking (Now handled separately, but kept as optional for backward compatibility during migration)
     invoiceNumber: z.string().optional(),
 });
@@ -69,6 +75,12 @@ export const updateBatchSchema = z.object({
     mrp: z.number().nonnegative().optional(),
     gst: z.number().nonnegative().optional(),
     stockQuantity: z.number().int().nonnegative().optional(),
+    freeQuantity: z.number().int().nonnegative().optional(),
+    ptr: z.number().nonnegative().optional(),
+    rate: z.number().nonnegative().optional(),
+    taxableAmount: z.number().nonnegative().optional(),
+    gstAmount: z.number().nonnegative().optional(),
+    totalAmount: z.number().nonnegative().optional(),
     isActive: z.boolean().optional(),
 });
 
@@ -143,6 +155,12 @@ export interface MedicineResponse {
         mrp: number | null;
         gst: number;
         stockQuantity: number;
+        freeQuantity: number;
+        ptr: number;
+        rate: number;
+        taxableAmount: number;
+        gstAmount: number;
+        totalAmount: number;
         isActive: boolean;
     }>;
 }

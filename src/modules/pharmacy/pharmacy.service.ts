@@ -102,6 +102,12 @@ export class PharmacyService {
                     mrp: input.mrp,
                     gst: input.gst,
                     stockQuantity: input.stockQuantity,
+                    freeQuantity: input.freeQuantity || 0,
+                    ptr: input.ptr || 0,
+                    rate: input.rate || 0,
+                    taxableAmount: input.taxableAmount || 0,
+                    gstAmount: input.gstAmount || 0,
+                    totalAmount: input.totalAmount || 0,
                     purchaseId: purchaseId,
                 }
             });
@@ -282,6 +288,12 @@ export class PharmacyService {
                     distributor: b.distributorName,
                     batch_number: b.batchNumber,
                     expiry_date: b.expiryDate,
+                    free_quantity: b.freeQuantity || 0,
+                    ptr: Number(b.ptr || 0),
+                    rate: Number(b.rate || 0),
+                    taxable_amount: Number(b.taxableAmount || 0),
+                    gst_amount: Number(b.gstAmount || 0),
+                    total_amount: Number(b.totalAmount || 0),
                     status: b.stockQuantity <= b.medicine.reorderLevel ? (b.stockQuantity <= 0 ? 'out_of_stock' : 'low_stock') : 'in_stock',
                     isBatchDetail: true,
                     unit: b.medicine.unit
@@ -1448,6 +1460,12 @@ export class PharmacyService {
                 mrp: Number(b.mrp),
                 gst: Number(b.gst),
                 stock_quantity: b.stockQuantity,
+                free_quantity: b.freeQuantity || 0,
+                ptr: Number(b.ptr || 0),
+                rate: Number(b.rate || 0),
+                taxable_amount: Number(b.taxableAmount || 0),
+                gst_amount: Number(b.gstAmount || 0),
+                total_amount: Number(b.totalAmount || 0),
             }))
         };
     }
@@ -1692,6 +1710,12 @@ export class PharmacyService {
                         mrp: item.mrp ? new Decimal(item.mrp) : null,
                         gst: new Decimal(item.gst || 0),
                         stockQuantity: item.stockQuantity,
+                        freeQuantity: (item as any).freeQuantity || 0,
+                        ptr: new Decimal((item as any).ptr || 0),
+                        rate: new Decimal((item as any).rate || 0),
+                        taxableAmount: new Decimal((item as any).taxableAmount || 0),
+                        gstAmount: new Decimal((item as any).gstAmount || 0),
+                        totalAmount: new Decimal((item as any).totalAmount || 0),
                         isActive: true
                     }
                 });
