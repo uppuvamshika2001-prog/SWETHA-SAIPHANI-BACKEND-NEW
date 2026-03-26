@@ -3,53 +3,53 @@ import { BillStatus } from '@prisma/client';
 
 export const createMedicineSchema = z.object({
     name: z.string().min(1, 'Name is required'),
-    genericName: z.string().optional(),
+    generic_name: z.string().optional(),
     manufacturer: z.string().optional(),
-    categoryId: z.coerce.number().int().optional(),
+    category_id: z.coerce.number().int().optional(),
     unit: z.string().default('tablet'),
-    reorderLevel: z.number().int().nonnegative().default(10),
+    reorder_level: z.number().int().nonnegative().default(10),
     // Batch information for initial stock entry
-    batchNumber: z.string().min(1, 'Batch number is required'),
-    distributorName: z.string().min(1, 'Distributor name is required'),
-    manufacturingDate: z.string().transform((s) => new Date(s)).optional(),
-    expiryDate: z.string().transform((s) => new Date(s)),
-    purchasePrice: z.number().nonnegative(),
-    salePrice: z.number().nonnegative(),
+    batch_number: z.string().min(1, 'Batch number is required'),
+    distributor_name: z.string().min(1, 'Distributor name is required'),
+    manufacturing_date: z.string().transform((s) => new Date(s)).optional(),
+    expiry_date: z.string().transform((s) => new Date(s)),
+    purchase_price: z.number().nonnegative(),
+    selling_price: z.number().nonnegative(),
     mrp: z.number().nonnegative().optional(),
-    gst: z.number().nonnegative().default(0),
-    stockQuantity: z.number().int().nonnegative(),
-    freeQuantity: z.number().int().nonnegative().default(0),
+    gst_percent: z.number().nonnegative().default(0),
+    stock_quantity: z.number().int().nonnegative(),
+    free_quantity: z.number().int().nonnegative().default(0),
     ptr: z.number().nonnegative().default(0),
     rate: z.number().nonnegative().default(0),
-    taxableAmount: z.number().nonnegative().default(0),
-    gstAmount: z.number().nonnegative().default(0),
-    totalAmount: z.number().nonnegative().default(0),
-    // Purchase payment tracking (Now handled separately, but kept as optional for backward compatibility during migration)
-    invoiceNumber: z.string().optional(),
+    taxable_amount: z.number().nonnegative().default(0),
+    gst_amount: z.number().nonnegative().default(0),
+    total_amount: z.number().nonnegative().default(0),
+    // Purchase payment tracking
+    invoice_number: z.string().optional(),
 });
 
 export const recordPaymentSchema = z.object({
-    purchaseId: z.string(),
+    purchase_id: z.string(),
     amount: z.number().positive(),
-    paymentDate: z.string().transform((s) => new Date(s)).optional(),
-    paymentMethod: z.string(),
+    payment_date: z.string().transform((s) => new Date(s)).optional(),
+    payment_method: z.string(),
     notes: z.string().optional(),
 });
 
 export const createPurchaseSchema = z.object({
-    distributorName: z.string().min(1, 'Distributor name is required'),
-    invoiceNumber: z.string().min(1, 'Invoice number is required'),
-    purchaseDate: z.string().transform((s) => new Date(s)).optional(),
+    distributor_name: z.string().min(1, 'Distributor name is required'),
+    invoice_number: z.string().min(1, 'Invoice number is required'),
+    purchase_date: z.string().transform((s) => new Date(s)).optional(),
     items: z.array(z.object({
-        medicineId: z.string().min(1, 'Medicine is required'),
-        batchNumber: z.string().min(1, 'Batch number is required'),
-        manufacturingDate: z.string().transform((s) => new Date(s)).optional(),
-        expiryDate: z.string().transform((s) => new Date(s)),
-        purchasePrice: z.number().nonnegative(),
-        salePrice: z.number().nonnegative(),
+        medicine_id: z.string().min(1, 'Medicine is required'),
+        batch_number: z.string().min(1, 'Batch number is required'),
+        manufacturing_date: z.string().transform((s) => new Date(s)).optional(),
+        expiry_date: z.string().transform((s) => new Date(s)),
+        purchase_price: z.number().nonnegative(),
+        selling_price: z.number().nonnegative(),
         mrp: z.number().nonnegative().optional(),
-        gst: z.number().nonnegative().default(0),
-        stockQuantity: z.number().int().positive(),
+        gst_percent: z.number().nonnegative().default(0),
+        stock_quantity: z.number().int().positive(),
     })).min(1, 'At least one item is required')
 });
 
@@ -57,31 +57,31 @@ export type CreatePurchaseInput = z.infer<typeof createPurchaseSchema>;
 
 export const updateMedicineSchema = z.object({
     name: z.string().min(1).optional(),
-    genericName: z.string().optional(),
+    generic_name: z.string().optional(),
     manufacturer: z.string().optional(),
-    categoryId: z.coerce.number().int().optional(),
+    category_id: z.coerce.number().int().optional(),
     unit: z.string().optional(),
-    reorderLevel: z.number().int().nonnegative().optional(),
-    isActive: z.boolean().optional(),
+    reorder_level: z.number().int().nonnegative().optional(),
+    is_active: z.boolean().optional(),
 });
 
 export const updateBatchSchema = z.object({
-    batchNumber: z.string().min(1).optional(),
-    distributorName: z.string().min(1).optional(),
-    manufacturingDate: z.string().transform((s) => new Date(s)).optional(),
-    expiryDate: z.string().transform((s) => new Date(s)).optional(),
-    purchasePrice: z.number().nonnegative().optional(),
-    salePrice: z.number().nonnegative().optional(),
+    batch_number: z.string().min(1).optional(),
+    distributor_name: z.string().min(1).optional(),
+    manufacturing_date: z.string().transform((s) => new Date(s)).optional(),
+    expiry_date: z.string().transform((s) => new Date(s)).optional(),
+    purchase_price: z.number().nonnegative().optional(),
+    selling_price: z.number().nonnegative().optional(),
     mrp: z.number().nonnegative().optional(),
-    gst: z.number().nonnegative().optional(),
-    stockQuantity: z.number().int().nonnegative().optional(),
-    freeQuantity: z.number().int().nonnegative().optional(),
+    gst_percent: z.number().nonnegative().optional(),
+    stock_quantity: z.number().int().nonnegative().optional(),
+    free_quantity: z.number().int().nonnegative().optional(),
     ptr: z.number().nonnegative().optional(),
     rate: z.number().nonnegative().optional(),
-    taxableAmount: z.number().nonnegative().optional(),
-    gstAmount: z.number().nonnegative().optional(),
-    totalAmount: z.number().nonnegative().optional(),
-    isActive: z.boolean().optional(),
+    taxable_amount: z.number().nonnegative().optional(),
+    gst_amount: z.number().nonnegative().optional(),
+    total_amount: z.number().nonnegative().optional(),
+    is_active: z.boolean().optional(),
 });
 
 export const medicineQuerySchema = z.object({
@@ -89,38 +89,38 @@ export const medicineQuerySchema = z.object({
     limit: z.coerce.number().int().positive().max(100, "Maximum limit allowed is 100 records per request").default(10),
     search: z.string().optional(),
     category: z.string().optional(),
-    lowStock: z.coerce.boolean().optional(),
+    low_stock: z.coerce.boolean().optional(),
     format: z.string().optional(),
-    allBatches: z.coerce.boolean().optional(),
-    billType: z.enum(['PHARMACY', 'CONSULTATION', 'LAB']).optional(),
+    all_batches: z.coerce.boolean().optional(),
+    bill_type: z.enum(['PHARMACY', 'CONSULTATION', 'LAB']).optional(),
 });
 
 export const createBillItemSchema = z.object({
-    medicineId: z.string().optional(),
+    medicine_id: z.string().optional(),
     description: z.string().min(1),
     quantity: z.number().int().positive(),
-    unitPrice: z.number().nonnegative(),
-    batchNumber: z.string().optional(),
-    expiryDate: z.coerce.date().optional(),
-    hsnCode: z.string().optional(),
+    unit_price: z.number().nonnegative(),
+    batch_number: z.string().optional(),
+    expiry_date: z.coerce.date().optional(),
+    hsn_code: z.string().optional(),
     discount: z.number().nonnegative().default(0),
-    gst: z.number().nonnegative().default(0),
+    gst_percent: z.number().nonnegative().default(0),
 });
 
 export const createBillSchema = z.object({
-    patientId: z.string().optional(),
-    customerName: z.string().optional(),
+    patient_id: z.string().optional(),
+    customer_name: z.string().optional(),
     phone: z.string().optional(),
-    isWalkIn: z.boolean().default(false),
+    is_walk_in: z.boolean().default(false),
     items: z.array(createBillItemSchema).min(1, 'At least one item is required'),
     discount: z.number().nonnegative().default(0),
-    gstPercent: z.number().nonnegative().default(18),
+    gst_percent: z.number().nonnegative().default(18),
     notes: z.string().optional(),
 });
 
 export const updateBillSchema = z.object({
     status: z.nativeEnum(BillStatus).optional(),
-    paidAmount: z.number().nonnegative().optional(),
+    paid_amount: z.number().nonnegative().optional(),
     notes: z.string().optional(),
 });
 
@@ -136,135 +136,137 @@ export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
 export interface MedicineResponse {
     id: string;
     name: string;
-    genericName: string | null;
+    generic_name: string | null;
     manufacturer: string | null;
-    categoryId: number | null;
+    category_id: number | null;
     category?: { id: number; name: string } | null;
     unit: string;
-    stockQuantity: number;
-    reorderLevel: number;
-    isActive: boolean;
+    stock_quantity: number;
+    reorder_level: number;
+    is_active: boolean;
     batches: Array<{
         id: string;
-        batchNumber: string;
-        distributorName: string;
-        manufacturingDate: Date | null;
-        expiryDate: Date;
-        purchasePrice: number;
-        salePrice: number;
+        batch_number: string;
+        distributor_name: string;
+        manufacturing_date: Date | null;
+        expiry_date: Date;
+        purchase_price: number;
+        selling_price: number;
         mrp: number | null;
-        gst: number;
-        stockQuantity: number;
-        freeQuantity: number;
+        gst_percent: number;
+        stock_quantity: number;
+        free_quantity: number;
         ptr: number;
         rate: number;
-        taxableAmount: number;
-        gstAmount: number;
-        totalAmount: number;
-        isActive: boolean;
+        taxable_amount: number;
+        gst_amount: number;
+        total_amount: number;
+        is_active: boolean;
     }>;
 }
 
 export interface BillResponse {
     id: string;
-    patientId: string | null;
-    customerName: string | null;
+    patient_id: string | null;
+    customer_name: string | null;
     phone: string | null;
-    isWalkIn: boolean;
-    billNumber: string;
+    is_walk_in: boolean;
+    bill_number: string;
     subtotal: number;
     discount: number;
-    gstPercent: number;
-    gstAmount: number;
-    grandTotal: number;
+    gst_percent: number;
+    gst_amount: number;
+    grand_total: number;
     status: BillStatus;
-    paidAmount: number;
+    paid_amount: number;
     items: Array<{
         id: string;
         description: string;
         quantity: number;
-        unitPrice: number;
-        purchasePrice: number;
+        unit_price: number;
+        purchase_price: number;
         profit: number;
-        medicineId: string | null;
-        batchNumber: string | null;
-        expiryDate: Date | null;
-        hsnCode: string | null;
+        medicine_id: string | null;
+        batch_number: string | null;
+        expiry_date: Date | null;
+        hsn_code: string | null;
         discount: number;
-        gst: number;
+        gst_percent: number;
         total: number;
     }>;
-    createdAt: Date;
+    created_at: Date;
     patient?: {
         uhid: string;
-        firstName: string;
-        lastName: string;
+        first_name: string;
+        last_name: string;
         phone: string;
     } | null;
 }
 
 export interface MarginReportResponse {
-    todayMargin: number;
-    monthlyMargin: number;
-    todayMedicinesCount: number;
-    medicineWiseProfit: Array<{
-        medicineId: string;
-        medicineName: string;
-        quantitySold: number;
-        totalProfit: number;
+    today_margin: number;
+    monthly_margin: number;
+    today_medicines_count: number;
+    medicine_wise_profit: Array<{
+        medicine_id: string;
+        medicine_name: string;
+        quantity_sold: number;
+        total_profit: number;
     }>;
-    topMedicines: Array<{
-        medicineId: string;
-        medicineName: string;
-        totalProfit: number;
+    top_medicines: Array<{
+        medicine_id: string;
+        medicine_name: string;
+        total_profit: number;
     }>;
 }
+
 export const createReturnSchema = z.object({
-    billId: z.string().min(1),
-    patientId: z.string().min(1),
-    refundMethod: z.string().min(1),
+    bill_id: z.string().min(1),
+    patient_id: z.string().min(1),
+    refund_method: z.string().min(1),
     items: z.array(z.object({
-        medicineId: z.string().min(1),
-        batchNumber: z.string().optional(),
-        returnQty: z.number().int().positive(),
-        salePrice: z.number().positive(),
+        medicine_id: z.string().min(1),
+        batch_number: z.string().optional(),
+        return_qty: z.number().int().positive(),
+        selling_price: z.number().positive(),
         reason: z.string().min(1),
     })).min(1),
-    pharmacistId: z.string().optional(),
+    pharmacist_id: z.string().optional(),
 });
 
 export type CreateReturnInput = z.infer<typeof createReturnSchema>;
 
 export interface PharmacyReturnResponse {
     id: string;
-    billId: string;
-    patientId: string;
-    returnDate: Date;
-    refundAmount: number;
-    refundMethod: string;
-    pharmacistId: string | null;
+    bill_id: string;
+    patient_id: string;
+    return_date: Date;
+    refund_amount: number;
+    refund_method: string;
+    pharmacist_id: string | null;
     status: string;
     items: Array<{
         id: string;
-        medicineId: string;
-        medicineName?: string;
-        batchNumber: string | null;
-        returnQty: number;
-        salePrice: number;
+        medicine_id: string;
+        medicine_name?: string;
+        batch_number: string | null;
+        return_qty: number;
+        selling_price: number;
         reason: string;
     }>;
 }
+
 export const createStockReturnSchema = z.object({
     distributor: z.string().min(1),
-    returnType: z.string().min(1),
+    return_type: z.string().min(1),
     items: z.array(z.object({
-        medicineId: z.string().min(1),
-        batchNumber: z.string().optional(),
-        returnQty: z.number().int().positive(),
-        returnReason: z.string().min(1),
-        unitPrice: z.number().nonnegative(),
+        medicine_id: z.string().min(1),
+        batch_number: z.string().optional(),
+        return_qty: z.number().int().positive(),
+        return_reason: z.string().min(1),
+        unit_price: z.number().nonnegative(),
     })).min(1),
-    pharmacistId: z.string().optional(),
+    pharmacist_id: z.string().optional(),
 });
 
 export type CreateStockReturnInput = z.infer<typeof createStockReturnSchema>;
@@ -272,48 +274,48 @@ export type CreateStockReturnInput = z.infer<typeof createStockReturnSchema>;
 export interface PharmacyStockReturnResponse {
     id: string;
     distributor: string;
-    returnDate: Date;
-    totalAmount: number;
-    returnType: string;
-    pharmacistId: string | null;
+    return_date: Date;
+    total_amount: number;
+    return_type: string;
+    pharmacist_id: string | null;
     status: string;
     items: Array<{
         id: string;
-        medicineId: string;
-        medicineName?: string;
-        batchNumber: string | null;
-        returnQty: number;
-        returnReason: string;
-        unitPrice: number;
+        medicine_id: string;
+        medicine_name?: string;
+        batch_number: string | null;
+        return_qty: number;
+        return_reason: string;
+        unit_price: number;
     }>;
 }
 
 export interface PharmacyPurchaseResponse {
     id: string;
-    distributorName: string;
-    invoiceNumber: string;
-    purchaseDate: Date;
-    totalAmount: number;
-    amountPaid: number;
-    balanceAmount: number;
-    paymentStatus: string;
-    paymentDate: Date | null;
-    paymentMethod: string | null;
-    fileUrl: string | null;
-    createdAt: Date;
-    updatedAt: Date;
+    distributor_name: string;
+    invoice_number: string;
+    purchase_date: Date;
+    total_amount: number;
+    amount_paid: number;
+    balance_amount: number;
+    payment_status: string;
+    payment_date: Date | null;
+    payment_method: string | null;
+    file_url: string | null;
+    created_at: Date;
+    updated_at: Date;
     batches?: Array<{
         id: string;
-        batchNumber: string;
-        medicineName: string;
-        stockQuantity: number;
+        batch_number: string;
+        medicine_name: string;
+        stock_quantity: number;
     }>;
 }
 
 export const updatePurchaseSchema = z.object({
-    distributorName: z.string().min(1).optional(),
-    invoiceNumber: z.string().min(1).optional(),
-    purchaseDate: z.string().transform((s) => new Date(s)).optional(),
+    distributor_name: z.string().min(1).optional(),
+    invoice_number: z.string().min(1).optional(),
+    purchase_date: z.string().transform((s) => new Date(s)).optional(),
 });
 
 export type UpdatePurchaseInput = z.infer<typeof updatePurchaseSchema>;
@@ -334,5 +336,5 @@ export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export interface CategoryResponse {
     id: number;
     name: string;
-    createdAt: Date;
+    created_at: Date;
 }

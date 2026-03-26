@@ -31,7 +31,7 @@ export class PharmacyService {
             let medicine = await tx.medicine.findFirst({
                 where: { 
                     name: { equals: input.name, mode: 'insensitive' },
-                    genericName: input.genericName ? { equals: input.genericName, mode: 'insensitive' } : null
+                    genericName: input.generic_name ? { equals: input.generic_name, mode: 'insensitive' } : null
                 }
             });
 
@@ -39,27 +39,27 @@ export class PharmacyService {
                 medicine = await (tx as any).medicine.create({
                     data: {
                         name: input.name,
-                        genericName: input.genericName,
-                        categoryId: input.categoryId,
+                        genericName: input.generic_name,
+                        categoryId: input.category_id,
                         manufacturer: input.manufacturer,
                         unit: input.unit,
-                        pricePerUnit: new Decimal(input.salePrice || 0),
-                        reorderLevel: input.reorderLevel,
+                        pricePerUnit: new Decimal(input.selling_price || 0),
+                        reorderLevel: input.reorder_level,
                     }
                 });
             }
 
             // 2. Handle Pharmacy Purchase (Aggregated by Invoice)
             let purchaseId = null;
-            if (input.invoiceNumber) {
-                const totalItemAmount = input.stockQuantity * input.purchasePrice;
+            if (input.invoice_number) {
+                const totalItemAmount = input.stock_quantity * input.purchase_price;
                 
                 // Find existing purchase for this distributor + invoice
                 let purchase = await (tx as any).pharmacyPurchase.findUnique({
                     where: {
                         distributorName_invoiceNumber: {
-                            distributorName: input.distributorName,
-                            invoiceNumber: input.invoiceNumber
+                            distributorName: input.distributor_name,
+                            invoiceNumber: input.invoice_number
                         }
                     }
                 });
@@ -77,8 +77,8 @@ export class PharmacyService {
                     // Create new purchase
                     purchase = await (tx as any).pharmacyPurchase.create({
                         data: {
-                            distributorName: input.distributorName,
-                            invoiceNumber: input.invoiceNumber,
+                            distributorName: input.distributor_name,
+                            invoiceNumber: input.invoice_number,
                             totalAmount: new Decimal(totalItemAmount),
                             amountPaid: new Decimal(0),
                             balanceAmount: new Decimal(totalItemAmount),
@@ -93,21 +93,21 @@ export class PharmacyService {
             await (tx as any).medicineBatch.create({
                 data: {
                     medicineId: medicine!.id,
-                    batchNumber: input.batchNumber,
-                    distributorName: input.distributorName,
-                    manufacturingDate: input.manufacturingDate,
-                    expiryDate: input.expiryDate,
-                    purchasePrice: input.purchasePrice,
-                    salePrice: input.salePrice,
+                    batchNumber: input.batch_number,
+                    distributorName: input.distributor_name,
+                    manufacturingDate: input.manufacturing_date,
+                    expiryDate: input.expiry_date,
+                    purchasePrice: input.purchase_price,
+                    sellingPrice: input.selling_price,
                     mrp: input.mrp,
-                    gst: input.gst,
-                    stockQuantity: input.stockQuantity,
-                    freeQuantity: input.freeQuantity || 0,
+                    gstPercent: input.gst_percent,
+                    stockQuantity: input.stock_quantity,
+                    freeQuantity: input.free_quantity || 0,
                     ptr: input.ptr || 0,
                     rate: input.rate || 0,
-                    taxableAmount: input.taxableAmount || 0,
-                    gstAmount: input.gstAmount || 0,
-                    totalAmount: input.totalAmount || 0,
+                    taxableAmount: input.taxable_amount || 0,
+                    gstAmount: input.gst_amount || 0,
+                    totalAmount: input.total_amount || 0,
                     purchaseId: purchaseId,
                 }
             });
@@ -180,7 +180,7 @@ export class PharmacyService {
     }
 
     async getMedicines(query: MedicineQueryInput): Promise<PaginatedResponse<any>> {
-        const { page = 1, limit = 10, search, category, lowStock, format, allBatches } = query;
+        const { page = 1, limit = 10, search, category, low_stock, format, all_batches } = query;
         const skip = (page - 1) * limit;
 
         try {
@@ -207,39 +207,39 @@ export class PharmacyService {
                 const batches = await (prisma as any).medicineBatch.findMany({
                     where: { AND: conditions },
                     include: { medicine: true },
-                    take: limit,
-                    skip,
+                    take: Number(limit),
+                    skip: Number(skip),
                     orderBy: { expiryDate: 'asc' }
                 });
 
                 const items = batches.map((b: any) => ({
                     id: b.medicine.id,
                     name: b.medicine.name,
-                    genericName: b.medicine.genericName,
+                    generic_name: b.medicine.genericName,
                     batch: b.batchNumber,
                     distributor: b.distributorName,
                     stock: b.stockQuantity,
                     expiry: b.expiryDate,
-                    purchasePrice: b.purchasePrice
+                    purchase_price: Number(b.purchasePrice)
                 }));
 
                 return {
                     items,
                     total,
-                    page,
-                    limit,
-                    totalPages: Math.ceil(total / limit)
+                    page: Number(page),
+                    limit: Number(limit),
+                    totalPages: Math.ceil(total / Number(limit))
                 };
             }
 
-            if (allBatches) {
+            if (all_batches) {
                 const conditions: any[] = [{ isActive: true }];
                 if (search) {
                     conditions.push({
                         OR: [
                             { medicine: { name: { contains: search, mode: 'insensitive' } } },
-                            { batchNumber: { contains: search, mode: 'insensitive' } },
-                            { distributorName: { contains: search, mode: 'insensitive' } }
+                            { batch_number: { contains: search, mode: 'insensitive' } },
+                            { distributor_name: { contains: search, mode: 'insensitive' } }
                         ]
                     });
                 }
@@ -250,9 +250,7 @@ export class PharmacyService {
                         conditions.push({ medicine: { categoryRel: { name: { contains: category, mode: 'insensitive' } } } });
                     }
                 }
-                if (lowStock) {
-                    // This is tricky with allBatches. Usually lowStock is at medicine level.
-                    // But here we can show batches where stock is low.
+                if (low_stock) {
                     conditions.push({ stockQuantity: { lte: 10 } });
                 }
 
@@ -281,11 +279,11 @@ export class PharmacyService {
                     stock_quantity: b.stockQuantity,
                     total_stock: b.medicine.stockQuantity,
                     min_stock_level: b.medicine.reorderLevel,
-                    unit_price: Number(b.salePrice),
+                    selling_price: Number(b.sellingPrice),
                     purchase_price: Number(b.purchasePrice),
-                    gst: Number(b.gst),
+                    gst_percent: Number(b.gstPercent),
                     mrp: Number(b.mrp),
-                    distributor: b.distributorName,
+                    distributor_name: b.distributorName,
                     batch_number: b.batchNumber,
                     expiry_date: b.expiryDate,
                     free_quantity: b.freeQuantity || 0,
@@ -452,32 +450,53 @@ export class PharmacyService {
         }
 
         // Validate expiry date if provided
-        if (input.expiryDate) {
-            const expDate = new Date(input.expiryDate);
+        if (input.expiry_date) {
+            const expDate = new Date(input.expiry_date);
             if (expDate <= new Date()) {
                 throw new ValidationError('Expiry date must be in the future');
             }
         }
 
         // Validate prices/stock
-        if (input.stockQuantity !== undefined && input.stockQuantity < 0) {
+        if (input.stock_quantity !== undefined && input.stock_quantity < 0) {
             throw new ValidationError('Stock quantity cannot be negative');
         }
-        if (input.purchasePrice !== undefined && input.purchasePrice < 0) {
+        if (input.purchase_price !== undefined && input.purchase_price < 0) {
             throw new ValidationError('Purchase price cannot be negative');
         }
-        if (input.salePrice !== undefined && input.salePrice < 0) {
-            throw new ValidationError('Sale price cannot be negative');
+        if (input.selling_price !== undefined && input.selling_price < 0) {
+            throw new ValidationError('Selling price cannot be negative');
         }
 
         return await prisma.$transaction(async (tx: any) => {
+            const dataToUpdate: any = { ...input };
+            
+            // Map input fields to Prisma model fields
+            if (input.batch_number) dataToUpdate.batchNumber = input.batch_number;
+            if (input.distributor_name) dataToUpdate.distributorName = input.distributor_name;
+            if (input.manufacturing_date) dataToUpdate.manufacturingDate = input.manufacturing_date;
+            if (input.expiry_date) dataToUpdate.expiryDate = input.expiry_date;
+            if (input.purchase_price) dataToUpdate.purchasePrice = input.purchase_price;
+            if (input.selling_price) dataToUpdate.sellingPrice = input.selling_price;
+            if (input.gst_percent) dataToUpdate.gstPercent = input.gst_percent;
+            if (input.stock_quantity) dataToUpdate.stockQuantity = input.stock_quantity;
+            if (input.free_quantity) dataToUpdate.freeQuantity = input.free_quantity;
+            if (input.is_active !== undefined) dataToUpdate.isActive = input.is_active;
+            if (input.taxable_amount) dataToUpdate.taxableAmount = input.taxable_amount;
+            if (input.gst_amount) dataToUpdate.gstAmount = input.gst_amount;
+            if (input.total_amount) dataToUpdate.totalAmount = input.total_amount;
+
+            // Remove snake_case fields that don't exist in Prisma model
+            const internalFields = ['batch_number', 'distributor_name', 'manufacturing_date', 'expiry_date', 'purchase_price', 'selling_price', 'gst_percent', 'stock_quantity', 'free_quantity', 'is_active', 'taxable_amount', 'gst_amount', 'total_amount'];
+            internalFields.forEach(f => delete dataToUpdate[f]);
+
             const updatedBatch = await tx.medicineBatch.update({
                 where: { id },
-                data: input,
+                data: dataToUpdate,
             });
 
             // Update aggregated medicine stock if quantity changed
-            if (input.stockQuantity !== undefined) {
+            if (input.stock_quantity !== undefined) {
                 const totalStock = await tx.medicineBatch.aggregate({
                     where: { medicineId: existing.medicineId, isActive: true },
                     _sum: { stockQuantity: true }
@@ -508,11 +527,11 @@ export class PharmacyService {
     // Billing
     async createBill(input: CreateBillInput): Promise<BillResponse> {
         // Validate patient if not walk-in
-        if (!input.isWalkIn) {
-            if (!input.patientId) {
+        if (!input.is_walk_in) {
+            if (!input.patient_id) {
                 throw new ValidationError('Patient ID is required for non-walk-in bills');
             }
-            const patient = await prisma.patient.findUnique({ where: { uhid: input.patientId } });
+            const patient = await prisma.patient.findUnique({ where: { uhid: input.patient_id } });
             if (!patient) {
                 throw new NotFoundError('Patient');
             }
@@ -520,10 +539,10 @@ export class PharmacyService {
 
         // Validate stock for medicine items
         for (const item of input.items as CreateBillItem[]) {
-            if (item.medicineId) {
-                const medicine = await (prisma as any).medicine.findUnique({ where: { id: item.medicineId } });
+            if (item.medicine_id) {
+                const medicine = await (prisma as any).medicine.findUnique({ where: { id: item.medicine_id } });
                 if (!medicine) {
-                    throw new NotFoundError(`Medicine not found: ${item.medicineId}`);
+                    throw new NotFoundError(`Medicine not found: ${item.medicine_id}`);
                 }
                 if (medicine.stockQuantity < item.quantity) {
                     throw new ValidationError(`Insufficient stock for ${medicine.name}`);
@@ -532,10 +551,10 @@ export class PharmacyService {
         }
 
         // Calculate totals
-        const subtotal = (input.items as CreateBillItem[]).reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-        const discountedSubtotal = subtotal - input.discount;
-        const gstAmount = (discountedSubtotal * input.gstPercent) / 100;
-        const grandTotal = discountedSubtotal + gstAmount;
+        const subtotalCalc = (input.items as CreateBillItem[]).reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+        const discountedSubtotal = subtotalCalc - input.discount;
+        const gstAmountCalc = (discountedSubtotal * input.gst_percent) / 100;
+        const grandTotalCalc = discountedSubtotal + gstAmountCalc;
 
         // Generate bill number
         const billNumber = `BILL-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
@@ -549,10 +568,10 @@ export class PharmacyService {
             const billItemsData = [];
 
             for (const item of input.items as CreateBillItem[]) {
-                const itemBase = item.quantity * item.unitPrice;
+                const itemBase = item.quantity * item.unit_price;
                 const itemDiscountAmt = itemBase * ((item.discount || 0) / 100);
                 const itemTaxable = itemBase - itemDiscountAmt;
-                const itemGstAmt = itemTaxable * ((item.gst || 0) / 100);
+                const itemGstAmt = itemTaxable * ((item.gst_percent || 0) / 100);
                 const itemTotalAmt = itemTaxable + itemGstAmt;
 
                 subtotal += itemBase;
@@ -562,16 +581,16 @@ export class PharmacyService {
                 let remainingQty = item.quantity;
                 let totalPurchasePrice = 0;
 
-                if (item.medicineId) {
+                if (item.medicine_id) {
                     // Resolve medicine name for description snapshot
-                    const medRecord = await (tx as any).medicine.findUnique({ where: { id: item.medicineId } });
+                    const medRecord = await (tx as any).medicine.findUnique({ where: { id: item.medicine_id } });
                     if (!item.description && medRecord) {
                         item.description = medRecord.name;
                     }
 
                     const batches = await (tx as any).medicineBatch.findMany({
                         where: {
-                            medicineId: item.medicineId,
+                            medicineId: item.medicine_id,
                             stockQuantity: { gt: 0 },
                             expiryDate: { gt: new Date() },
                             isActive: true,
@@ -598,7 +617,7 @@ export class PharmacyService {
 
                     // Integrated Logging
                     await this.updateStockAndLog(tx, {
-                        medicineId: item.medicineId,
+                        medicineId: item.medicine_id,
                         type: 'DISPENSE',
                         quantity: -item.quantity,
                         referenceId: `BILL-${Date.now()}`, 
@@ -606,19 +625,19 @@ export class PharmacyService {
                     });
                 }
 
-                const avgPurchasePrice = item.medicineId ? totalPurchasePrice / item.quantity : 0;
-                const itemProfit = (item.unitPrice - avgPurchasePrice) * item.quantity;
+                const avgPurchasePrice = item.medicine_id ? totalPurchasePrice / item.quantity : 0;
+                const itemProfit = (item.unit_price - avgPurchasePrice) * item.quantity;
 
                 billItemsData.push({
-                    medicineId: item.medicineId || null,
+                    medicineId: item.medicine_id || null,
                     description: item.description,
                     quantity: item.quantity,
-                    unitPrice: item.unitPrice,
-                    batchNumber: item.batchNumber || null,
-                    expiryDate: item.expiryDate || null,
-                    hsnCode: item.hsnCode || null,
+                    unitPrice: item.unit_price,
+                    batchNumber: item.batch_number || null,
+                    expiryDate: item.expiry_date || null,
+                    hsnCode: item.hsn_code || null,
                     discount: item.discount || 0,
-                    gst: item.gst || 0,
+                    gstPercent: item.gst_percent || 0,
                     discountAmount: itemDiscountAmt,
                     gstAmount: itemGstAmt,
                     totalAmount: itemTotalAmt,
@@ -633,16 +652,16 @@ export class PharmacyService {
 
             const newBill = await (tx as any).bill.create({
                 data: {
-                    patientId: input.isWalkIn ? null : input.patientId,
-                    customerName: input.isWalkIn ? input.customerName : null,
-                    phone: input.isWalkIn ? input.phone : null,
-                    isWalkIn: input.isWalkIn || false,
-                    visitType: input.isWalkIn ? 'WALK_IN' : 'OP',
+                    patientId: input.is_walk_in ? null : input.patient_id,
+                    customerName: input.is_walk_in ? input.customer_name : null,
+                    phone: input.is_walk_in ? input.phone : null,
+                    isWalkIn: input.is_walk_in || false,
+                    visitType: input.is_walk_in ? 'WALK_IN' : 'OP',
                     billNumber: `PH-${Date.now()}`,
                     billType: 'PHARMACY',
                     subtotal: subtotal, 
                     discount: totalDiscount, 
-                    gstPercent: input.gstPercent || 0, 
+                    gstPercent: input.gst_percent || 0, 
                     gstAmount: totalGstAmount,
                     grandTotal,
                     status: 'PAID', 
@@ -663,13 +682,13 @@ export class PharmacyService {
         return this.formatBill(bill);
     }
 
-    async getBills(query: MedicineQueryInput): Promise<PaginatedResponse<BillResponse>> {
-        const { page = 1, limit = 10, search: rawSearch, format, billType } = query;
+    async getBills(query: any): Promise<PaginatedResponse<BillResponse>> {
+        const { page = 1, limit = 10, search: rawSearch, format, bill_type } = query;
         const search = rawSearch?.trim();
         const skip = (page - 1) * limit;
 
         // Strictly enforce PHARMACY bill type for this service unless explicitly overridden
-        const finalBillType = this.mapBillType(billType as string || 'PHARMACY');
+        const finalBillType = this.mapBillType(bill_type as string || 'PHARMACY');
         const where: any = {
             billType: finalBillType
         };
@@ -806,7 +825,7 @@ export class PharmacyService {
         return await prisma.$transaction(async (tx) => {
             // 1. Validate bill and items
             const bill = await tx.bill.findUnique({
-                where: { id: input.billId },
+                where: { id: input.bill_id },
                 include: { items: true }
             });
 
@@ -815,30 +834,30 @@ export class PharmacyService {
             // 2. Calculate refund amount and validate return quantities
             let refundAmount = 0;
             for (const item of input.items) {
-                const billItem = bill.items.find(bi => String(bi.medicineId) === String(item.medicineId));
+                const billItem = bill.items.find(bi => String(bi.medicineId) === String(item.medicine_id));
                 if (!billItem) {
-                    throw new ValidationError(`Medicine ${item.medicineId} not found in bill ${bill.billNumber}`);
+                    throw new ValidationError(`Medicine ${item.medicine_id} not found in bill ${bill.billNumber}`);
                 }
-                if (item.returnQty > billItem.quantity) {
+                if (item.return_qty > billItem.quantity) {
                     throw new ValidationError(`Return quantity for ${billItem.description} exceeds sold quantity`);
                 }
-                refundAmount += item.returnQty * item.salePrice;
+                refundAmount += item.return_qty * item.selling_price;
             }
 
             // 1. Create return record
             const pharmacyReturn = await (tx as any).pharmacyReturn.create({
                 data: {
-                    billId: input.billId,
-                    patientId: input.patientId,
+                    billId: input.bill_id,
+                    patientId: input.patient_id,
                     refundAmount,
-                    refundMethod: input.refundMethod,
-                    pharmacistId: input.pharmacistId,
+                    refundMethod: input.refund_method,
+                    pharmacistId: input.pharmacist_id,
                     items: {
                         create: input.items.map(item => ({
-                            medicineId: item.medicineId,
-                            batchNumber: item.batchNumber,
-                            returnQty: item.returnQty,
-                            salePrice: item.salePrice,
+                            medicineId: item.medicine_id,
+                            batchNumber: item.batch_number,
+                            returnQty: item.return_qty,
+                            salePrice: item.selling_price,
                             reason: item.reason
                         }))
                     }
@@ -855,8 +874,8 @@ export class PharmacyService {
                 // Increment batch stock
                 const batch = await ((tx as any).medicineBatch).findFirst({
                     where: { 
-                        medicineId: item.medicineId, 
-                        batchNumber: item.batchNumber || undefined,
+                        medicineId: item.medicine_id, 
+                        batchNumber: item.batch_number || undefined,
                         isActive: true,
                     },
                     orderBy: { expiryDate: 'asc' } 
@@ -865,16 +884,16 @@ export class PharmacyService {
                 if (batch) {
                     await ((tx as any).medicineBatch).update({
                         where: { id: batch.id },
-                        data: { stockQuantity: { increment: item.returnQty } }
+                        data: { stockQuantity: { increment: item.return_qty } }
                     });
                 }
 
                 // Log and Sync
                 await this.updateStockAndLog(tx, {
-                    medicineId: item.medicineId,
-                    batchNumber: item.batchNumber || undefined,
+                    medicineId: item.medicine_id,
+                    batchNumber: item.batch_number || undefined,
                     type: 'PATIENT_RETURN',
-                    quantity: item.returnQty,
+                    quantity: item.return_qty,
                     referenceId: pharmacyReturn.id,
                     remarks: `Patient return for bill ${bill.billNumber}`
                 });
@@ -931,20 +950,20 @@ export class PharmacyService {
     private formatReturn(pReturn: any): PharmacyReturnResponse {
         return {
             id: pReturn.id,
-            billId: pReturn.billId,
-            patientId: pReturn.patientId,
-            returnDate: pReturn.returnDate,
-            refundAmount: Number(pReturn.refundAmount),
-            refundMethod: pReturn.refundMethod,
-            pharmacistId: pReturn.pharmacistId,
+            bill_id: pReturn.billId,
+            patient_id: pReturn.patientId,
+            return_date: pReturn.returnDate,
+            refund_amount: Number(pReturn.refundAmount),
+            refund_method: pReturn.refundMethod,
+            pharmacist_id: pReturn.pharmacistId,
             status: pReturn.status,
             items: pReturn.items.map((item: any) => ({
                 id: item.id,
-                medicineId: item.medicineId,
-                medicineName: item.medicine?.name,
-                batchNumber: item.batchNumber,
-                returnQty: item.returnQty,
-                salePrice: Number(item.salePrice),
+                medicine_id: item.medicineId,
+                medicine_name: item.medicine?.name,
+                batch_number: item.batchNumber,
+                return_qty: item.returnQty,
+                selling_price: Number(item.salePrice),
                 reason: item.reason
             }))
         };
@@ -956,36 +975,36 @@ export class PharmacyService {
             // 1. Calculate total amount and validate stock
             let totalAmount = 0;
             for (const item of input.items) {
-                if (item.batchNumber) {
+                if (item.batch_number) {
                     // Find batch to return to distributor
                     const batch = await ((tx as any).medicineBatch).findFirst({
                         where: { 
-                            medicineId: item.medicineId, 
-                            batchNumber: item.batchNumber,
+                            medicineId: item.medicine_id, 
+                            batchNumber: item.batch_number,
                             isActive: true,
                         }
                     });
 
                     if (!batch) {
-                        throw new ValidationError(`Batch not found for medicine ID ${item.medicineId} and batch number ${item.batchNumber}`);
+                        throw new ValidationError(`Batch not found for medicine ID ${item.medicine_id} and batch number ${item.batch_number}`);
                     }
 
-                    if (batch.stockQuantity < item.returnQty) {
-                         throw new ValidationError(`Insufficient stock in batch ${item.batchNumber} for return`);
+                    if (batch.stockQuantity < item.return_qty) {
+                         throw new ValidationError(`Insufficient stock in batch ${item.batch_number} for return`);
                     }
 
                     await ((tx as any).medicineBatch).update({
                         where: { id: batch.id },
-                        data: { stockQuantity: { decrement: item.returnQty } }
+                        data: { stockQuantity: { decrement: item.return_qty } }
                     });
                 } else {
-                    const medicine = await (tx as any).medicine.findUnique({ where: { id: item.medicineId } });
+                    const medicine = await (tx as any).medicine.findUnique({ where: { id: item.medicine_id } });
                     if (!medicine) throw new NotFoundError('Medicine');
-                    if (medicine.stockQuantity < item.returnQty) {
+                    if (medicine.stockQuantity < item.return_qty) {
                         throw new ValidationError(`Insufficient total stock for ${medicine.name}`);
                     }
                 }
-                totalAmount += item.returnQty * item.unitPrice;
+                totalAmount += item.return_qty * item.unit_price;
             }
 
             // Create return master record
@@ -993,15 +1012,15 @@ export class PharmacyService {
                 data: {
                     distributor: input.distributor,
                     totalAmount,
-                    returnType: input.returnType,
-                    pharmacistId: input.pharmacistId,
+                    returnType: input.return_type,
+                    pharmacistId: input.pharmacist_id,
                     items: {
                         create: input.items.map(item => ({
-                            medicineId: item.medicineId,
-                            batchNumber: item.batchNumber,
-                            returnQty: item.returnQty,
-                            returnReason: item.returnReason,
-                            unitPrice: item.unitPrice
+                            medicineId: item.medicine_id,
+                            batchNumber: item.batch_number,
+                            returnQty: item.return_qty,
+                            returnReason: item.return_reason,
+                            unitPrice: item.unit_price
                         }))
                     }
                 },
@@ -1013,10 +1032,10 @@ export class PharmacyService {
             // 3. Update master stock quantity
             for (const item of input.items) {
                 await this.updateStockAndLog(tx, {
-                    medicineId: item.medicineId,
-                    batchNumber: item.batchNumber || undefined,
+                    medicineId: item.medicine_id,
+                    batchNumber: item.batch_number || undefined,
                     type: 'DISTRIBUTOR_RETURN',
-                    quantity: -item.returnQty,
+                    quantity: -item.return_qty,
                     referenceId: newStockReturn.id,
                     remarks: `Returned to distributor: ${input.distributor}`
                 });
@@ -1389,19 +1408,19 @@ export class PharmacyService {
         return {
             id: sReturn.id,
             distributor: sReturn.distributor,
-            returnDate: sReturn.returnDate,
-            totalAmount: Number(sReturn.totalAmount),
-            returnType: sReturn.returnType,
-            pharmacistId: sReturn.pharmacistId,
+            return_date: sReturn.returnDate,
+            total_amount: Number(sReturn.totalAmount),
+            return_type: sReturn.returnType,
+            pharmacist_id: sReturn.pharmacistId,
             status: sReturn.status,
             items: sReturn.items.map((item: any) => ({
                 id: item.id,
-                medicineId: item.medicineId,
-                medicineName: item.medicine?.name,
-                batchNumber: item.batchNumber,
-                returnQty: item.returnQty,
-                returnReason: item.returnReason,
-                unitPrice: Number(item.unitPrice)
+                medicine_id: item.medicineId,
+                medicine_name: item.medicine?.name,
+                batch_number: item.batchNumber,
+                return_qty: item.returnQty,
+                return_reason: item.returnReason,
+                unit_price: Number(item.unitPrice)
             }))
         };
     }
@@ -1446,7 +1465,7 @@ export class PharmacyService {
             expiry_date: displayBatch?.expiryDate || null,
             batch_number: displayBatch?.batchNumber || '-',
             distributor: displayBatch?.distributorName || '-',
-            unit_price: displayBatch ? Number(displayBatch.salePrice) : 0,
+            unit_price: displayBatch ? Number(displayBatch.sellingPrice) : 0,
             status,
             active: medicine.isActive,
             batches: batches.map((b: any) => ({
@@ -1456,9 +1475,9 @@ export class PharmacyService {
                 manufacturing_date: b.manufacturingDate,
                 expiry_date: b.expiryDate,
                 purchase_price: Number(b.purchasePrice),
-                sale_price: Number(b.salePrice),
+                selling_price: Number(b.sellingPrice),
                 mrp: Number(b.mrp),
-                gst: Number(b.gst),
+                gst_percent: Number(b.gstPercent),
                 stock_quantity: b.stockQuantity,
                 free_quantity: b.freeQuantity || 0,
                 ptr: Number(b.ptr || 0),
@@ -1497,7 +1516,7 @@ export class PharmacyService {
             expiryDate?: Date | null;
             hsnCode?: string | null;
             discount?: Decimal;
-            gst?: Decimal;
+            gstPercent?: Decimal;
         }>;
         createdAt: Date;
         patient?: {
@@ -1509,38 +1528,38 @@ export class PharmacyService {
     }): BillResponse {
         return {
             id: bill.id,
-            patientId: bill.patientId,
-            customerName: bill.customerName || null,
+            patient_id: bill.patientId,
+            customer_name: bill.customerName || null,
             phone: bill.phone || null,
-            isWalkIn: bill.isWalkIn || false,
-            billNumber: bill.billNumber,
+            is_walk_in: bill.isWalkIn || false,
+            bill_number: bill.billNumber,
             subtotal: Number(bill.subtotal),
             discount: Number(bill.discount),
-            gstPercent: Number(bill.gstPercent),
-            gstAmount: Number(bill.gstAmount),
-            grandTotal: Number(bill.grandTotal),
+            gst_percent: Number(bill.gstPercent),
+            gst_amount: Number(bill.gstAmount),
+            grand_total: Number(bill.grandTotal),
             status: bill.status as BillResponse['status'],
-            paidAmount: Number(bill.paidAmount),
+            paid_amount: Number(bill.paidAmount),
             items: bill.items.map((item) => ({
                 id: item.id,
                 description: item.description || (item as any).medicine?.name || 'Medicine',
                 quantity: item.quantity,
-                unitPrice: Number(item.unitPrice),
-                purchasePrice: Number((item as any).purchasePrice),
+                unit_price: Number(item.unitPrice),
+                purchase_price: Number((item as any).purchasePrice),
                 profit: Number((item as any).profit),
-                medicineId: item.medicineId || null,
-                batchNumber: (item as any).batchNumber || null,
-                expiryDate: (item as any).expiryDate || null,
-                hsnCode: (item as any).hsnCode || null,
+                medicine_id: item.medicineId || null,
+                batch_number: (item as any).batchNumber || null,
+                expiry_date: (item as any).expiryDate || null,
+                hsn_code: (item as any).hsnCode || null,
                 discount: Number((item as any).discount || 0),
-                gst: Number((item as any).gst || 0),
+                gst_percent: Number((item as any).gstPercent || 0),
                 total: Number(item.total),
             })),
-            createdAt: bill.createdAt,
+            created_at: bill.createdAt,
             patient: bill.patient ? {
                 uhid: bill.patient.uhid,
-                firstName: bill.patient.firstName,
-                lastName: bill.patient.lastName,
+                first_name: bill.patient.firstName,
+                last_name: bill.patient.lastName,
                 phone: bill.patient.phone,
             } : null,
         };
@@ -1574,7 +1593,8 @@ export class PharmacyService {
                     const payments = p.payments || [];
                     const totalPaidFromPayments = payments.reduce((sum: number, pay: any) => sum + Number(pay.amount || 0), 0);
                     const amountPaid = totalPaidFromPayments;
-                    const balanceAmount = Number(p.totalAmount || 0) - amountPaid;
+                    const totalAmt = Number(p.totalAmount || 0);
+                    const balanceAmount = totalAmt - amountPaid;
                     
                     return this.formatPurchase({
                         ...p,
@@ -1633,7 +1653,7 @@ export class PharmacyService {
             });
 
             return {
-                pendingPurchases: (pendingPurchases || []).map((p: any) => {
+                pending_purchases: (pendingPurchases || []).map((p: any) => {
                     const amountPaid = Number(p.amountPaid) || 0;
                     const totalAmt = Number(p.totalAmount) || 0;
                     const balanceAmount = totalAmt - amountPaid;
@@ -1643,12 +1663,12 @@ export class PharmacyService {
                     });
                 }),
                 stats: {
-                    totalAmount,
-                    totalPaid,
-                    totalBalance,
-                    pendingCount: (pendingPurchases || []).length
+                    total_amount: totalAmount,
+                    total_paid: totalPaid,
+                    total_balance: totalBalance,
+                    pending_count: (pendingPurchases || []).length
                 },
-                pendingByDistributor
+                pending_by_distributor: pendingByDistributor
             };
         } catch (error) {
             console.error('[PharmacyService] getDistributorReport failed:', error);
@@ -1670,20 +1690,20 @@ export class PharmacyService {
             // 1. Calculate total purchase amount
             let totalAmount = 0;
             for (const item of input.items) {
-                totalAmount += item.stockQuantity * item.purchasePrice;
+                totalAmount += item.stock_quantity * item.purchase_price;
             }
 
             // 2. Create the Purchase tracking record
             const purchase = await (tx as any).pharmacyPurchase.create({
                 data: {
-                    distributorName: input.distributorName,
-                    invoiceNumber: input.invoiceNumber,
-                    purchaseDate: input.purchaseDate || new Date(),
+                    distributorName: input.distributor_name,
+                    invoiceNumber: input.invoice_number,
+                    purchaseDate: input.purchase_date || new Date(),
                     totalAmount: new Decimal(totalAmount),
                     amountPaid: new Decimal(0),
                     balanceAmount: new Decimal(totalAmount),
                     paymentStatus: 'PENDING',
-                    fileUrl: (input as any).fileUrl || null
+                    fileUrl: (input as any).file_url || null
                 }
             });
 
@@ -1691,37 +1711,37 @@ export class PharmacyService {
             for (const item of input.items) {
                 // Ensure medicine exists
                 const existingMedicine = await (tx as any).medicine.findUnique({
-                    where: { id: item.medicineId }
+                    where: { id: item.medicine_id }
                 });
                 if (!existingMedicine) {
-                    throw new NotFoundError(`Medicine with ID ${item.medicineId} not found`);
+                    throw new NotFoundError(`Medicine with ID ${item.medicine_id} not found`);
                 }
 
                 await (tx as any).medicineBatch.create({
                     data: {
-                        medicineId: item.medicineId,
+                        medicineId: item.medicine_id,
                         purchaseId: purchase.id,
-                        batchNumber: item.batchNumber,
-                        distributorName: input.distributorName,
-                        manufacturingDate: item.manufacturingDate,
-                        expiryDate: item.expiryDate,
-                        purchasePrice: new Decimal(item.purchasePrice),
-                        salePrice: new Decimal(item.salePrice),
+                        batchNumber: item.batch_number,
+                        distributorName: input.distributor_name,
+                        manufacturingDate: item.manufacturing_date,
+                        expiryDate: item.expiry_date,
+                        purchasePrice: new Decimal(item.purchase_price),
+                        sellingPrice: new Decimal(item.selling_price),
                         mrp: item.mrp ? new Decimal(item.mrp) : null,
-                        gst: new Decimal(item.gst || 0),
-                        stockQuantity: item.stockQuantity,
-                        freeQuantity: (item as any).freeQuantity || 0,
+                        gstPercent: new Decimal(item.gst_percent || 0),
+                        stockQuantity: item.stock_quantity,
+                        freeQuantity: (item as any).free_quantity || 0,
                         ptr: new Decimal((item as any).ptr || 0),
                         rate: new Decimal((item as any).rate || 0),
-                        taxableAmount: new Decimal((item as any).taxableAmount || 0),
-                        gstAmount: new Decimal((item as any).gstAmount || 0),
-                        totalAmount: new Decimal((item as any).totalAmount || 0),
+                        taxableAmount: new Decimal((item as any).taxable_amount || 0),
+                        gstAmount: new Decimal((item as any).gst_amount || 0),
+                        totalAmount: new Decimal((item as any).total_amount || 0),
                         isActive: true
                     }
                 });
 
                 // 4. Update parent medicine total stock
-                const updatedStock = existingMedicine.stockQuantity + item.stockQuantity;
+                const updatedStock = existingMedicine.stockQuantity + item.stock_quantity;
                 await (tx as any).medicine.update({
                     where: { id: existingMedicine.id },
                     data: { stockQuantity: updatedStock }
@@ -1789,23 +1809,23 @@ export class PharmacyService {
     private formatPurchase(purchase: any): PharmacyPurchaseResponse {
         return {
             id: purchase.id,
-            distributorName: purchase.distributorName || '',
-            invoiceNumber: purchase.invoiceNumber || '',
-            purchaseDate: purchase.purchaseDate,
-            totalAmount: Number(purchase.totalAmount) || 0,
-            amountPaid: Number(purchase.amountPaid) || 0,
-            balanceAmount: Number(purchase.balanceAmount) || 0,
-            paymentStatus: purchase.paymentStatus || 'PENDING',
-            paymentDate: purchase.paymentDate || null,
-            paymentMethod: purchase.paymentMethod || null,
-            fileUrl: purchase.fileUrl || null,
-            createdAt: purchase.createdAt,
-            updatedAt: purchase.updatedAt,
+            distributor_name: purchase.distributorName || '',
+            invoice_number: purchase.invoiceNumber || '',
+            purchase_date: purchase.purchaseDate,
+            total_amount: Number(purchase.totalAmount) || 0,
+            amount_paid: Number(purchase.amountPaid) || 0,
+            balance_amount: Number(purchase.balanceAmount) || 0,
+            payment_status: purchase.paymentStatus || 'PENDING',
+            payment_date: purchase.paymentDate || null,
+            payment_method: purchase.paymentMethod || null,
+            file_url: purchase.fileUrl || null,
+            created_at: purchase.createdAt,
+            updated_at: purchase.updatedAt,
             batches: (purchase.batches || []).map((b: any) => ({
                 id: b.id,
-                batchNumber: b.batchNumber,
-                medicineName: b.medicine?.name || 'Unknown',
-                stockQuantity: b.stockQuantity || 0
+                batch_number: b.batchNumber,
+                medicine_name: b.medicine?.name || 'Unknown',
+                stock_quantity: b.stockQuantity || 0
             }))
         };
     }
