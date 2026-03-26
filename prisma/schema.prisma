@@ -305,7 +305,9 @@ model BillItem {
 model LabTestOrder {
   id                       String         @id @default(uuid())
   orderNumber              String?        @unique @map("order_number")
-  patientId                String         @map("patient_id")
+  patientId                String?        @map("patient_id")
+  walkInName               String?        @map("walk_in_name")
+  walkInPhone              String?        @map("walk_in_phone")
   orderedById              String         @map("ordered_by_id")
   orderedByRole            String?        @map("ordered_by_role")
   doctorId                 String?        @map("doctor_id")
@@ -323,7 +325,7 @@ model LabTestOrder {
   bill                     Bill?          @relation(fields: [billId], references: [id])
   orderedBy                Staff          @relation("OrderedBy", fields: [orderedById], references: [id], onDelete: Cascade)
   doctor                   Staff?         @relation("DoctorOrdering", fields: [doctorId], references: [id])
-  patient                  Patient        @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
+  patient                  Patient?       @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
   result                   LabTestResult?
   labResults               LabResult[]
   isReportVisibleToPatient Boolean        @default(true) @map("is_report_visible")

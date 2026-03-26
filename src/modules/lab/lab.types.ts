@@ -5,7 +5,7 @@ import { LabTestStatus } from '@prisma/client';
 export { LabTestStatus };
 
 export const createLabOrderSchema = z.object({
-    patientId: z.string().min(1),
+    patientId: z.string().optional(), // Optional for walk-in patients
     testId: z.string().optional(), // Strictly preferred
     testName: z.string().min(1, 'Test name is required'), // Still required for record, but should be synced from testId
     testCode: z.string().optional(),
@@ -13,6 +13,8 @@ export const createLabOrderSchema = z.object({
     priority: z.enum(['normal', 'urgent', 'stat']).default('normal'),
     notes: z.string().optional(),
     isWalkInLab: z.boolean().optional().default(false),
+    walkInName: z.string().optional(), // Name for walk-in patients
+    walkInPhone: z.string().optional(), // Phone for walk-in patients
     patientType: z.string().optional(), // Frontend sends patientType (e.g. 'WALKIN_LAB', 'OP')
     createdFromModule: z.string().optional(), // Frontend context (e.g. 'lab_billing')
 });
@@ -77,6 +79,8 @@ export interface LabOrderResponse {
     status: LabTestStatus;
     notes: string | null;
     isWalkInLab: boolean;
+    walkInName?: string | null;
+    walkInPhone?: string | null;
     patient: { firstName: string; lastName: string; uhid?: string | null; gender?: string | null; dateOfBirth?: Date | null; phone?: string | null; age?: number | string | null; };
     orderedBy: { firstName: string; lastName: string; user?: { role: string } };
     doctor?: { firstName: string; lastName: string } | null;

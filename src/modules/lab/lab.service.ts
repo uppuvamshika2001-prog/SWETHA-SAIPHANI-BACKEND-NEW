@@ -46,10 +46,20 @@ export class LabService {
         }
         // If it's a Receptionist and NO doctor is provided, doctorIdForOrder remains null safely.
 
-        // Validate patient
-        const patient = await prisma.patient.findUnique({ where: { uhid: input.patientId } });
-        if (!patient) {
-            throw new NotFoundError('Patient not found');
+        // Derive walk-in status from all possible frontend signals
+        const isWalkIn = input.isWalkInLab
+            || (input as any).patientType === 'WALKIN_LAB'
+            || (input as any).patientType === 'WALK_IN';
+
+        // Validate patient — only required for non-walk-in orders
+        if (!isWalkIn) {
+            if (!input.patientId) {
+                throw new ValidationError('Patient ID is required for non-walk-in lab orders');
+            }
+            const patient = await prisma.patient.findUnique({ where: { uhid: input.patientId } });
+            if (!patient) {
+                throw new NotFoundError('Patient not found');
+            }
         }
 
         // Resolve test record to link master data
@@ -101,10 +111,6 @@ export class LabService {
         if (!resolvedTestId) {
             throw new ValidationError(`The lab test '${input.testName}' is not in the official catalog. Please select a valid test from the list.`);
         }
-        // Derive walk-in status from all possible frontend signals
-        const isWalkIn = input.isWalkInLab
-            || (input as any).patientType === 'WALKIN_LAB'
-            || (input as any).patientType === 'WALK_IN';
 
         // Generate Human-Readable Order Number (LAB-YYYYMMDD-XXX)
         const today = new Date();
@@ -128,7 +134,9 @@ export class LabService {
         const order = await (prisma.labTestOrder as any).create({
             data: {
                 orderNumber: newOrderNumber,
-                patientId: input.patientId,
+                patientId: isWalkIn ? (input.patientId || null) : input.patientId,
+                walkInName: isWalkIn ? ((input as any).walkInName || null) : null,
+                walkInPhone: isWalkIn ? ((input as any).walkInPhone || null) : null,
                 orderedById: orderer.id,
                 orderedByRole: orderedByRoleValue,
                 doctorId: doctorIdForOrder || null,
@@ -431,9 +439,11 @@ export class LabService {
                 throw new NotFoundError('Lab order not found');
             }
 
-            const patientName = `${order.patient.firstName} ${order.patient.lastName}`;
-            const patientGender = (order as any).patient.gender;
-            const patientAgeStr = this.calculateAge(order.patient.dateOfBirth);
+            const patientName = order.patient 
+                ? `${order.patient.firstName} ${order.patient.lastName}`
+                : ((order as any).walkInName || 'Walk-in Patient');
+            const patientGender = order.patient ? (order as any).patient.gender : null;
+            const patientAgeStr = order.patient ? this.calculateAge(order.patient.dateOfBirth) : '0';
             const patientAgeNum = parseInt(patientAgeStr);
 
             // Helper to get correct reference range from JSON structure
@@ -698,6 +708,8 @@ export class LabService {
             completedAt: Date;
         } | null;
         isWalkInLab: boolean;
+        walkInName?: string | null;
+        walkInPhone?: string | null;
         createdAt: Date;
     }): LabOrderResponse {
         return {
@@ -712,12 +724,14 @@ export class LabService {
             priority: order.priority,
             status: order.status as LabOrderResponse['status'],
             notes: order.notes,
-            patient: order.patient,
+            patient: order.patient || { firstName: (order as any).walkInName || 'Walk-in', lastName: '' },
             orderedBy: order.orderedBy,
             doctor: order.doctor || null,
             test: order.test || null,
             result: order.result ? this.formatResult(order.result) : null,
             isWalkInLab: order.isWalkInLab || false,
+            walkInName: (order as any).walkInName || null,
+            walkInPhone: (order as any).walkInPhone || null,
             createdAt: order.createdAt,
         };
     }

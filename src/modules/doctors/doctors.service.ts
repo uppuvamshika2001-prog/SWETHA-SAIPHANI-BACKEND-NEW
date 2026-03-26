@@ -652,7 +652,9 @@ export class DoctorsService {
                 id: l.id,
                 testName: l.testName,
                 status: l.status,
-                patientName: `${l.patient.firstName} ${l.patient.lastName}`
+                patientName: l.patient 
+                    ? `${l.patient.firstName} ${l.patient.lastName}` 
+                    : ((l as any).walkInName || 'Walk-in Patient')
             })),
             patients: patientsData.map(p => ({
                 uhid: p.uhid,

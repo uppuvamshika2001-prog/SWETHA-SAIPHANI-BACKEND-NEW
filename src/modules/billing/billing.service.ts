@@ -5,7 +5,7 @@ import { Prisma } from '@prisma/client';
 
 export class BillingService {
     async create(input: CreateBillInput) {
-        const { items, labOrderIds, isWalkInLab, creatorId, patientId, discount, gstPercent, notes, status, billType: explicitBillType } = input as any;
+        const { items, labOrderIds, isWalkInLab, creatorId, patientId, customerName, phone, discount, gstPercent, notes, status, billType: explicitBillType } = input as any;
 
         // Derive billType: explicit > lab orders > item types > default CONSULTATION
         let billType = explicitBillType || 'CONSULTATION';
@@ -16,6 +16,8 @@ export class BillingService {
                 billType = 'LAB';
             }
         }
+
+        // ... existing logic to calculate totals ...
 
         // Calculate totals and fetch purchase prices for profit tracking
         let subtotal = 0;
@@ -105,7 +107,10 @@ export class BillingService {
         // Only pass valid Bill model fields — NOT items/labOrderIds/isWalkInLab/creatorId
         const bill = await prisma.bill.create({
             data: {
-                patientId,
+                patientId: patientId || undefined,
+                customerName: customerName || undefined,
+                phone: phone || undefined,
+                isWalkIn: !!(customerName || phone || isWalkInLab),
                 billNumber,
                 billType,
                 subtotal: totalSubtotal,
@@ -174,7 +179,9 @@ export class BillingService {
 
                     await tx.labTestOrder.create({
                         data: {
-                            patientId,
+                            patientId: patientId || undefined,
+                            walkInName: customerName || undefined,
+                            walkInPhone: phone || undefined,
                             orderedById: staffIdForOrder,
                             testName,
                             priority: 'normal',
