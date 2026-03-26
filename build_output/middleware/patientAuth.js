@@ -1,6 +1,6 @@
-import { prisma } from '@/config/database.js';
+import { prisma } from '../config/database.js';
 import { UserRole } from '@prisma/client';
-import { sendForbidden, sendUnauthorized } from '@/utils/response.js';
+import { sendForbidden, sendUnauthorized } from '../utils/response.js';
 /**
  * Middleware to allow access if:
  * 1. User is Staff (ADMIN, DOCTOR, RECEPTIONIST, PHARMACIST, LAB_TECHNICIAN)

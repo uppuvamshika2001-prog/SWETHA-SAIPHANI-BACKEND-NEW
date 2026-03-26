@@ -9,7 +9,7 @@ export const billItemSchema = z.object({
     lab_order_id: z.string().optional(),
 });
 export const createBillSchema = z.object({
-    patientId: z.string().min(1, 'Invalid patient ID'),
+    patientId: z.string().optional(),
     items: z.array(billItemSchema).min(1, 'At least one item is required'),
     discount: z.number().nonnegative().default(0),
     gstPercent: z.number().nonnegative().default(18),
@@ -18,6 +18,7 @@ export const createBillSchema = z.object({
     labOrderIds: z.array(z.string()).optional(),
     isWalkInLab: z.boolean().optional().default(false),
     billType: z.enum(['PHARMACY', 'CONSULTATION', 'LAB']).optional(),
+    visitType: z.enum(['OP', 'WALK_IN']).optional().default('OP'),
 });
 export const updateBillStatusSchema = z.object({
     status: z.nativeEnum(BillStatus),
@@ -33,5 +34,6 @@ export const billQuerySchema = z.object({
     startDate: z.string().optional(),
     endDate: z.string().optional(),
     search: z.string().optional(),
+    billType: z.union([z.string(), z.array(z.string())]).optional(),
 });
 //# sourceMappingURL=billing.types.js.map

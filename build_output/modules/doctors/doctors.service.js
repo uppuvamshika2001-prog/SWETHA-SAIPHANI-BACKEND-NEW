@@ -421,7 +421,7 @@ export class DoctorsService {
             const items = logsForRecord.map(log => {
                 // Determine retail price matching the dispensed batch
                 const batch = log.medicine.batches.find(b => b.batchNumber === log.batchNumber);
-                const unitPrice = batch ? Number(batch.salePrice) : Number(log.medicine.pricePerUnit);
+                const unitPrice = batch ? Number(batch.sellingPrice) : Number(log.medicine.pricePerUnit);
                 const quantity = Math.abs(log.quantity);
                 const itemTotal = unitPrice * quantity;
                 totalAmount += itemTotal;
@@ -554,7 +554,9 @@ export class DoctorsService {
                 id: l.id,
                 testName: l.testName,
                 status: l.status,
-                patientName: `${l.patient.firstName} ${l.patient.lastName}`
+                patientName: l.patient
+                    ? `${l.patient.firstName} ${l.patient.lastName}`
+                    : (l.walkInName || 'Walk-in Patient')
             })),
             patients: patientsData.map(p => ({
                 uhid: p.uhid,

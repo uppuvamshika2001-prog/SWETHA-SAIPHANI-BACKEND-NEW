@@ -1,11 +1,12 @@
 import { prisma } from '../../config/database.js';
 import { NotFoundError } from '../../middleware/errorHandler.js';
 import { Prisma } from '@prisma/client';
+import { logger } from '../../utils/logger.js';
 export class BillingService {
     async create(input) {
-        const { items, labOrderIds, isWalkInLab, creatorId, patientId, discount, gstPercent, notes, status, billType: explicitBillType } = input;
+        const { items, labOrderIds, isWalkInLab, creatorId, patientId, customerName, phone, discount, gstPercent, notes, status, billType: explicitBillType } = input;
         // Derive billType: explicit > lab orders > item types > default CONSULTATION
-        let billType = explicitBillType || 'CONSULTATION';
+        let billType = this.mapBillType(explicitBillType);
         if (!explicitBillType) {
             const hasLabOrders = (labOrderIds && labOrderIds.length > 0);
             const hasLabItems = items.some((item) => item.type === 'lab');
@@ -13,6 +14,7 @@ export class BillingService {
                 billType = 'LAB';
             }
         }
+        // ... existing logic to calculate totals ...
         // Calculate totals and fetch purchase prices for profit tracking
         let subtotal = 0;
         const medicineItems = items.filter(item => item.medicineId && item.batchNumber);
@@ -88,10 +90,14 @@ export class BillingService {
         const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
         const count = await prisma.bill.count();
         const billNumber = `INV-${dateStr}-${(count + 1).toString().padStart(4, '0')}`;
+        console.log("[BillingService] DEBUG: Creating bill with type:", billType, "for patient:", patientId);
         // Only pass valid Bill model fields — NOT items/labOrderIds/isWalkInLab/creatorId
         const bill = await prisma.bill.create({
             data: {
-                patientId,
+                patientId: patientId || undefined,
+                customerName: customerName || undefined,
+                phone: phone || undefined,
+                isWalkIn: !!(customerName || phone || isWalkInLab),
                 billNumber,
                 billType,
                 subtotal: totalSubtotal,
@@ -101,6 +107,7 @@ export class BillingService {
                 grandTotal: totalGrandTotal,
                 status: status || 'PENDING',
                 notes: notes || undefined,
+                visitType: input.visitType || 'OP',
                 items: {
                     create: billItems
                 }
@@ -125,63 +132,33 @@ export class BillingService {
                 }
             });
         }
-        // Auto-create lab orders for lab items NOT linked to existing orders
-        const labItems = billItems.filter((item) => item.description.trim().toLowerCase().startsWith('lab:'));
-        if (labItems.length > 0) {
-            let staffIdForOrder;
-            if (creatorId) {
-                const staff = await prisma.staff.findUnique({ where: { userId: creatorId } });
-                if (staff) {
-                    staffIdForOrder = staff.id;
-                }
-                else {
-                    const fallbackStaff = await prisma.staff.findFirst();
-                    if (!fallbackStaff)
-                        throw new Error('No staff found in system to assign as test orderer.');
-                    staffIdForOrder = fallbackStaff.id;
-                }
-            }
-            else {
-                const fallbackStaff = await prisma.staff.findFirst();
-                if (!fallbackStaff)
-                    throw new Error('No staff found in system to assign as test orderer.');
-                staffIdForOrder = fallbackStaff.id;
-            }
-            await prisma.$transaction(async (tx) => {
-                for (const labItem of labItems) {
-                    // Extract test name from "Lab: CBC" format
-                    const testName = labItem.description.replace(/^Lab:\s*/i, '').trim();
-                    if (!testName)
-                        continue;
-                    await tx.labTestOrder.create({
-                        data: {
-                            patientId,
-                            orderedById: staffIdForOrder,
-                            testName,
-                            priority: 'normal',
-                            status: 'PAYMENT_PENDING',
-                            billId: bill.id,
-                            isWalkInLab: isWalkInLab || false,
-                        }
-                    });
-                }
-            });
-        }
         const medicalRecord = bill.patientId ? await prisma.medicalRecord.findFirst({
             where: { patientId: bill.patientId },
             orderBy: { createdAt: 'desc' }
         }) : null;
         return this.formatBill({ ...bill, medicalRecord });
     }
-    async findAll(query) {
+    async findAll(query, user) {
         const page = Number(query.page || 1);
         const limit = Number(query.limit || 10);
-        const { patientId, status, startDate, endDate, search } = query;
+        const { patientId, status, startDate, endDate, search, billType } = query;
         const skip = (page - 1) * limit;
-        const where = {
-            // Exclude PHARMACY bills from reception/billing views
-            billType: { not: 'PHARMACY' }
-        };
+        const where = {};
+        // --- Bill Type Filtering Logic ---
+        // 1. If explicit billType is provided in query, use it
+        if (billType) {
+            const rawTypes = Array.isArray(billType) ? billType : (typeof billType === 'string' && billType.includes(',') ? billType.split(',') : [billType]);
+            const finalBillTypes = rawTypes.map(t => this.mapBillType(t));
+            where.billType = { in: finalBillTypes };
+        }
+        // 2. Otherwise, use role-based defaults
+        else if (user?.role === 'PHARMACIST') {
+            where.billType = 'PHARMACY';
+        }
+        else {
+            // Default for RECEPTIONIST, ADMIN or any other staff
+            where.billType = 'CONSULTATION';
+        }
         if (patientId && patientId.trim() !== '') {
             where.patientId = patientId;
         }
@@ -189,25 +166,15 @@ export class BillingService {
         if (status && status.trim() !== '') {
             where.status = status.toUpperCase();
         }
-        // Date Filter Fix: Convert to proper UTC range boundaries for the given date string
+        // Date Filter Final Fix: Use local time boundaries to include the full day
         if (startDate || endDate) {
             const dateFilter = {};
             if (startDate) {
-                // Example startDate: '2026-03-18' -> Create exactly at 00:00:00 UTC
-                const startStr = `${startDate}T00:00:00.000Z`;
-                const start = new Date(startStr);
-                // If the user's timezone is IST (+05:30), the local '00:00:00' is '18:30:00' UTC of the previous day
-                // To be robust and match the local day, we shift back 5.5 hours to align UTC with IST midnight.
-                // Assuming the clinic operates in IST timezone (+05:30)
-                start.setMinutes(start.getMinutes() - 330);
-                dateFilter.gte = start;
+                // Using template literal without 'Z' uses server local time (IST)
+                dateFilter.gte = new Date(`${startDate.split('T')[0]}T00:00:00`);
             }
             if (endDate) {
-                const endStr = `${endDate}T23:59:59.999Z`;
-                const end = new Date(endStr);
-                // Shift back 5.5 hours to align UTC with IST end of day
-                end.setMinutes(end.getMinutes() - 330);
-                dateFilter.lte = end;
+                dateFilter.lte = new Date(`${endDate.split('T')[0]}T23:59:59.999`);
             }
             where.createdAt = dateFilter;
         }
@@ -225,9 +192,6 @@ export class BillingService {
                 }
             ];
         }
-        // Debug Logging
-        console.log(`[BillingService] findAll Incoming Filters:`, query);
-        console.log(`[BillingService] findAll Prisma Where:`, JSON.stringify(where, null, 2));
         try {
             const [total, items] = await Promise.all([
                 prisma.bill.count({ where }),
@@ -243,7 +207,12 @@ export class BillingService {
                     }
                 })
             ]);
-            console.log(`[BillingService] findAll Result Count: ${items.length} records out of ${total} total matching.`);
+            if (total === 0) {
+                logger.info({ context: 'BillingService.findAll', where, query: { patientId, status, startDate, endDate, search, billType } }, 'No bills found for the given criteria');
+            }
+            else {
+                console.log(`[BillingService] findAll Result Count: ${items.length} records out of ${total} total matching.`);
+            }
             const itemsWithMedicalRecords = await Promise.all(items.map(async (item) => {
                 const medicalRecord = await prisma.medicalRecord.findFirst({
                     where: { patientId: item.patientId },
@@ -481,6 +450,18 @@ export class BillingService {
                 total: Number(item.total)
             }))
         };
+    }
+    mapBillType(type) {
+        if (!type)
+            return 'CONSULTATION';
+        const t = String(type).toUpperCase().trim();
+        if (t === 'CONSULT' || t === 'CONSULTATION')
+            return 'CONSULTATION';
+        if (t === 'PHARMACY')
+            return 'PHARMACY';
+        if (t === 'LAB')
+            return 'LAB';
+        return t;
     }
 }
 export const billingService = new BillingService();

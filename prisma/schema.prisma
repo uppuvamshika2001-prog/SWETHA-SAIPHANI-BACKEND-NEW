@@ -237,7 +237,6 @@ model MedicineBatch {
   sellingPrice    Decimal           @map("selling_price") @db.Decimal(10, 2)
   mrp               Decimal?          @db.Decimal(10, 2)
   ptr               Decimal           @default(0) @map("ptr") @db.Decimal(10, 2)
-  rate              Decimal           @default(0) @map("rate") @db.Decimal(10, 2)
   gstPercent        Decimal           @default(0) @map("gst_percent") @db.Decimal(5, 2)
   stockQuantity     Int               @default(0) @map("stock_quantity")
   freeQuantity      Int               @default(0) @map("free_quantity")

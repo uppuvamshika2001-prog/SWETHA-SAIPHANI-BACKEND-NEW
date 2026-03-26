@@ -20,7 +20,6 @@ export const createMedicineSchema = z.object({
     stock_quantity: z.number().int().nonnegative(),
     free_quantity: z.number().int().nonnegative().default(0),
     ptr: z.number().nonnegative().default(0),
-    rate: z.number().nonnegative().default(0),
     taxable_amount: z.number().nonnegative().default(0),
     gst_amount: z.number().nonnegative().default(0),
     total_amount: z.number().nonnegative().default(0),
@@ -77,7 +76,6 @@ export const updateBatchSchema = z.object({
     stock_quantity: z.number().int().nonnegative().optional(),
     free_quantity: z.number().int().nonnegative().optional(),
     ptr: z.number().nonnegative().optional(),
-    rate: z.number().nonnegative().optional(),
     taxable_amount: z.number().nonnegative().optional(),
     gst_amount: z.number().nonnegative().optional(),
     total_amount: z.number().nonnegative().optional(),
@@ -157,7 +155,6 @@ export interface MedicineResponse {
         stock_quantity: number;
         free_quantity: number;
         ptr: number;
-        rate: number;
         taxable_amount: number;
         gst_amount: number;
         total_amount: number;

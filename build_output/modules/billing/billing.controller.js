@@ -19,7 +19,7 @@ export async function createBill(req, res, next) {
 export async function getBills(req, res, next) {
     try {
         const query = billQuerySchema.parse(req.query);
-        const result = await billingService.findAll(query);
+        const result = await billingService.findAll(query, req.user);
         sendSuccess(res, result);
     }
     catch (error) {

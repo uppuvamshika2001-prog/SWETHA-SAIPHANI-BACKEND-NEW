@@ -1,6 +1,6 @@
-import { doctorsService } from '@/modules/doctors/doctors.service.js';
-import { createMedicalRecordSchema, createPrescriptionSchema } from '@/modules/doctors/doctors.types.js';
-import { sendSuccess, sendCreated } from '@/utils/response.js';
+import { doctorsService } from '../../modules/doctors/doctors.service.js';
+import { createMedicalRecordSchema, createPrescriptionSchema } from '../../modules/doctors/doctors.types.js';
+import { sendSuccess, sendCreated } from '../../utils/response.js';
 /**
  * @swagger
  * /api/medical-records:

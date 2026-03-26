@@ -3,6 +3,7 @@ import { LabTestStatus } from '@prisma/client';
 import { logger } from '../../utils/logger.js';
 import { pdfGenerator } from '../../services/pdfGenerator.js';
 import { NotFoundError, ValidationError } from '../../middleware/errorHandler.js';
+import { patientsService } from '../patients/patients.service.js';
 export class LabService {
     async createOrder(orderedByUserId, userRole, input) {
         // Find orderedBy staff profile (the person logged in, e.g., Doctor, Receptionist, Lab Tech)
@@ -40,6 +41,7 @@ export class LabService {
         // If it's a Receptionist and NO doctor is provided, doctorIdForOrder remains null safely.
         // Derive walk-in status from all possible frontend signals
         const isWalkIn = input.isWalkInLab
+            || input.visitType === 'WALK_IN'
             || input.patientType === 'WALKIN_LAB'
             || input.patientType === 'WALK_IN';
         // Validate patient — only required for non-walk-in orders
@@ -101,6 +103,17 @@ export class LabService {
         if (!resolvedTestId) {
             throw new ValidationError(`The lab test '${input.testName}' is not in the official catalog. Please select a valid test from the list.`);
         }
+        // Handle OP Visit recording
+        let visitRecordId = null;
+        if (input.visitType === 'OP' && input.patientId && !isWalkIn) {
+            try {
+                visitRecordId = await patientsService.createOP(input.patientId, input.doctorId);
+                console.log(`[LabService] Created auto-OP record ${visitRecordId} for patient ${input.patientId}`);
+            }
+            catch (error) {
+                logger.error({ error, patientId: input.patientId }, 'Failed to create auto-OP record for lab order. Continuing order creation.');
+            }
+        }
         // Generate Human-Readable Order Number (LAB-YYYYMMDD-XXX)
         const today = new Date();
         const dateStr = today.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
@@ -131,6 +144,7 @@ export class LabService {
                 priority: input.priority,
                 notes: input.notes,
                 isWalkInLab: isWalkIn,
+                visitType: input.visitType || 'OP',
                 status: LabTestStatus.PAYMENT_PENDING,
             },
             include: {

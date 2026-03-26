@@ -1,7 +1,7 @@
-import { pharmacyService } from '@/modules/pharmacy/pharmacy.service.js';
-import { createMedicineSchema, updateMedicineSchema, updateBatchSchema, medicineQuerySchema, createBillSchema, updateBillSchema, recordPaymentSchema, createPurchaseSchema, updatePurchaseSchema } from '@/modules/pharmacy/pharmacy.types.js';
-import { sendSuccess, sendCreated } from '@/utils/response.js';
-import { logger } from '@/utils/logger.js';
+import { pharmacyService } from '../../modules/pharmacy/pharmacy.service.js';
+import { createMedicineSchema, updateMedicineSchema, updateBatchSchema, medicineQuerySchema, createBillSchema, updateBillSchema, recordPaymentSchema, createPurchaseSchema, updatePurchaseSchema } from '../../modules/pharmacy/pharmacy.types.js';
+import { sendSuccess, sendCreated } from '../../utils/response.js';
+import { logger } from '../../utils/logger.js';
 export async function createPurchase(req, res, next) {
     try {
         // When using multipart/form-data, items arrive as a JSON string

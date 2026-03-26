@@ -1,7 +1,7 @@
-import { labService } from '@/modules/lab/lab.service.js';
-import { createLabOrderSchema, createLabResultSchema, labOrderQuerySchema, createLabTestSchema, updateLabTestSchema } from '@/modules/lab/lab.types.js';
-import { sendSuccess, sendCreated } from '@/utils/response.js';
-import { logger } from '@/utils/logger.js';
+import { labService } from '../../modules/lab/lab.service.js';
+import { createLabOrderSchema, createLabResultSchema, labOrderQuerySchema, createLabTestSchema, updateLabTestSchema } from '../../modules/lab/lab.types.js';
+import { sendSuccess, sendCreated } from '../../utils/response.js';
+import { logger } from '../../utils/logger.js';
 import { z } from 'zod';
 /**
  * @swagger

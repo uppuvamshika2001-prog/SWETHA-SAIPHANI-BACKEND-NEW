@@ -1,6 +1,6 @@
-import { appointmentsService } from '@/modules/appointments/appointments.service.js';
-import { createAppointmentSchema, updateAppointmentSchema, appointmentQuerySchema, createPublicAppointmentSchema } from '@/modules/appointments/appointments.types.js';
-import { sendSuccess, sendCreated, sendNoContent } from '@/utils/response.js';
+import { appointmentsService } from '../../modules/appointments/appointments.service.js';
+import { createAppointmentSchema, updateAppointmentSchema, appointmentQuerySchema, createPublicAppointmentSchema } from '../../modules/appointments/appointments.types.js';
+import { sendSuccess, sendCreated, sendNoContent } from '../../utils/response.js';
 /**
  * @swagger
  * /api/appointments:
