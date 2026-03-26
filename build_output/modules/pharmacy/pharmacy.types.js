@@ -1,0 +1,141 @@
+import { z } from 'zod';
+import { BillStatus } from '@prisma/client';
+export const createMedicineSchema = z.object({
+    name: z.string().min(1, 'Name is required'),
+    genericName: z.string().optional(),
+    manufacturer: z.string().optional(),
+    categoryId: z.coerce.number().int().optional(),
+    unit: z.string().default('tablet'),
+    reorderLevel: z.number().int().nonnegative().default(10),
+    // Batch information for initial stock entry
+    batchNumber: z.string().min(1, 'Batch number is required'),
+    distributorName: z.string().min(1, 'Distributor name is required'),
+    manufacturingDate: z.string().transform((s) => new Date(s)).optional(),
+    expiryDate: z.string().transform((s) => new Date(s)),
+    purchasePrice: z.number().nonnegative(),
+    salePrice: z.number().nonnegative(),
+    mrp: z.number().nonnegative().optional(),
+    gst: z.number().nonnegative().default(0),
+    stockQuantity: z.number().int().positive(),
+    // Purchase payment tracking (Now handled separately, but kept as optional for backward compatibility during migration)
+    invoiceNumber: z.string().optional(),
+});
+export const recordPaymentSchema = z.object({
+    purchaseId: z.string(),
+    amount: z.number().positive(),
+    paymentDate: z.string().transform((s) => new Date(s)).optional(),
+    paymentMethod: z.string(),
+    notes: z.string().optional(),
+});
+export const createPurchaseSchema = z.object({
+    distributorName: z.string().min(1, 'Distributor name is required'),
+    invoiceNumber: z.string().min(1, 'Invoice number is required'),
+    purchaseDate: z.string().transform((s) => new Date(s)).optional(),
+    items: z.array(z.object({
+        medicineId: z.string().min(1, 'Medicine is required'),
+        batchNumber: z.string().min(1, 'Batch number is required'),
+        manufacturingDate: z.string().transform((s) => new Date(s)).optional(),
+        expiryDate: z.string().transform((s) => new Date(s)),
+        purchasePrice: z.number().nonnegative(),
+        salePrice: z.number().nonnegative(),
+        mrp: z.number().nonnegative().optional(),
+        gst: z.number().nonnegative().default(0),
+        stockQuantity: z.number().int().positive(),
+    })).min(1, 'At least one item is required')
+});
+export const updateMedicineSchema = z.object({
+    name: z.string().min(1).optional(),
+    genericName: z.string().optional(),
+    manufacturer: z.string().optional(),
+    categoryId: z.coerce.number().int().optional(),
+    unit: z.string().optional(),
+    reorderLevel: z.number().int().nonnegative().optional(),
+    isActive: z.boolean().optional(),
+});
+export const updateBatchSchema = z.object({
+    batchNumber: z.string().min(1).optional(),
+    distributorName: z.string().min(1).optional(),
+    manufacturingDate: z.string().transform((s) => new Date(s)).optional(),
+    expiryDate: z.string().transform((s) => new Date(s)).optional(),
+    purchasePrice: z.number().nonnegative().optional(),
+    salePrice: z.number().nonnegative().optional(),
+    mrp: z.number().nonnegative().optional(),
+    gst: z.number().nonnegative().optional(),
+    stockQuantity: z.number().int().nonnegative().optional(),
+    isActive: z.boolean().optional(),
+});
+export const medicineQuerySchema = z.object({
+    page: z.coerce.number().int().positive().default(1),
+    limit: z.coerce.number().int().positive().max(100, "Maximum limit allowed is 100 records per request").default(10),
+    search: z.string().optional(),
+    category: z.string().optional(),
+    lowStock: z.coerce.boolean().optional(),
+    format: z.string().optional(),
+    allBatches: z.coerce.boolean().optional(),
+});
+export const createBillItemSchema = z.object({
+    medicineId: z.string().optional(),
+    description: z.string().min(1),
+    quantity: z.number().int().positive(),
+    unitPrice: z.number().nonnegative(),
+    batchNumber: z.string().optional(),
+    expiryDate: z.coerce.date().optional(),
+    hsnCode: z.string().optional(),
+    discount: z.number().nonnegative().default(0),
+    gst: z.number().nonnegative().default(0),
+});
+export const createBillSchema = z.object({
+    patientId: z.string().optional(),
+    customerName: z.string().optional(),
+    phone: z.string().optional(),
+    isWalkIn: z.boolean().default(false),
+    items: z.array(createBillItemSchema).min(1, 'At least one item is required'),
+    discount: z.number().nonnegative().default(0),
+    gstPercent: z.number().nonnegative().default(18),
+    notes: z.string().optional(),
+});
+export const updateBillSchema = z.object({
+    status: z.nativeEnum(BillStatus).optional(),
+    paidAmount: z.number().nonnegative().optional(),
+    notes: z.string().optional(),
+});
+export const createReturnSchema = z.object({
+    billId: z.string().min(1),
+    patientId: z.string().min(1),
+    refundMethod: z.string().min(1),
+    items: z.array(z.object({
+        medicineId: z.string().min(1),
+        batchNumber: z.string().optional(),
+        returnQty: z.number().int().positive(),
+        salePrice: z.number().positive(),
+        reason: z.string().min(1),
+    })).min(1),
+    pharmacistId: z.string().optional(),
+});
+export const createStockReturnSchema = z.object({
+    distributor: z.string().min(1),
+    returnType: z.string().min(1),
+    items: z.array(z.object({
+        medicineId: z.string().min(1),
+        batchNumber: z.string().optional(),
+        returnQty: z.number().int().positive(),
+        returnReason: z.string().min(1),
+        unitPrice: z.number().nonnegative(),
+    })).min(1),
+    pharmacistId: z.string().optional(),
+});
+export const updatePurchaseSchema = z.object({
+    distributorName: z.string().min(1).optional(),
+    invoiceNumber: z.string().min(1).optional(),
+    purchaseDate: z.string().transform((s) => new Date(s)).optional(),
+});
+export const purchaseQuerySchema = z.object({
+    page: z.coerce.number().int().positive().default(1),
+    limit: z.coerce.number().int().positive().max(100).default(10),
+    distributor: z.string().optional(),
+    status: z.string().optional(),
+});
+export const createCategorySchema = z.object({
+    name: z.string().min(1, 'Category name is required'),
+});
+//# sourceMappingURL=pharmacy.types.js.map

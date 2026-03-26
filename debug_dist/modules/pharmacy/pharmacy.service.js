@@ -1,42 +1,20 @@
 import { prisma } from '../../config/database.js';
 import { Prisma } from '@prisma/client';
 import { NotFoundError, ValidationError } from '../../middleware/errorHandler.js';
-import {
-    CreateMedicineInput,
-    UpdateMedicineInput,
-    MedicineQueryInput,
-    CreateBillInput,
-    CreateBillItem,
-    UpdateBillInput,
-    MedicineResponse,
-    BillResponse,
-    UpdateBatchInput,
-    CreateReturnInput,
-    PharmacyReturnResponse,
-    CreateStockReturnInput,
-    PharmacyStockReturnResponse,
-    MarginReportResponse,
-    PharmacyPurchaseResponse,
-    purchaseQuerySchema,
-    CreatePurchaseInput
-} from './pharmacy.types.js';
-import { PaginatedResponse } from '../users/users.types.js';
 import { Decimal } from '@prisma/client/runtime/library';
-
 export class PharmacyService {
     // Medicine CRUD
-    async createMedicine(input: CreateMedicineInput): Promise<MedicineResponse> {
+    async createMedicine(input) {
         return await prisma.$transaction(async (tx) => {
             // 1. Check if medicine master record exists
             let medicine = await tx.medicine.findFirst({
-                where: { 
+                where: {
                     name: { equals: input.name, mode: 'insensitive' },
                     genericName: input.genericName ? { equals: input.genericName, mode: 'insensitive' } : null
                 }
             });
-
             if (!medicine) {
-                medicine = await (tx as any).medicine.create({
+                medicine = await tx.medicine.create({
                     data: {
                         name: input.name,
                         genericName: input.genericName,
@@ -48,14 +26,12 @@ export class PharmacyService {
                     }
                 });
             }
-
             // 2. Handle Pharmacy Purchase (Aggregated by Invoice)
             let purchaseId = null;
             if (input.invoiceNumber) {
                 const totalItemAmount = input.stockQuantity * input.purchasePrice;
-                
                 // Find existing purchase for this distributor + invoice
-                let purchase = await (tx as any).pharmacyPurchase.findUnique({
+                let purchase = await tx.pharmacyPurchase.findUnique({
                     where: {
                         distributorName_invoiceNumber: {
                             distributorName: input.distributorName,
@@ -63,19 +39,19 @@ export class PharmacyService {
                         }
                     }
                 });
-
                 if (purchase) {
                     // Update existing purchase total
-                    purchase = await (tx as any).pharmacyPurchase.update({
+                    purchase = await tx.pharmacyPurchase.update({
                         where: { id: purchase.id },
                         data: {
                             totalAmount: { increment: new Decimal(totalItemAmount) },
                             balanceAmount: { increment: new Decimal(totalItemAmount) }
                         }
                     });
-                } else {
+                }
+                else {
                     // Create new purchase
-                    purchase = await (tx as any).pharmacyPurchase.create({
+                    purchase = await tx.pharmacyPurchase.create({
                         data: {
                             distributorName: input.distributorName,
                             invoiceNumber: input.invoiceNumber,
@@ -88,11 +64,10 @@ export class PharmacyService {
                 }
                 purchaseId = purchase.id;
             }
-
             // 3. Create the new batch
-            await (tx as any).medicineBatch.create({
+            await tx.medicineBatch.create({
                 data: {
-                    medicineId: medicine!.id,
+                    medicineId: medicine.id,
                     batchNumber: input.batchNumber,
                     distributorName: input.distributorName,
                     manufacturingDate: input.manufacturingDate,
@@ -105,41 +80,36 @@ export class PharmacyService {
                     purchaseId: purchaseId,
                 }
             });
-
             // 3. Update aggregated medicine stock
-            const totalStock = await (tx as any).medicineBatch.aggregate({
-                where: { medicineId: medicine!.id as any, isActive: true },
+            const totalStock = await tx.medicineBatch.aggregate({
+                where: { medicineId: medicine.id, isActive: true },
                 _sum: { stockQuantity: true }
             });
-
             const updatedMedicine = await tx.medicine.update({
-                where: { id: medicine!.id },
+                where: { id: medicine.id },
                 data: { stockQuantity: totalStock._sum.stockQuantity || 0 },
-                include: { 
+                include: {
                     batches: { where: { isActive: true }, orderBy: { expiryDate: 'asc' } },
                     categoryRel: true
-                } as any
+                }
             });
-
             return this.formatMedicine(updatedMedicine);
         });
     }
-
-    async getMedicine(id: string | number): Promise<MedicineResponse> {
-        const medicine = await (prisma as any).medicine.findUnique({ 
+    async getMedicine(id) {
+        const medicine = await prisma.medicine.findUnique({
             where: { id: id.toString() },
-            include: { 
+            include: {
                 batches: { where: { isActive: true }, orderBy: { expiryDate: 'asc' } },
                 categoryRel: true
-            } as any
+            }
         });
         if (!medicine) {
             throw new NotFoundError('Medicine');
         }
         return this.formatMedicine(medicine);
     }
-
-    private async ensureTablesExist() {
+    async ensureTablesExist() {
         try {
             // 1. Categories Table
             await prisma.$executeRawUnsafe(`
@@ -149,7 +119,6 @@ export class PharmacyService {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             `);
-            
             // 2. Medicines Table
             await prisma.$executeRawUnsafe(`
                 CREATE TABLE IF NOT EXISTS medicines (
@@ -168,20 +137,18 @@ export class PharmacyService {
                 );
             `);
             console.log('[PharmacyService] Database tables verified');
-        } catch (error) {
+        }
+        catch (error) {
             console.error('[PharmacyService] Table verification failed:', error);
         }
     }
-
-    async getMedicines(query: MedicineQueryInput): Promise<PaginatedResponse<any>> {
+    async getMedicines(query) {
         const { page = 1, limit = 10, search, category, lowStock, format, allBatches } = query;
         const skip = (page - 1) * limit;
-
         try {
             await this.ensureTablesExist();
-
             if (format === 'returns') {
-                const conditions: any[] = [{ stockQuantity: { gt: 0 } }, { isActive: true }];
+                const conditions = [{ stockQuantity: { gt: 0 } }, { isActive: true }];
                 if (search) {
                     conditions.push({
                         OR: [
@@ -191,22 +158,19 @@ export class PharmacyService {
                         ]
                     });
                 }
-
                 // Count total matching batches
-                const total = await (prisma as any).medicineBatch.count({
+                const total = await prisma.medicineBatch.count({
                     where: { AND: conditions }
                 });
-
                 // Fetch batches with medicine relations
-                const batches = await (prisma as any).medicineBatch.findMany({
+                const batches = await prisma.medicineBatch.findMany({
                     where: { AND: conditions },
                     include: { medicine: true },
                     take: limit,
                     skip,
                     orderBy: { expiryDate: 'asc' }
                 });
-
-                const items = batches.map((b: any) => ({
+                const items = batches.map((b) => ({
                     id: b.medicine.id,
                     name: b.medicine.name,
                     genericName: b.medicine.genericName,
@@ -216,7 +180,6 @@ export class PharmacyService {
                     expiry: b.expiryDate,
                     purchasePrice: b.purchasePrice
                 }));
-
                 return {
                     items,
                     total,
@@ -225,9 +188,8 @@ export class PharmacyService {
                     totalPages: Math.ceil(total / limit)
                 };
             }
-
             if (allBatches) {
-                const conditions: any[] = [{ isActive: true }];
+                const conditions = [{ isActive: true }];
                 if (search) {
                     conditions.push({
                         OR: [
@@ -240,7 +202,8 @@ export class PharmacyService {
                 if (category) {
                     if (!isNaN(Number(category))) {
                         conditions.push({ medicine: { categoryId: Number(category) } });
-                    } else {
+                    }
+                    else {
                         conditions.push({ medicine: { categoryRel: { name: { contains: category, mode: 'insensitive' } } } });
                     }
                 }
@@ -249,12 +212,10 @@ export class PharmacyService {
                     // But here we can show batches where stock is low.
                     conditions.push({ stockQuantity: { lte: 10 } });
                 }
-
-                const total = await (prisma as any).medicineBatch.count({
+                const total = await prisma.medicineBatch.count({
                     where: { AND: conditions }
                 });
-
-                const batches = await (prisma as any).medicineBatch.findMany({
+                const batches = await prisma.medicineBatch.findMany({
                     where: { AND: conditions },
                     include: { medicine: { include: { categoryRel: true } } },
                     take: limit,
@@ -264,8 +225,7 @@ export class PharmacyService {
                         { expiryDate: 'asc' }
                     ]
                 });
-
-                const items = batches.map((b: any) => ({
+                const items = batches.map((b) => ({
                     id: b.id, // Batch ID is primary for batch-wise view
                     medicineId: b.medicine.id,
                     name: b.medicine.name,
@@ -286,7 +246,6 @@ export class PharmacyService {
                     isBatchDetail: true,
                     unit: b.medicine.unit
                 }));
-
                 return {
                     items,
                     total,
@@ -295,24 +254,20 @@ export class PharmacyService {
                     totalPages: Math.ceil(total / limit)
                 };
             }
-
-            const conditions: Prisma.Sql[] = [Prisma.sql`1=1`];
-
+            const conditions = [Prisma.sql `1=1`];
             if (search) {
-                conditions.push(Prisma.sql`(m.name ILIKE ${'%' + search + '%'} OR m.id::text ILIKE ${'%' + search + '%'})`);
+                conditions.push(Prisma.sql `(m.name ILIKE ${'%' + search + '%'} OR m.id::text ILIKE ${'%' + search + '%'})`);
             }
-
             if (category) {
                 if (!isNaN(Number(category))) {
-                    conditions.push(Prisma.sql`m.category_id = ${Number(category)}`);
-                } else {
-                    conditions.push(Prisma.sql`c.name ILIKE ${category}`);
+                    conditions.push(Prisma.sql `m.category_id = ${Number(category)}`);
+                }
+                else {
+                    conditions.push(Prisma.sql `c.name ILIKE ${category}`);
                 }
             }
-
-            const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
-
-            const sql = Prisma.sql`
+            const whereClause = Prisma.sql `WHERE ${Prisma.join(conditions, ' AND ')}`;
+            const sql = Prisma.sql `
                 WITH RankedBatches AS (
                     SELECT 
                         medicine_id,
@@ -342,18 +297,15 @@ export class PharmacyService {
                 ORDER BY m.name ASC
                 LIMIT ${limit} OFFSET ${skip}
             `;
-
-            let items = await prisma.$queryRaw<any[]>(sql);
-            
-            const countSql = Prisma.sql`
+            let items = await prisma.$queryRaw(sql);
+            const countSql = Prisma.sql `
                 SELECT COUNT(*) 
                 FROM medicines m
                 LEFT JOIN categories c ON m.category_id = c.id
                 ${whereClause}
             `;
-            const countResult = await prisma.$queryRaw<any[]>(countSql);
+            const countResult = await prisma.$queryRaw(countSql);
             const total = Number(countResult[0]?.count) || 0;
-
             let formattedItems = items.map(m => ({
                 id: m.id,
                 name: m.name,
@@ -370,10 +322,9 @@ export class PharmacyService {
                     distributor: m.distributor
                 } : null
             }));
-
             // Restore returns format for batch-level selection
             if (format === 'returns') {
-                const batchSql = Prisma.sql`
+                const batchSql = Prisma.sql `
                     SELECT 
                         m.id, 
                         m.name, 
@@ -388,7 +339,7 @@ export class PharmacyService {
                     AND b.is_active = true AND b.stock_quantity > 0
                     ORDER BY b.expiry_date ASC
                 `;
-                const batchItems = await prisma.$queryRaw<any[]>(batchSql);
+                const batchItems = await prisma.$queryRaw(batchSql);
                 formattedItems = batchItems.map(b => ({
                     ...b,
                     stock: Number(b.stock) || 0,
@@ -397,7 +348,6 @@ export class PharmacyService {
                     batchNumber: b.batch_number
                 }));
             }
-
             return {
                 items: formattedItems,
                 total,
@@ -405,7 +355,8 @@ export class PharmacyService {
                 limit,
                 totalPages: Math.ceil(total / limit),
             };
-        } catch (error) {
+        }
+        catch (error) {
             console.error('[PharmacyService] getMedicines DATABASE_ERROR:', error);
             return {
                 items: [],
@@ -416,29 +367,25 @@ export class PharmacyService {
             };
         }
     }
-
-    async updateMedicine(id: string | number, input: UpdateMedicineInput): Promise<MedicineResponse> {
-        const existing = await (prisma as any).medicine.findUnique({ where: { id: id.toString() } });
+    async updateMedicine(id, input) {
+        const existing = await prisma.medicine.findUnique({ where: { id: id.toString() } });
         if (!existing) {
             throw new NotFoundError('Medicine');
         }
-
-        const medicine = await (prisma as any).medicine.update({
+        const medicine = await prisma.medicine.update({
             where: { id: id.toString() },
             data: input,
         });
         return this.formatMedicine(medicine);
     }
-
-    async updateBatch(id: string, input: UpdateBatchInput): Promise<any> {
-        const existing = await (prisma as any).medicineBatch.findUnique({ 
+    async updateBatch(id, input) {
+        const existing = await prisma.medicineBatch.findUnique({
             where: { id },
-            include: { medicine: true } 
+            include: { medicine: true }
         });
         if (!existing) {
             throw new NotFoundError('Batch');
         }
-
         // Validate expiry date if provided
         if (input.expiryDate) {
             const expDate = new Date(input.expiryDate);
@@ -446,7 +393,6 @@ export class PharmacyService {
                 throw new ValidationError('Expiry date must be in the future');
             }
         }
-
         // Validate prices/stock
         if (input.stockQuantity !== undefined && input.stockQuantity < 0) {
             throw new ValidationError('Stock quantity cannot be negative');
@@ -457,44 +403,38 @@ export class PharmacyService {
         if (input.salePrice !== undefined && input.salePrice < 0) {
             throw new ValidationError('Sale price cannot be negative');
         }
-
-        return await prisma.$transaction(async (tx: any) => {
+        return await prisma.$transaction(async (tx) => {
             const updatedBatch = await tx.medicineBatch.update({
                 where: { id },
                 data: input,
             });
-
             // Update aggregated medicine stock if quantity changed
             if (input.stockQuantity !== undefined) {
                 const totalStock = await tx.medicineBatch.aggregate({
                     where: { medicineId: existing.medicineId, isActive: true },
                     _sum: { stockQuantity: true }
                 });
-
                 await tx.medicine.update({
                     where: { id: existing.medicineId },
                     data: { stockQuantity: totalStock._sum.stockQuantity || 0 }
                 });
             }
-
             return updatedBatch;
         });
     }
-
-    async deleteMedicine(id: string | number): Promise<void> {
+    async deleteMedicine(id) {
         console.log('[PharmacyService] Attempting to delete medicine with id:', id);
         // Using findFirst instead of findUnique for resilience
-        const medicine = await (prisma as any).medicine.findFirst({ where: { id: id.toString() } });
+        const medicine = await prisma.medicine.findFirst({ where: { id: id.toString() } });
         if (!medicine) {
             console.error('[PharmacyService] Delete medicine failed - Medicine not found for id:', id);
             throw new NotFoundError('Medicine');
         }
-        await (prisma as any).medicine.delete({ where: { id: id.toString() } });
+        await prisma.medicine.delete({ where: { id: id.toString() } });
         console.log('[PharmacyService] Medicine deleted successfully:', id);
     }
-
     // Billing
-    async createBill(input: CreateBillInput): Promise<BillResponse> {
+    async createBill(input) {
         // Validate patient if not walk-in
         if (!input.isWalkIn) {
             if (!input.patientId) {
@@ -505,11 +445,10 @@ export class PharmacyService {
                 throw new NotFoundError('Patient');
             }
         }
-
         // Validate stock for medicine items
-        for (const item of input.items as CreateBillItem[]) {
+        for (const item of input.items) {
             if (item.medicineId) {
-                const medicine = await (prisma as any).medicine.findUnique({ where: { id: item.medicineId } });
+                const medicine = await prisma.medicine.findUnique({ where: { id: item.medicineId } });
                 if (!medicine) {
                     throw new NotFoundError(`Medicine not found: ${item.medicineId}`);
                 }
@@ -518,16 +457,13 @@ export class PharmacyService {
                 }
             }
         }
-
         // Calculate totals
-        const subtotal = (input.items as CreateBillItem[]).reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+        const subtotal = input.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
         const discountedSubtotal = subtotal - input.discount;
         const gstAmount = (discountedSubtotal * input.gstPercent) / 100;
         const grandTotal = discountedSubtotal + gstAmount;
-
         // Generate bill number
         const billNumber = `BILL-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-
         // Create bill with transaction
         const bill = await prisma.$transaction(async (tx) => {
             // Initialize totals
@@ -535,30 +471,25 @@ export class PharmacyService {
             let totalDiscount = input.discount || 0; // Overall bill discount
             let totalGstAmount = 0;
             const billItemsData = [];
-
-            for (const item of input.items as CreateBillItem[]) {
+            for (const item of input.items) {
                 const itemBase = item.quantity * item.unitPrice;
                 const itemDiscount = itemBase * ((item.discount || 0) / 100);
                 const itemTaxable = itemBase - itemDiscount;
                 const itemGst = itemTaxable * ((item.gst || 0) / 100);
                 const itemTotal = itemTaxable + itemGst;
-
                 subtotal += itemBase;
                 // Accumulate item-level discounts
                 totalDiscount += itemDiscount;
                 totalGstAmount += itemGst;
-
                 let remainingQty = item.quantity;
                 let totalPurchasePrice = 0;
-
                 if (item.medicineId) {
                     // Resolve medicine name for description snapshot
-                    const medRecord = await (tx as any).medicine.findUnique({ where: { id: item.medicineId } });
+                    const medRecord = await tx.medicine.findUnique({ where: { id: item.medicineId } });
                     if (!item.description && medRecord) {
                         item.description = medRecord.name;
                     }
-
-                    const batches = await (tx as any).medicineBatch.findMany({
+                    const batches = await tx.medicineBatch.findMany({
                         where: {
                             medicineId: item.medicineId,
                             stockQuantity: { gt: 0 },
@@ -567,24 +498,20 @@ export class PharmacyService {
                         },
                         orderBy: { expiryDate: 'asc' },
                     });
-
                     for (const batch of batches) {
-                        if (remainingQty <= 0) break;
-
+                        if (remainingQty <= 0)
+                            break;
                         const deductQty = Math.min(batch.stockQuantity, remainingQty);
-                        await (tx as any).medicineBatch.update({
+                        await tx.medicineBatch.update({
                             where: { id: batch.id },
                             data: { stockQuantity: { decrement: deductQty } },
                         });
-
                         totalPurchasePrice += (Number(batch.purchasePrice) * deductQty);
                         remainingQty -= deductQty;
                     }
-
                     if (remainingQty > 0) {
                         throw new ValidationError(`Insufficient non-expired stock for medicine: ${item.description}`);
                     }
-
                     // Integrated Logging
                     await this.updateStockAndLog(tx, {
                         medicineId: item.medicineId,
@@ -594,10 +521,8 @@ export class PharmacyService {
                         remarks: `Dispensed via billing: ${billNumber}`
                     });
                 }
-
                 const avgPurchasePrice = item.medicineId ? totalPurchasePrice / item.quantity : 0;
-                const itemProfit = (item.unitPrice - avgPurchasePrice) * item.quantity;
-
+                const itemProfit = itemTaxable - (item.quantity * avgPurchasePrice);
                 billItemsData.push({
                     medicineId: item.medicineId || null,
                     description: item.description,
@@ -613,31 +538,27 @@ export class PharmacyService {
                     profit: itemProfit,
                 });
             }
-
             // Apply overall bill discount if any (this logic might need adjustment based on how overall discount interacts with item discounts)
             // For simplicity, assuming input.discount is an additional discount applied to the subtotal after item discounts.
             // If input.discount is meant to be the *total* discount, then totalDiscount should be input.discount.
             // Here, I'm interpreting input.discount as an additional discount on the total taxable amount.
             const finalSubtotalAfterItemDiscounts = subtotal - totalDiscount;
-            const finalDiscountedSubtotal = finalSubtotalAfterItemDiscounts; 
-            const finalGstAmount = totalGstAmount; 
+            const finalDiscountedSubtotal = finalSubtotalAfterItemDiscounts;
+            const finalGstAmount = totalGstAmount;
             const grandTotal = finalDiscountedSubtotal + finalGstAmount;
-
-            const newBill = await (tx as any).bill.create({
+            const newBill = await tx.bill.create({
                 data: {
                     patientId: input.isWalkIn ? null : input.patientId,
                     customerName: input.isWalkIn ? input.customerName : null,
                     phone: input.isWalkIn ? input.phone : null,
                     isWalkIn: input.isWalkIn || false,
-                    visitType: input.isWalkIn ? 'WALK_IN' : 'OP',
                     billNumber: `PH-${Date.now()}`,
-                    billType: 'PHARMACY',
-                    subtotal: subtotal, 
-                    discount: totalDiscount, 
-                    gstPercent: input.gstPercent, 
+                    subtotal: subtotal,
+                    discount: totalDiscount,
+                    gstPercent: input.gstPercent,
                     gstAmount: finalGstAmount,
                     grandTotal,
-                    status: 'PAID', 
+                    status: 'PAID',
                     notes: input.notes,
                     items: {
                         create: billItemsData,
@@ -648,21 +569,15 @@ export class PharmacyService {
                     patient: true,
                 },
             });
-
             return newBill;
         });
-
         return this.formatBill(bill);
     }
-
-    async getBills(query: MedicineQueryInput): Promise<PaginatedResponse<BillResponse>> {
+    async getBills(query) {
         const { page = 1, limit = 10, search: rawSearch, format } = query;
         const search = rawSearch?.trim();
         const skip = (page - 1) * limit;
-
-        const where: Record<string, any> = {
-            billType: 'PHARMACY'
-        };
+        const where = {};
         if (search) {
             where.OR = [
                 { billNumber: { contains: search, mode: 'insensitive' } },
@@ -674,15 +589,12 @@ export class PharmacyService {
             ];
             console.log(`[PharmacyService.getBills] Searching with query: "${search}"`);
         }
-
         if (format === 'returns') {
             where.status = 'PAID';
         }
-
-        const includeItems = format === 'returns' 
+        const includeItems = format === 'returns'
             ? { where: { medicineId: { not: null } }, include: { medicine: true } }
             : { include: { medicine: true } };
-
         const [bills, total] = await Promise.all([
             prisma.bill.findMany({
                 where,
@@ -693,21 +605,18 @@ export class PharmacyService {
             }),
             prisma.bill.count({ where }),
         ]);
-
         if (search) {
             console.log(`[PharmacyService.getBills] Found ${total} bills for search: "${search}"`);
         }
-
         return {
-            items: bills.map((b) => this.formatBill(b as any)),
+            items: bills.map((b) => this.formatBill(b)),
             total,
             page,
             limit,
             totalPages: Math.ceil(total / limit),
         };
     }
-
-    async getBill(id: string): Promise<BillResponse> {
+    async getBill(id) {
         const bill = await prisma.bill.findUnique({
             where: { id },
             include: { items: { include: { medicine: true } }, patient: true },
@@ -715,24 +624,21 @@ export class PharmacyService {
         if (!bill) {
             throw new NotFoundError('Bill');
         }
-        return this.formatBill(bill as any);
+        return this.formatBill(bill);
     }
-
-    async updateBill(id: string, input: UpdateBillInput): Promise<BillResponse> {
+    async updateBill(id, input) {
         const existing = await prisma.bill.findUnique({ where: { id } });
         if (!existing) {
             throw new NotFoundError('Bill');
         }
-
         const bill = await prisma.bill.update({
             where: { id },
             data: input,
             include: { items: true, patient: true },
         });
-        return this.formatBill(bill as any);
+        return this.formatBill(bill);
     }
-
-    async deleteBill(id: string): Promise<void> {
+    async deleteBill(id) {
         console.log('[PharmacyService] Attempting to delete bill with id:', id);
         // Using findFirst instead of findUnique for resilience
         const bill = await prisma.bill.findFirst({ where: { id } });
@@ -740,15 +646,13 @@ export class PharmacyService {
             console.error('[PharmacyService] Delete bill failed - Bill not found for id:', id);
             throw new NotFoundError('Bill');
         }
-
         // Deleting the bill will cascade to BillItem
         // Note: Pharmacy bills also decrement stock on creation, but we usually don't restore stock on delete unless specified.
         await prisma.bill.delete({ where: { id } });
         console.log('[PharmacyService] Bill deleted successfully:', id);
     }
-
     async getLowStockMedicines() {
-        return await (prisma as any).medicineBatch.findMany({
+        return await prisma.medicineBatch.findMany({
             where: {
                 isActive: true,
                 stockQuantity: { lte: 10 }
@@ -756,52 +660,46 @@ export class PharmacyService {
             include: { medicine: true }
         });
     }
-
     async getExpiryAlerts() {
         const now = new Date();
         const ninetyDays = new Date();
         ninetyDays.setDate(ninetyDays.getDate() + 90);
-
         const thirtyDays = new Date();
         thirtyDays.setDate(thirtyDays.getDate() + 30);
-
         const [expired, soon30, soon90] = await Promise.all([
-            (prisma as any).medicineBatch.findMany({
+            prisma.medicineBatch.findMany({
                 where: { expiryDate: { lt: now }, isActive: true, stockQuantity: { gt: 0 } },
                 include: { medicine: true }
             }),
-            (prisma as any).medicineBatch.findMany({
-                where: { 
-                    expiryDate: { gte: now, lte: thirtyDays }, 
-                    isActive: true, 
-                    stockQuantity: { gt: 0 } 
+            prisma.medicineBatch.findMany({
+                where: {
+                    expiryDate: { gte: now, lte: thirtyDays },
+                    isActive: true,
+                    stockQuantity: { gt: 0 }
                 },
                 include: { medicine: true }
             }),
-            (prisma as any).medicineBatch.findMany({
-                where: { 
-                    expiryDate: { gt: thirtyDays, lte: ninetyDays }, 
-                    isActive: true, 
-                    stockQuantity: { gt: 0 } 
+            prisma.medicineBatch.findMany({
+                where: {
+                    expiryDate: { gt: thirtyDays, lte: ninetyDays },
+                    isActive: true,
+                    stockQuantity: { gt: 0 }
                 },
                 include: { medicine: true }
             })
         ]);
-
         return { expired, soon30, soon90 };
     }
-
     // Returns
-    async processReturn(input: CreateReturnInput): Promise<PharmacyReturnResponse> {
+    async processReturn(input) {
         return await prisma.$transaction(async (tx) => {
             // 1. Validate bill and items
             const bill = await tx.bill.findUnique({
                 where: { id: input.billId },
                 include: { items: true }
             });
-
-            if (!bill) throw new NotFoundError('Bill');
-
+            if (!bill)
+                throw new NotFoundError('Bill');
             // 2. Calculate refund amount and validate return quantities
             let refundAmount = 0;
             for (const item of input.items) {
@@ -814,9 +712,8 @@ export class PharmacyService {
                 }
                 refundAmount += item.returnQty * item.salePrice;
             }
-
             // 1. Create return record
-            const pharmacyReturn = await (tx as any).pharmacyReturn.create({
+            const pharmacyReturn = await tx.pharmacyReturn.create({
                 data: {
                     billId: input.billId,
                     patientId: input.patientId,
@@ -839,26 +736,23 @@ export class PharmacyService {
                     }
                 }
             });
-
             // 4. Adjust stock (add back to latest batch or specific batch if provided)
             for (const item of input.items) {
                 // Increment batch stock
-                const batch = await ((tx as any).medicineBatch).findFirst({
-                    where: { 
-                        medicineId: item.medicineId, 
+                const batch = await (tx.medicineBatch).findFirst({
+                    where: {
+                        medicineId: item.medicineId,
                         batchNumber: item.batchNumber || undefined,
                         isActive: true,
                     },
-                    orderBy: { expiryDate: 'asc' } 
+                    orderBy: { expiryDate: 'asc' }
                 });
-
                 if (batch) {
-                    await ((tx as any).medicineBatch).update({
+                    await (tx.medicineBatch).update({
                         where: { id: batch.id },
                         data: { stockQuantity: { increment: item.returnQty } }
                     });
                 }
-
                 // Log and Sync
                 await this.updateStockAndLog(tx, {
                     medicineId: item.medicineId,
@@ -869,16 +763,13 @@ export class PharmacyService {
                     remarks: `Patient return for bill ${bill.billNumber}`
                 });
             }
-
             return this.formatReturn(pharmacyReturn);
         });
     }
-
-    async getReturns(query: any): Promise<PaginatedResponse<PharmacyReturnResponse>> {
+    async getReturns(query) {
         const { page = 1, limit = 10, search, startDate, endDate } = query;
         const skip = (page - 1) * limit;
-
-        const where: any = {};
+        const where = {};
         if (search) {
             where.OR = [
                 { bill: { billNumber: { contains: search, mode: 'insensitive' } } },
@@ -886,16 +777,19 @@ export class PharmacyService {
                 { patient: { lastName: { contains: search, mode: 'insensitive' } } },
             ];
         }
-        if (startDate) where.returnDate.gte = new Date(startDate);
-        if (endDate) where.returnDate.lte = new Date(endDate);
+        if (startDate)
+            where.returnDate.gte = new Date(startDate);
+        if (endDate)
+            where.returnDate.lte = new Date(endDate);
         if (startDate || endDate) {
             where.returnDate = {};
-            if (startDate) where.returnDate.gte = new Date(startDate);
-            if (endDate) where.returnDate.lte = new Date(endDate);
+            if (startDate)
+                where.returnDate.gte = new Date(startDate);
+            if (endDate)
+                where.returnDate.lte = new Date(endDate);
         }
-
         const [returns, total] = await Promise.all([
-            (prisma as any).pharmacyReturn.findMany({
+            prisma.pharmacyReturn.findMany({
                 where,
                 skip,
                 take: limit,
@@ -904,21 +798,19 @@ export class PharmacyService {
                     items: { include: { medicine: true } },
                     patient: true,
                     bill: true
-                } as any
+                }
             }),
-            (prisma as any).pharmacyReturn.count({ where })
+            prisma.pharmacyReturn.count({ where })
         ]);
-
         return {
-            items: returns.map((r: any) => this.formatReturn(r)),
+            items: returns.map((r) => this.formatReturn(r)),
             total,
             page,
             limit,
             totalPages: Math.ceil(total / limit)
         };
     }
-
-    private formatReturn(pReturn: any): PharmacyReturnResponse {
+    formatReturn(pReturn) {
         return {
             id: pReturn.id,
             billId: pReturn.billId,
@@ -928,7 +820,7 @@ export class PharmacyService {
             refundMethod: pReturn.refundMethod,
             pharmacistId: pReturn.pharmacistId,
             status: pReturn.status,
-            items: pReturn.items.map((item: any) => ({
+            items: pReturn.items.map((item) => ({
                 id: item.id,
                 medicineId: item.medicineId,
                 medicineName: item.medicine?.name,
@@ -939,47 +831,44 @@ export class PharmacyService {
             }))
         };
     }
-
     // Stock Returns (To Distributors)
-    async processStockReturn(input: CreateStockReturnInput): Promise<PharmacyStockReturnResponse> {
+    async processStockReturn(input) {
         const stockReturn = await prisma.$transaction(async (tx) => {
             // 1. Calculate total amount and validate stock
             let totalAmount = 0;
             for (const item of input.items) {
                 if (item.batchNumber) {
                     // Find batch to return to distributor
-                    const batch = await ((tx as any).medicineBatch).findFirst({
-                        where: { 
-                            medicineId: item.medicineId, 
+                    const batch = await (tx.medicineBatch).findFirst({
+                        where: {
+                            medicineId: item.medicineId,
                             batchNumber: item.batchNumber,
                             isActive: true,
                         }
                     });
-
                     if (!batch) {
                         throw new ValidationError(`Batch not found for medicine ID ${item.medicineId} and batch number ${item.batchNumber}`);
                     }
-
                     if (batch.stockQuantity < item.returnQty) {
-                         throw new ValidationError(`Insufficient stock in batch ${item.batchNumber} for return`);
+                        throw new ValidationError(`Insufficient stock in batch ${item.batchNumber} for return`);
                     }
-
-                    await ((tx as any).medicineBatch).update({
+                    await (tx.medicineBatch).update({
                         where: { id: batch.id },
                         data: { stockQuantity: { decrement: item.returnQty } }
                     });
-                } else {
-                    const medicine = await (tx as any).medicine.findUnique({ where: { id: item.medicineId } });
-                    if (!medicine) throw new NotFoundError('Medicine');
+                }
+                else {
+                    const medicine = await tx.medicine.findUnique({ where: { id: item.medicineId } });
+                    if (!medicine)
+                        throw new NotFoundError('Medicine');
                     if (medicine.stockQuantity < item.returnQty) {
                         throw new ValidationError(`Insufficient total stock for ${medicine.name}`);
                     }
                 }
                 totalAmount += item.returnQty * item.unitPrice;
             }
-
             // Create return master record
-            const newStockReturn = await (tx as any).pharmacyStockReturn.create({
+            const newStockReturn = await tx.pharmacyStockReturn.create({
                 data: {
                     distributor: input.distributor,
                     totalAmount,
@@ -999,7 +888,6 @@ export class PharmacyService {
                     items: { include: { medicine: true } }
                 }
             });
-
             // 3. Update master stock quantity
             for (const item of input.items) {
                 await this.updateStockAndLog(tx, {
@@ -1011,29 +899,24 @@ export class PharmacyService {
                     remarks: `Returned to distributor: ${input.distributor}`
                 });
             }
-
             return newStockReturn;
         });
-
         return this.formatStockReturn(stockReturn);
     }
-
-    async getStockReturns(query: any): Promise<PaginatedResponse<PharmacyStockReturnResponse>> {
+    async getStockReturns(query) {
         const { page = 1, limit = 10, search, distributor, startDate, endDate } = query;
         const skip = (page - 1) * limit;
-
-        const where: any = {};
+        const where = {};
         if (search) {
             where.OR = [
                 { items: { some: { medicine: { name: { contains: search, mode: 'insensitive' } } } } },
                 { distributor: { contains: search, mode: 'insensitive' } }
             ];
         }
-        if (distributor) where.distributor = { contains: distributor, mode: 'insensitive' };
-        
+        if (distributor)
+            where.distributor = { contains: distributor, mode: 'insensitive' };
         if (startDate || endDate) {
-            const dateFilter: any = {};
-            
+            const dateFilter = {};
             if (startDate) {
                 const sDate = new Date(startDate);
                 if (!isNaN(sDate.getTime())) {
@@ -1041,7 +924,6 @@ export class PharmacyService {
                     dateFilter.gte = sDate;
                 }
             }
-            
             if (endDate) {
                 const eDate = new Date(endDate);
                 if (!isNaN(eDate.getTime())) {
@@ -1049,54 +931,49 @@ export class PharmacyService {
                     dateFilter.lte = eDate;
                 }
             }
-            
             if (Object.keys(dateFilter).length > 0) {
                 where.createdAt = dateFilter;
             }
         }
-
         const [returns, total] = await Promise.all([
-            (prisma as any).pharmacyStockReturn.findMany({
+            prisma.pharmacyStockReturn.findMany({
                 where,
                 skip,
                 take: limit,
                 orderBy: { returnDate: 'desc' },
-                include: { items: { include: { medicine: true } } } as any
+                include: { items: { include: { medicine: true } } }
             }),
-            (prisma as any).pharmacyStockReturn.count({ where })
+            prisma.pharmacyStockReturn.count({ where })
         ]);
-
         return {
-            items: returns.map((r: any) => this.formatStockReturn(r)),
+            items: returns.map((r) => this.formatStockReturn(r)),
             total,
             page,
             limit,
             totalPages: Math.ceil(total / limit)
         };
     }
-
-    async getMarginReport(query: { startDate?: string; endDate?: string }): Promise<any> {
-        let start: Date;
-        let end: Date;
-
+    async getMarginReport(query) {
+        let start;
+        let end;
         if (query.startDate) {
             start = new Date(query.startDate);
             start.setHours(0, 0, 0, 0);
-        } else {
+        }
+        else {
             start = new Date();
             start.setHours(0, 0, 0, 0);
         }
-
         if (query.endDate) {
             end = new Date(query.endDate);
             end.setHours(23, 59, 59, 999);
-        } else {
+        }
+        else {
             end = new Date(start);
             end.setHours(23, 59, 59, 999);
         }
-
-        // 1. Range Items Query — PHARMACY only, exclude null medicineId
-        const rangeItemsSql = Prisma.sql`
+        // 1. Range Items Query
+        const rangeItemsSql = Prisma.sql `
             SELECT 
                 m.name AS medicine_name,
                 bi.quantity,
@@ -1105,79 +982,61 @@ export class PharmacyService {
                 bi.profit
             FROM bill_items bi
             JOIN bills b ON bi.bill_id::text = b.id::text
-            JOIN medicines m ON bi.medicine_id::text = m.id::text
+            LEFT JOIN medicines m ON bi.medicine_id::text = m.id::text
             WHERE b.status = 'PAID'
-              AND b.bill_type = 'PHARMACY'
-              AND bi.medicine_id IS NOT NULL
               AND b.created_at >= ${start} 
               AND b.created_at <= ${end}
         `;
-
-        const rangeItems = await prisma.$queryRaw<any[]>(rangeItemsSql);
-
-        // 2. Today's Profit — PHARMACY only
-        const todaySql = Prisma.sql`
+        const rangeItems = await prisma.$queryRaw(rangeItemsSql);
+        // 2. Today's Profit
+        const todaySql = Prisma.sql `
             SELECT 
                 SUM(bi.profit) AS "todayMargin"
             FROM bill_items bi
             JOIN bills b ON bi.bill_id::text = b.id::text
             WHERE b.status = 'PAID'
-              AND b.bill_type = 'PHARMACY'
-              AND bi.medicine_id IS NOT NULL
               AND DATE(b.created_at) = CURRENT_DATE
         `;
-        const todayResult = await prisma.$queryRaw<any[]>(todaySql);
+        const todayResult = await prisma.$queryRaw(todaySql);
         const todayMargin = Number(todayResult[0]?.todayMargin) || 0;
-
-        // 3. Monthly Profit — PHARMACY only
-        const monthlySql = Prisma.sql`
+        // 3. Monthly Profit
+        const monthlySql = Prisma.sql `
             SELECT 
                 SUM(bi.profit) AS "monthlyMargin"
             FROM bill_items bi
             JOIN bills b ON bi.bill_id::text = b.id::text
             WHERE b.status = 'PAID'
-              AND b.bill_type = 'PHARMACY'
-              AND bi.medicine_id IS NOT NULL
               AND EXTRACT(MONTH FROM b.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
               AND EXTRACT(YEAR FROM b.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
         `;
-        const monthlyResult = await prisma.$queryRaw<any[]>(monthlySql);
+        const monthlyResult = await prisma.$queryRaw(monthlySql);
         const monthlyMargin = Number(monthlyResult[0]?.monthlyMargin) || 0;
-
         // 4. Aggregate Range Data
         let totalMargin = 0;
-        const medMap = new Map<string, { name: string, quantity: number, profit: number }>();
-
-        rangeItems.forEach((item: any) => {
+        const medMap = new Map();
+        rangeItems.forEach((item) => {
             const quantity = Number(item.quantity) || 0;
             const profitValue = Number(item.profit) || 0;
-            
             totalMargin += profitValue;
-
-            const name = item.medicine_name;
+            const name = item.medicine_name || 'Unknown';
             if (!medMap.has(name)) {
                 medMap.set(name, { name, quantity: 0, profit: 0 });
             }
-            const med = medMap.get(name)!;
+            const med = medMap.get(name);
             med.quantity += quantity;
             med.profit += profitValue;
         });
-
         const medicineWiseProfit = Array.from(medMap.values());
-        
         // Sort primarily by highest profit using standard array sort
         medicineWiseProfit.sort((a, b) => b.profit - a.profit);
-
         const topMedicines = medicineWiseProfit.slice(0, 10).map(m => ({
             name: m.name,
             profit: m.profit
         }));
-
         // Debug logging precisely as requested
         console.log(`[MARGIN REPORT DEBUG] startDate: ${start.toISOString()}, endDate: ${end.toISOString()}`);
         console.log(`[MARGIN REPORT DEBUG] Fetched Records from BillItems: ${rangeItems.length}`);
         console.log(`[MARGIN REPORT DEBUG] Calculated Total Margin for range: ${totalMargin}`);
-
         return {
             totalMargin,
             todayMargin,
@@ -1186,36 +1045,33 @@ export class PharmacyService {
             medicineWiseProfit
         };
     }
-
-    async getPharmacyReports(query: { startDate?: string; endDate?: string }): Promise<any> {
-        let start: Date;
-        let end: Date;
-
+    async getPharmacyReports(query) {
+        let start;
+        let end;
         if (query.startDate) {
             start = new Date(query.startDate);
             start.setHours(0, 0, 0, 0);
-        } else {
+        }
+        else {
             start = new Date();
             start.setHours(0, 0, 0, 0);
         }
-
         if (query.endDate) {
             end = new Date(query.endDate);
             end.setHours(23, 59, 59, 999);
-        } else {
+        }
+        else {
             end = new Date(start);
             end.setHours(23, 59, 59, 999);
         }
-
         try {
             // 1. Margin Data (reuse the logic we just fixed)
-            const marginData = await this.getMarginReport({ 
-                startDate: start.toISOString(), 
-                endDate: end.toISOString() 
+            const marginData = await this.getMarginReport({
+                startDate: start.toISOString(),
+                endDate: end.toISOString()
             });
-
             // 2. Sales Summary (Daily aggregation)
-            const salesSummarySql = Prisma.sql`
+            const salesSummarySql = Prisma.sql `
                 SELECT 
                     DATE(created_at) as "date",
                     SUM(grand_total) as "total_sales"
@@ -1224,14 +1080,13 @@ export class PharmacyService {
                 GROUP BY DATE(created_at)
                 ORDER BY DATE(created_at) ASC
             `;
-            const salesResult = await prisma.$queryRaw<any[]>(salesSummarySql);
+            const salesResult = await prisma.$queryRaw(salesSummarySql);
             const salesSummary = salesResult.map(row => ({
                 date: row.date,
                 total_sales: Number(row.total_sales) || 0
             }));
-
             // 3. Inventory Report
-            const inventorySql = Prisma.sql`
+            const inventorySql = Prisma.sql `
                 SELECT 
                     name,
                     stock_quantity,
@@ -1240,16 +1095,15 @@ export class PharmacyService {
                 FROM medicines m
                 ORDER BY name ASC
             `;
-            const inventoryResult = await prisma.$queryRaw<any[]>(inventorySql);
+            const inventoryResult = await prisma.$queryRaw(inventorySql);
             const inventory = inventoryResult.map(row => ({
                 name: row.name,
                 stock_quantity: Number(row.stock_quantity) || 0,
                 min_stock_level: Number(row.min_stock_level) || 0,
                 expiry_date: row.expiry_date
             }));
-
             // 4. Distributor Dues
-            const duesSql = Prisma.sql`
+            const duesSql = Prisma.sql `
                 SELECT 
                     distributor_name as "distributor_id",
                     SUM(total_amount) - SUM(amount_paid) as "due_amount"
@@ -1257,25 +1111,23 @@ export class PharmacyService {
                 WHERE payment_status IN ('PENDING', 'PARTIALLY_PAID')
                 GROUP BY distributor_name
             `;
-            const duesResult = await prisma.$queryRaw<any[]>(duesSql);
+            const duesResult = await prisma.$queryRaw(duesSql);
             const distributorDues = duesResult.map(row => ({
                 distributor_id: row.distributor_id,
                 due_amount: Number(row.due_amount) || 0
             }));
-
             // Check if entirely empty
             if (salesSummary.length === 0 && inventory.length === 0 && distributorDues.length === 0 && marginData.totalMargin === 0) {
                 return { message: "No data available for selected range" };
             }
-
             return {
                 margin: marginData,
                 salesSummary,
                 inventory,
                 distributorDues
             };
-
-        } catch (error) {
+        }
+        catch (error) {
             console.error('[PharmacyService] getPharmacyReports failed:', error);
             return {
                 margin: { totalMargin: 0, todayMargin: 0, monthlyMargin: 0, topMedicines: [], medicineWiseProfit: [] },
@@ -1285,31 +1137,26 @@ export class PharmacyService {
             };
         }
     }
-    
-    async recordPayment(input: any): Promise<any> {
+    async recordPayment(input) {
         const { purchaseId, amount, paymentMethod, paymentDate, notes } = input;
-        
         return await prisma.$transaction(async (tx) => {
-            const purchase = await (tx as any).pharmacyPurchase.findUnique({
+            const purchase = await tx.pharmacyPurchase.findUnique({
                 where: { id: purchaseId }
             });
-
-            if (!purchase) throw new NotFoundError('Purchase not found');
-
+            if (!purchase)
+                throw new NotFoundError('Purchase not found');
             // SYNC CHECK: Calculate current balance from actual payments
-            const paymentHistory = await (tx as any).pharmacyPayment.aggregate({
+            const paymentHistory = await tx.pharmacyPayment.aggregate({
                 where: { purchaseId },
                 _sum: { amount: true }
             });
             const totalPaidSoFar = Number(paymentHistory._sum.amount) || 0;
             const currentBalance = Number(purchase.totalAmount) - totalPaidSoFar;
-
             if (amount > currentBalance) {
                 throw new ValidationError(`Paid amount (₹${amount}) cannot exceed current balance (₹${currentBalance.toFixed(2)})`);
             }
-
             // Record the payment
-            const payment = await (tx as any).pharmacyPayment.create({
+            const payment = await tx.pharmacyPayment.create({
                 data: {
                     purchaseId,
                     amount: new Decimal(amount),
@@ -1318,15 +1165,15 @@ export class PharmacyService {
                     notes
                 }
             });
-
             // Update purchase record with synced values
             const newTotalPaid = totalPaidSoFar + amount;
             const newBalance = Number(purchase.totalAmount) - newTotalPaid;
             let status = 'PENDING';
-            if (newBalance <= 0) status = 'PAID';
-            else if (newTotalPaid > 0) status = 'PARTIALLY_PAID';
-
-            await (tx as any).pharmacyPurchase.update({
+            if (newBalance <= 0)
+                status = 'PAID';
+            else if (newTotalPaid > 0)
+                status = 'PARTIALLY_PAID';
+            await tx.pharmacyPurchase.update({
                 where: { id: purchaseId },
                 data: {
                     amountPaid: new Decimal(newTotalPaid),
@@ -1334,35 +1181,32 @@ export class PharmacyService {
                     paymentStatus: status
                 }
             });
-
             return payment;
         });
     }
-
     /**
      * Helper to ensure a purchase record's totals match its payment history
      */
-    async syncPurchaseTotals(purchaseId: string): Promise<void> {
+    async syncPurchaseTotals(purchaseId) {
         await prisma.$transaction(async (tx) => {
-            const purchase = await (tx as any).pharmacyPurchase.findUnique({
+            const purchase = await tx.pharmacyPurchase.findUnique({
                 where: { id: purchaseId }
             });
-            if (!purchase) return;
-
-            const paymentHistory = await (tx as any).pharmacyPayment.aggregate({
+            if (!purchase)
+                return;
+            const paymentHistory = await tx.pharmacyPayment.aggregate({
                 where: { purchaseId },
                 _sum: { amount: true }
             });
-
             const totalAmount = Number(purchase.totalAmount);
             const amountPaid = Number(paymentHistory._sum.amount) || 0;
             const balanceAmount = totalAmount - amountPaid;
-            
             let status = 'PENDING';
-            if (balanceAmount <= 0) status = 'PAID';
-            else if (amountPaid > 0) status = 'PARTIALLY_PAID';
-
-            await (tx as any).pharmacyPurchase.update({
+            if (balanceAmount <= 0)
+                status = 'PAID';
+            else if (amountPaid > 0)
+                status = 'PARTIALLY_PAID';
+            await tx.pharmacyPurchase.update({
                 where: { id: purchaseId },
                 data: {
                     amountPaid: new Decimal(amountPaid),
@@ -1372,10 +1216,7 @@ export class PharmacyService {
             });
         });
     }
-
-
-
-    private formatStockReturn(sReturn: any): PharmacyStockReturnResponse {
+    formatStockReturn(sReturn) {
         return {
             id: sReturn.id,
             distributor: sReturn.distributor,
@@ -1384,7 +1225,7 @@ export class PharmacyService {
             returnType: sReturn.returnType,
             pharmacistId: sReturn.pharmacistId,
             status: sReturn.status,
-            items: sReturn.items.map((item: any) => ({
+            items: sReturn.items.map((item) => ({
                 id: item.id,
                 medicineId: item.medicineId,
                 medicineName: item.medicine?.name,
@@ -1395,11 +1236,9 @@ export class PharmacyService {
             }))
         };
     }
-
-    private calculateStatus(stockQuantity: number, reorderLevel: number, batches: any[]): string {
+    calculateStatus(stockQuantity, reorderLevel, batches) {
         const now = new Date();
         const activeBatches = batches?.filter(b => b.isActive && b.stockQuantity > 0) || [];
-        
         if (activeBatches.some(b => new Date(b.expiryDate) < now)) {
             return 'expired';
         }
@@ -1411,15 +1250,12 @@ export class PharmacyService {
         }
         return 'in_stock';
     }
-
-    private formatMedicine(medicine: any): any {
+    formatMedicine(medicine) {
         const batches = medicine.batches || [];
         const status = this.calculateStatus(medicine.stockQuantity, medicine.reorderLevel, batches);
-        
         // Use the first active batch for general display price/expiry if needed, 
         // or just return aggregated info
         const displayBatch = batches[0];
-
         return {
             id: medicine.id,
             name: medicine.name,
@@ -1439,7 +1275,7 @@ export class PharmacyService {
             unit_price: displayBatch ? Number(displayBatch.salePrice) : 0,
             status,
             active: medicine.isActive,
-            batches: batches.map((b: any) => ({
+            batches: batches.map((b) => ({
                 id: b.id,
                 batch_number: b.batchNumber,
                 distributor: b.distributorName,
@@ -1453,44 +1289,7 @@ export class PharmacyService {
             }))
         };
     }
-
-    private formatBill(bill: {
-        id: string;
-        patientId: string | null;
-        customerName?: string | null;
-        phone?: string | null;
-        isWalkIn?: boolean;
-        billNumber: string;
-        subtotal: Decimal;
-        discount: Decimal;
-        gstPercent: Decimal;
-        gstAmount: Decimal;
-        grandTotal: Decimal;
-        status: string;
-        paidAmount: Decimal;
-        items: Array<{
-            id: string;
-            medicineId?: string | null;
-            batchNumber?: string | null;
-            description: string;
-            quantity: number;
-            unitPrice: Decimal;
-            purchasePrice?: Decimal;
-            profit?: Decimal;
-            total: Decimal;
-            expiryDate?: Date | null;
-            hsnCode?: string | null;
-            discount?: Decimal;
-            gst?: Decimal;
-        }>;
-        createdAt: Date;
-        patient?: {
-            uhid: string;
-            firstName: string;
-            lastName: string;
-            phone: string;
-        } | null;
-    }): BillResponse {
+    formatBill(bill) {
         return {
             id: bill.id,
             patientId: bill.patientId,
@@ -1503,21 +1302,21 @@ export class PharmacyService {
             gstPercent: Number(bill.gstPercent),
             gstAmount: Number(bill.gstAmount),
             grandTotal: Number(bill.grandTotal),
-            status: bill.status as BillResponse['status'],
+            status: bill.status,
             paidAmount: Number(bill.paidAmount),
             items: bill.items.map((item) => ({
                 id: item.id,
-                description: item.description || (item as any).medicine?.name || 'Medicine',
+                description: item.description || item.medicine?.name || 'Medicine',
                 quantity: item.quantity,
                 unitPrice: Number(item.unitPrice),
-                purchasePrice: Number((item as any).purchasePrice),
-                profit: Number((item as any).profit),
+                purchasePrice: Number(item.purchasePrice),
+                profit: Number(item.profit),
                 medicineId: item.medicineId || null,
-                batchNumber: (item as any).batchNumber || null,
-                expiryDate: (item as any).expiryDate || null,
-                hsnCode: (item as any).hsnCode || null,
-                discount: Number((item as any).discount || 0),
-                gst: Number((item as any).gst || 0),
+                batchNumber: item.batchNumber || null,
+                expiryDate: item.expiryDate || null,
+                hsnCode: item.hsnCode || null,
+                discount: Number(item.discount || 0),
+                gst: Number(item.gst || 0),
                 total: Number(item.total),
             })),
             createdAt: bill.createdAt,
@@ -1529,37 +1328,34 @@ export class PharmacyService {
             } : null,
         };
     }
-
-    async getPurchases(input: any): Promise<PaginatedResponse<PharmacyPurchaseResponse>> {
+    async getPurchases(input) {
         try {
             const { page = 1, limit = 10, distributor, status } = input || {};
             const skip = (Number(page) - 1) * Number(limit);
-
-            const where: any = { isDeleted: false };
-            if (distributor) where.distributorName = { contains: distributor, mode: 'insensitive' };
-            if (status) where.paymentStatus = status;
-
+            const where = { isDeleted: false };
+            if (distributor)
+                where.distributorName = { contains: distributor, mode: 'insensitive' };
+            if (status)
+                where.paymentStatus = status;
             const [purchases, total] = await Promise.all([
-                (prisma as any).pharmacyPurchase.findMany({
+                prisma.pharmacyPurchase.findMany({
                     where,
                     skip,
                     take: Number(limit),
                     orderBy: { purchaseDate: 'desc' },
-                    include: { 
+                    include: {
                         batches: { include: { medicine: true } },
                         payments: true
                     }
                 }),
-                (prisma as any).pharmacyPurchase.count({ where })
+                prisma.pharmacyPurchase.count({ where })
             ]);
-
             return {
-                items: (purchases || []).map((p: any) => {
+                items: (purchases || []).map((p) => {
                     const payments = p.payments || [];
-                    const totalPaidFromPayments = payments.reduce((sum: number, pay: any) => sum + Number(pay.amount || 0), 0);
+                    const totalPaidFromPayments = payments.reduce((sum, pay) => sum + Number(pay.amount || 0), 0);
                     const amountPaid = totalPaidFromPayments;
                     const balanceAmount = Number(p.totalAmount || 0) - amountPaid;
-                    
                     return this.formatPurchase({
                         ...p,
                         amountPaid,
@@ -1572,7 +1368,8 @@ export class PharmacyService {
                 limit: Number(limit),
                 totalPages: Math.ceil((total || 0) / Number(limit)),
             };
-        } catch (error) {
+        }
+        catch (error) {
             console.error('[PharmacyService] getPurchases failed:', error);
             return {
                 items: [],
@@ -1583,31 +1380,27 @@ export class PharmacyService {
             };
         }
     }
-
-    async getDistributorReport(): Promise<any> {
+    async getDistributorReport() {
         try {
-            const pendingPurchases = await (prisma as any).pharmacyPurchase.findMany({
+            const pendingPurchases = await prisma.pharmacyPurchase.findMany({
                 where: { paymentStatus: { in: ['PENDING', 'PARTIALLY_PAID'] } },
                 orderBy: { purchaseDate: 'asc' }
             });
-
             // Source of truth totals from aggregate across all records
             const [purchaseStats, paymentStats] = await Promise.all([
-                (prisma as any).pharmacyPurchase.aggregate({
+                prisma.pharmacyPurchase.aggregate({
                     _sum: { totalAmount: true }
                 }),
-                (prisma as any).pharmacyPayment.aggregate({
+                prisma.pharmacyPayment.aggregate({
                     _sum: { amount: true }
                 })
             ]);
-
             const totalAmount = Number(purchaseStats?._sum?.totalAmount) || 0;
             const totalPaid = Number(paymentStats?._sum?.amount) || 0;
             const totalBalance = totalAmount - totalPaid;
-
             // Group pending by distributor
-            const pendingByDistributor: Record<string, { count: number; totalBalance: number }> = {};
-            (pendingPurchases || []).forEach((p: any) => {
+            const pendingByDistributor = {};
+            (pendingPurchases || []).forEach((p) => {
                 const name = p.distributorName || 'Unknown';
                 if (!pendingByDistributor[name]) {
                     pendingByDistributor[name] = { count: 0, totalBalance: 0 };
@@ -1615,9 +1408,8 @@ export class PharmacyService {
                 pendingByDistributor[name].count += 1;
                 pendingByDistributor[name].totalBalance += Number(p.balanceAmount) || 0;
             });
-
             return {
-                pendingPurchases: (pendingPurchases || []).map((p: any) => {
+                pendingPurchases: (pendingPurchases || []).map((p) => {
                     const amountPaid = Number(p.amountPaid) || 0;
                     const totalAmt = Number(p.totalAmount) || 0;
                     const balanceAmount = totalAmt - amountPaid;
@@ -1634,7 +1426,8 @@ export class PharmacyService {
                 },
                 pendingByDistributor
             };
-        } catch (error) {
+        }
+        catch (error) {
             console.error('[PharmacyService] getDistributorReport failed:', error);
             return {
                 pendingPurchases: [],
@@ -1648,17 +1441,15 @@ export class PharmacyService {
             };
         }
     }
-
-    async createPurchase(input: CreatePurchaseInput): Promise<any> {
+    async createPurchase(input) {
         return await prisma.$transaction(async (tx) => {
             // 1. Calculate total purchase amount
             let totalAmount = 0;
             for (const item of input.items) {
                 totalAmount += item.stockQuantity * item.purchasePrice;
             }
-
             // 2. Create the Purchase tracking record
-            const purchase = await (tx as any).pharmacyPurchase.create({
+            const purchase = await tx.pharmacyPurchase.create({
                 data: {
                     distributorName: input.distributorName,
                     invoiceNumber: input.invoiceNumber,
@@ -1667,21 +1458,19 @@ export class PharmacyService {
                     amountPaid: new Decimal(0),
                     balanceAmount: new Decimal(totalAmount),
                     paymentStatus: 'PENDING',
-                    fileUrl: (input as any).fileUrl || null
+                    fileUrl: input.fileUrl || null
                 }
             });
-
             // 3. Create Medicine Batches exactly as items
             for (const item of input.items) {
                 // Ensure medicine exists
-                const existingMedicine = await (tx as any).medicine.findUnique({
+                const existingMedicine = await tx.medicine.findUnique({
                     where: { id: item.medicineId }
                 });
                 if (!existingMedicine) {
                     throw new NotFoundError(`Medicine with ID ${item.medicineId} not found`);
                 }
-
-                await (tx as any).medicineBatch.create({
+                await tx.medicineBatch.create({
                     data: {
                         medicineId: item.medicineId,
                         purchaseId: purchase.id,
@@ -1697,74 +1486,65 @@ export class PharmacyService {
                         isActive: true
                     }
                 });
-
                 // 4. Update parent medicine total stock
                 const updatedStock = existingMedicine.stockQuantity + item.stockQuantity;
-                await (tx as any).medicine.update({
+                await tx.medicine.update({
                     where: { id: existingMedicine.id },
                     data: { stockQuantity: updatedStock }
                 });
             }
-
             return purchase;
         });
     }
-
-    async getPurchasePayments(purchaseId: string): Promise<any[]> {
+    async getPurchasePayments(purchaseId) {
         try {
-            const payments = await (prisma as any).pharmacyPayment.findMany({
+            const payments = await prisma.pharmacyPayment.findMany({
                 where: { purchaseId },
                 orderBy: { paymentDate: 'desc' }
             });
-            return (payments || []).map((p: any) => ({
+            return (payments || []).map((p) => ({
                 ...p,
                 amount: Number(p.amount || 0)
             }));
-        } catch (error) {
+        }
+        catch (error) {
             console.error('[PharmacyService] getPurchasePayments failed:', error);
             return [];
         }
     }
-
-
     async getCategories() {
         try {
             await this.ensureTablesExist();
-            const categories = await prisma.$queryRaw<any[]>(Prisma.sql`SELECT id, name FROM categories ORDER BY name ASC`);
+            const categories = await prisma.$queryRaw(Prisma.sql `SELECT id, name FROM categories ORDER BY name ASC`);
             return categories || [];
-        } catch (error) {
+        }
+        catch (error) {
             console.error('[PharmacyService] getCategories DATABASE_ERROR:', error);
             return [];
         }
     }
-
-    async createCategory(input: any) {
+    async createCategory(input) {
         const { name } = input;
-        
         try {
             await this.ensureTablesExist();
-            
             // Check for duplicate (case-insensitive)
-            const existing = await prisma.$queryRaw<any[]>(Prisma.sql`SELECT id FROM categories WHERE name ILIKE ${name} LIMIT 1`);
-
+            const existing = await prisma.$queryRaw(Prisma.sql `SELECT id FROM categories WHERE name ILIKE ${name} LIMIT 1`);
             if (existing && existing.length > 0) {
                 throw new Error('Category already exists');
             }
-
-            return await prisma.$executeRaw(Prisma.sql`INSERT INTO categories (name) VALUES (${name})`);
-        } catch (error) {
+            return await prisma.$executeRaw(Prisma.sql `INSERT INTO categories (name) VALUES (${name})`);
+        }
+        catch (error) {
             console.error('[PharmacyService] createCategory DATABASE_ERROR:', error);
             throw error;
         }
     }
-
-    async deleteCategory(id: any) {
-        return (prisma as any).pharmacyCategory.delete({
+    async deleteCategory(id) {
+        return prisma.pharmacyCategory.delete({
             where: { id: Number(id) }
         });
     }
-
-    private formatPurchase(purchase: any): PharmacyPurchaseResponse {
+    formatPurchase(purchase) {
         return {
             id: purchase.id,
             distributorName: purchase.distributorName || '',
@@ -1779,7 +1559,7 @@ export class PharmacyService {
             fileUrl: purchase.fileUrl || null,
             createdAt: purchase.createdAt,
             updatedAt: purchase.updatedAt,
-            batches: (purchase.batches || []).map((b: any) => ({
+            batches: (purchase.batches || []).map((b) => ({
                 id: b.id,
                 batchNumber: b.batchNumber,
                 medicineName: b.medicine?.name || 'Unknown',
@@ -1787,73 +1567,60 @@ export class PharmacyService {
             }))
         };
     }
-
-    async updatePurchase(id: string, input: any, fileUrl?: string): Promise<any> {
-        const existing = await (prisma as any).pharmacyPurchase.findUnique({ where: { id } });
+    async updatePurchase(id, input, fileUrl) {
+        const existing = await prisma.pharmacyPurchase.findUnique({ where: { id } });
         if (!existing || existing.isDeleted) {
             throw new NotFoundError('Purchase not found');
         }
-
-        const data: any = {};
-        if (input.distributorName) data.distributorName = input.distributorName;
-        if (input.invoiceNumber) data.invoiceNumber = input.invoiceNumber;
-        if (input.purchaseDate) data.purchaseDate = input.purchaseDate;
-        if (fileUrl) data.fileUrl = fileUrl;
-
-        return await (prisma as any).pharmacyPurchase.update({
+        const data = {};
+        if (input.distributorName)
+            data.distributorName = input.distributorName;
+        if (input.invoiceNumber)
+            data.invoiceNumber = input.invoiceNumber;
+        if (input.purchaseDate)
+            data.purchaseDate = input.purchaseDate;
+        if (fileUrl)
+            data.fileUrl = fileUrl;
+        return await prisma.pharmacyPurchase.update({
             where: { id },
             data
         });
     }
-
-    async deletePurchase(id: string): Promise<void> {
-        const existing = await (prisma as any).pharmacyPurchase.findUnique({
+    async deletePurchase(id) {
+        const existing = await prisma.pharmacyPurchase.findUnique({
             where: { id },
             include: { payments: true }
         });
         if (!existing || existing.isDeleted) {
             throw new NotFoundError('Purchase not found');
         }
-
         if (existing.payments && existing.payments.length > 0) {
             throw new ValidationError('Cannot delete purchase with existing payments. Clear payments first.');
         }
-
-        await (prisma as any).pharmacyPurchase.update({
+        await prisma.pharmacyPurchase.update({
             where: { id },
             data: { isDeleted: true }
         });
     }
-
     /**
      * Unified Inventory Stock Update & Logger
      */
-    async updateStockAndLog(tx: any, data: {
-        medicineId: string;
-        batchNumber?: string;
-        type: 'DISPENSE' | 'PATIENT_RETURN' | 'DISTRIBUTOR_RETURN' | 'STOCK_ADD' | 'ADJUSTMENT';
-        quantity: number;
-        referenceId?: string;
-        remarks?: string;
-    }) {
-        const medicine = await (tx as any).medicine.findUnique({ where: { id: data.medicineId } });
-        if (!medicine) throw new NotFoundError('Medicine');
-
+    async updateStockAndLog(tx, data) {
+        const medicine = await tx.medicine.findUnique({ where: { id: data.medicineId } });
+        if (!medicine)
+            throw new NotFoundError('Medicine');
         const prevStock = medicine.stockQuantity;
         const newStock = prevStock + data.quantity;
-
         if (newStock < 0) {
             throw new ValidationError(`Insufficient stock for ${medicine.name}. Available: ${prevStock}, Requested: ${Math.abs(data.quantity)}`);
         }
-
         // 1. Update Medicine Master Aggregate
-        await (tx as any).medicine.update({
+        await tx.medicine.update({
             where: { id: data.medicineId },
             data: { stockQuantity: newStock }
         });
-
         // 2. Create Audit Log
-        await (tx as any).inventoryLog.create({
+        await tx.inventoryLog.create({
             data: {
                 medicineId: data.medicineId,
                 batchNumber: data.batchNumber,
@@ -1865,9 +1632,8 @@ export class PharmacyService {
                 remarks: data.remarks
             }
         });
-
         console.log(`[InventoryLog] ${data.type} for ${medicine.name}: ${data.quantity}. Stock: ${prevStock} -> ${newStock}`);
     }
 }
-
 export const pharmacyService = new PharmacyService();
+//# sourceMappingURL=pharmacy.service.js.map

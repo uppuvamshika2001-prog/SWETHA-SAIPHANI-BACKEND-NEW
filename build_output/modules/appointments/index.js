@@ -1,0 +1,4 @@
+export { default as appointmentsRoutes } from './appointments.routes.js';
+export { appointmentsService } from './appointments.service.js';
+export * from './appointments.types.js';
+//# sourceMappingURL=index.js.map
