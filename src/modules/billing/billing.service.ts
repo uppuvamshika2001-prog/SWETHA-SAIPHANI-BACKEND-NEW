@@ -3,13 +3,14 @@ import { NotFoundError } from '../../middleware/errorHandler.js';
 import { CreateBillInput, BillQueryInput, UpdateBillStatusInput } from './billing.types.js';
 import { Prisma } from '@prisma/client';
 import { patientsService } from '../patients/patients.service.js';
+import { logger } from '../../utils/logger.js';
 
 export class BillingService {
     async create(input: CreateBillInput) {
         const { items, labOrderIds, isWalkInLab, creatorId, patientId, customerName, phone, discount, gstPercent, notes, status, billType: explicitBillType } = input as any;
 
         // Derive billType: explicit > lab orders > item types > default CONSULTATION
-        let billType = explicitBillType || 'CONSULTATION';
+        let billType = this.mapBillType(explicitBillType);
         if (!explicitBillType) {
             const hasLabOrders = (labOrderIds && labOrderIds.length > 0);
             const hasLabItems = (items as any[]).some((item: any) => item.type === 'lab');
@@ -224,14 +225,11 @@ export class BillingService {
 
         const where: any = {};
         
+        let finalBillTypes: string[] = [];
         if (billType) {
-            if (Array.isArray(billType)) {
-                where.billType = { in: billType };
-            } else if (typeof billType === 'string' && billType.includes(',')) {
-                where.billType = { in: billType.split(',') };
-            } else {
-                where.billType = billType;
-            }
+            const rawTypes = Array.isArray(billType) ? billType : (typeof billType === 'string' && billType.includes(',') ? billType.split(',') : [billType as string]);
+            finalBillTypes = rawTypes.map(t => this.mapBillType(t));
+            where.billType = { in: finalBillTypes };
         } else {
             // Default: Show LAB and CONSULTATION for general reception/billing views
             where.billType = { in: ['LAB', 'CONSULTATION'] };
@@ -309,8 +307,12 @@ export class BillingService {
                     }
                 })
             ]);
-
-            console.log(`[BillingService] findAll Result Count: ${items.length} records out of ${total} total matching.`);
+            
+            if (total === 0) {
+                logger.info({ context: 'BillingService.findAll', where, query: { patientId, status, startDate, endDate, search, billType } }, 'No bills found for the given criteria');
+            } else {
+                console.log(`[BillingService] findAll Result Count: ${items.length} records out of ${total} total matching.`);
+            }
 
             const itemsWithMedicalRecords = await Promise.all(items.map(async (item: any) => {
                 const medicalRecord = await prisma.medicalRecord.findFirst({
@@ -575,6 +577,15 @@ export class BillingService {
                 total: Number(item.total)
             }))
         };
+    }
+
+    private mapBillType(type: string | string[]): string {
+        if (!type) return 'CONSULTATION';
+        const t = String(type).toUpperCase().trim();
+        if (t === 'CONSULT' || t === 'CONSULTATION') return 'CONSULTATION';
+        if (t === 'PHARMACY') return 'PHARMACY';
+        if (t === 'LAB') return 'LAB';
+        return t;
     }
 }
 

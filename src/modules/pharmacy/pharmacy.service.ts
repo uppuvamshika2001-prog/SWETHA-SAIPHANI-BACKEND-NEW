@@ -656,8 +656,9 @@ export class PharmacyService {
         const search = rawSearch?.trim();
         const skip = (page - 1) * limit;
 
+        const finalBillType = this.mapBillType(billType as string || 'PHARMACY');
         const where: Record<string, any> = {
-            billType: billType || 'PHARMACY'
+            billType: finalBillType
         };
         if (search) {
             where.OR = [
@@ -1863,6 +1864,15 @@ export class PharmacyService {
         });
 
         console.log(`[InventoryLog] ${data.type} for ${medicine.name}: ${data.quantity}. Stock: ${prevStock} -> ${newStock}`);
+    }
+
+    private mapBillType(type: string): string {
+        if (!type) return 'PHARMACY';
+        const t = String(type).toUpperCase().trim();
+        if (t === 'CONSULT' || t === 'CONSULTATION') return 'CONSULTATION';
+        if (t === 'PHARMACY') return 'PHARMACY';
+        if (t === 'LAB') return 'LAB';
+        return t;
     }
 }
 
