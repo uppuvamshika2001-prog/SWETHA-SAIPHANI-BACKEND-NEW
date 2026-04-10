@@ -23,7 +23,7 @@ export const config = {
     },
 
     // CORS
-    corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:3000')
+    corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:3000' || 'https://localhost:5173')
         .split(',')
         .map(origin => origin.trim().replace(/\/$/, '')),
 

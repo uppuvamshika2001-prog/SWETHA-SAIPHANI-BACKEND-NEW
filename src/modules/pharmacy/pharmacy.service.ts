@@ -102,12 +102,13 @@ export class PharmacyService {
                     mrp: input.mrp,
                     gstPercent: input.gst_percent,
                     stockQuantity: input.stock_quantity,
-                    freeQuantity: input.free_quantity || 0,
-                    ptr: input.ptr || 0,
-                    taxableAmount: input.taxable_amount || 0,
-                    gstAmount: input.gst_amount || 0,
-                    totalAmount: input.total_amount || 0,
-                    purchaseId: purchaseId,
+                    freeQuantity: input.free_quantity ?? 0,
+                    ptr: input.ptr ?? 0,
+                    pts: input.pts ?? 0,
+                    taxableAmount: input.taxable_amount ?? 0,
+                    gstAmount: input.gst_amount ?? 0,
+                    totalAmount: input.total_amount ?? 0,
+                    purchaseId: purchaseId
                 }
             });
 
@@ -285,11 +286,12 @@ export class PharmacyService {
                     distributor_name: b.distributorName,
                     batch_number: b.batchNumber,
                     expiry_date: b.expiryDate,
-                    free_quantity: b.freeQuantity || 0,
-                    ptr: Number(b.ptr || 0),
-                    taxable_amount: Number(b.taxableAmount || 0),
-                    gst_amount: Number(b.gstAmount || 0),
-                    total_amount: Number(b.totalAmount || 0),
+                    free_quantity: b.freeQuantity ?? 0,
+                    ptr: Number(b.ptr ?? 0),
+                    pts: Number(b.pts ?? 0),
+                    taxable_amount: Number(b.taxableAmount ?? 0),
+                    gst_amount: Number(b.gstAmount ?? 0),
+                    total_amount: Number(b.totalAmount ?? 0),
                     status: b.stockQuantity <= b.medicine.reorderLevel ? (b.stockQuantity <= 0 ? 'out_of_stock' : 'low_stock') : 'in_stock',
                     isBatchDetail: true,
                     unit: b.medicine.unit
@@ -627,7 +629,9 @@ export class PharmacyService {
                 const itemProfit = (item.unit_price - avgPurchasePrice) * item.quantity;
 
                 billItemsData.push({
-                    medicineId: item.medicine_id || null,
+                   medicine: item.medicine_id ? {
+        connect: { id: item.medicine_id }
+    } : undefined,
                     description: item.description,
                     quantity: item.quantity,
                     unitPrice: item.unit_price,
@@ -635,7 +639,7 @@ export class PharmacyService {
                     expiryDate: item.expiry_date || null,
                     hsnCode: item.hsn_code || null,
                     discount: item.discount || 0,
-                    gstPercent: item.gst_percent || 0,
+                   gst: item.gst_percent || 0,
                     discountAmount: itemDiscountAmt,
                     gstAmount: itemGstAmt,
                     totalAmount: itemTotalAmt,
@@ -659,7 +663,7 @@ export class PharmacyService {
                     billType: 'PHARMACY',
                     subtotal: subtotal, 
                     discount: totalDiscount, 
-                    gstPercent: input.gst_percent || 0, 
+                   gstPercent: input.gst_percent || 0,
                     gstAmount: totalGstAmount,
                     grandTotal,
                     status: 'PAID', 
@@ -1498,11 +1502,12 @@ export class PharmacyService {
                 mrp: Number(b.mrp),
                 gst_percent: Number(b.gstPercent),
                 stock_quantity: b.stockQuantity,
-                free_quantity: b.freeQuantity || 0,
-                ptr: Number(b.ptr || 0),
-                taxable_amount: Number(b.taxableAmount || 0),
-                gst_amount: Number(b.gstAmount || 0),
-                total_amount: Number(b.totalAmount || 0),
+                free_quantity: b.freeQuantity ?? 0,
+                ptr: Number(b.ptr ?? 0),
+                pts: Number(b.pts ?? 0),
+                taxable_amount: Number(b.taxableAmount ?? 0),
+                gst_amount: Number(b.gstAmount ?? 0),
+                total_amount: Number(b.totalAmount ?? 0),
             }))
         };
     }
@@ -1746,13 +1751,14 @@ export class PharmacyService {
                         purchasePrice: new Decimal(item.purchase_price),
                         sellingPrice: new Decimal(item.selling_price),
                         mrp: item.mrp ? new Decimal(item.mrp) : null,
-                        gstPercent: new Decimal(item.gst_percent || 0),
+                        gstPercent: new Decimal(item.gst_percent ?? 0),
                         stockQuantity: item.stock_quantity,
-                        freeQuantity: (item as any).free_quantity || 0,
-                        ptr: new Decimal((item as any).ptr || 0),
-                        taxableAmount: new Decimal((item as any).taxable_amount || 0),
-                        gstAmount: new Decimal((item as any).gst_amount || 0),
-                        totalAmount: new Decimal((item as any).total_amount || 0),
+                        freeQuantity: (item as any).free_quantity ?? 0,
+                        ptr: new Decimal((item as any).ptr ?? 0),
+                        pts: new Decimal((item as any).pts ?? 0),
+                        taxableAmount: new Decimal((item as any).taxable_amount ?? 0),
+                        gstAmount: new Decimal((item as any).gst_amount ?? 0),
+                        totalAmount: new Decimal((item as any).total_amount ?? 0),
                         isActive: true
                     }
                 });

@@ -59,8 +59,8 @@ model Staff {
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
   appointments    Appointment[]   @relation("DoctorAppointments")
-  labTestOrders   LabTestOrder[]  @relation("OrderedBy")
   doctorLabOrders LabTestOrder[]  @relation("DoctorOrdering")
+  labTestOrders   LabTestOrder[]  @relation("OrderedBy")
   labTestResults  LabTestResult[]
   medicalRecords  MedicalRecord[]
   prescriptions   Prescription[]
@@ -72,43 +72,43 @@ model Staff {
 model Patient {
   uhid              String           @id @default(uuid()) @map("uhid")
   userId            String?          @unique @map("user_id")
-  title             String? // Mr, Mrs, Ms, Dr
   firstName         String           @map("first_name")
   lastName          String           @map("last_name")
   dateOfBirth       DateTime         @map("date_of_birth")
   gender            Gender
   phone             String
-  altPhone          String?          @map("alt_phone")
   email             String?
   address           String?
-  state             String?
-  district          String?
-  mandal            String?
-  village           String?
-  pincode           String?
   emergencyContact  String?          @map("emergency_contact")
-  emergencyName     String?          @map("emergency_name")
-  emergencyRelation String?          @map("emergency_relation")
   bloodGroup        String?          @map("blood_group")
   allergies         String?
-  idType            String?          @map("id_type") // aadhaar, pan, passport
-  idNumber          String?          @map("id_number")
-  referredBy        String?          @map("referred_by")
-  referredPerson    String?          @map("referred_person")
-  consultingDoctor  String?          @map("consulting_doctor")
-  department        String?
-  paymentMode       String?          @map("payment_mode") // cash, card, upi
-  registrationFee   Decimal?         @map("registration_fee") @db.Decimal(10, 2)
-  registrationDate  DateTime         @default(now()) @map("registration_date") @db.Date
   createdAt         DateTime         @default(now()) @map("created_at")
   updatedAt         DateTime         @updatedAt @map("updated_at")
+  altPhone          String?          @map("alt_phone")
+  consultingDoctor  String?          @map("consulting_doctor")
+  department        String?
+  district          String?
+  emergencyName     String?          @map("emergency_name")
+  emergencyRelation String?          @map("emergency_relation")
+  idNumber          String?          @map("id_number")
+  idType            String?          @map("id_type")
+  mandal            String?
+  paymentMode       String?          @map("payment_mode")
+  pincode           String?
+  referredBy        String?          @map("referred_by")
+  referredPerson    String?          @map("referred_person")
+  registrationDate  DateTime         @default(now()) @map("registration_date") @db.Date
+  registrationFee   Decimal?         @map("registration_fee") @db.Decimal(10, 2)
+  state             String?
+  title             String?
+  village           String?
   appointments      Appointment[]
   bills             Bill[]
   labTestOrders     LabTestOrder[]
   medicalRecords    MedicalRecord[]
   user              User?            @relation(fields: [userId], references: [id])
-  prescriptions     Prescription[]
   pharmacyReturns   PharmacyReturn[]
+  prescriptions     Prescription[]
 
   @@index([registrationDate])
   @@index([phone])
@@ -138,20 +138,20 @@ model MedicalRecord {
   id                 String              @id @default(uuid())
   patientId          String              @map("patient_id")
   doctorId           String              @map("doctor_id")
-  appointmentId      String?             @map("appointment_id")
-  chiefComplaint     String?             @map("chief_complaint")
   diagnosis          String
-  icdCode            String?             @map("icd_code")
   treatment          String?
-  treatmentNotes     String?             @map("treatment_notes")
   notes              String?
   vitalSigns         Json?               @map("vital_signs")
   prescriptions      Json?
-  labOrders          Json?               @map("lab_orders")
-  prescriptionStatus PrescriptionStatus? @default(PENDING) @map("prescription_status")
-  followUpDate       DateTime?           @map("follow_up_date")
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
+  appointmentId      String?             @map("appointment_id")
+  chiefComplaint     String?             @map("chief_complaint")
+  followUpDate       DateTime?           @map("follow_up_date")
+  icdCode            String?             @map("icd_code")
+  labOrders          Json?               @map("lab_orders")
+  prescriptionStatus PrescriptionStatus? @default(PENDING) @map("prescription_status")
+  treatmentNotes     String?             @map("treatment_notes")
   doctor             Staff               @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patient            Patient             @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
 
@@ -165,10 +165,10 @@ model Prescription {
   patientId String             @map("patient_id")
   doctorId  String             @map("doctor_id")
   notes     String?
-  medicines Json // Kept for backward compatibility
-  items     PrescriptionItem[] // New: normalized medicine items
+  medicines Json
   createdAt DateTime           @default(now()) @map("created_at")
   updatedAt DateTime           @updatedAt @map("updated_at")
+  items     PrescriptionItem[]
   doctor    Staff              @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patient   Patient            @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
 
@@ -196,7 +196,6 @@ model Medicine {
   genericName      String?                   @map("generic_name")
   manufacturer     String?
   category         String?
-  hsnCode          String?                   @map("hsn_code")
   unit             String                    @default("tablet")
   pricePerUnit     Decimal                   @default(0) @map("price_per_unit") @db.Decimal(10, 2)
   stockQuantity    Int                       @default(0) @map("stock_quantity")
@@ -205,12 +204,13 @@ model Medicine {
   createdAt        DateTime                  @default(now()) @map("created_at")
   updatedAt        DateTime                  @updatedAt @map("updated_at")
   categoryId       Int?                      @map("category_id")
-  categoryRel      PharmacyCategory?         @relation(fields: [categoryId], references: [id])
-  batches          MedicineBatch[]
+  hsnCode          String?                   @map("hsn_code")
   billItems        BillItem[]
+  inventoryLogs    InventoryLog[]
+  batches          MedicineBatch[]
+  categoryRel      PharmacyCategory?         @relation(fields: [categoryId], references: [id])
   returnItems      PharmacyReturnItem[]
   stockReturnItems PharmacyStockReturnItem[]
-  inventoryLogs    InventoryLog[]
 
   @@index([name])
   @@index([genericName])
@@ -234,22 +234,23 @@ model MedicineBatch {
   manufacturingDate DateTime?         @map("manufacturing_date")
   expiryDate        DateTime          @map("expiry_date")
   purchasePrice     Decimal           @map("purchase_price") @db.Decimal(10, 2)
-  sellingPrice    Decimal           @map("selling_price") @db.Decimal(10, 2)
+  sellingPrice      Decimal           @map("selling_price") @db.Decimal(10, 2)
   mrp               Decimal?          @db.Decimal(10, 2)
-  ptr               Decimal           @default(0) @map("ptr") @db.Decimal(10, 2)
   gstPercent        Decimal           @default(0) @map("gst_percent") @db.Decimal(5, 2)
   stockQuantity     Int               @default(0) @map("stock_quantity")
-  freeQuantity      Int               @default(0) @map("free_quantity")
-  taxableAmount     Decimal           @default(0) @map("taxable_amount") @db.Decimal(10, 2)
-  gstAmount         Decimal           @default(0) @map("gst_amount") @db.Decimal(10, 2)
-  totalAmount       Decimal           @default(0) @map("total_amount") @db.Decimal(10, 2)
   isActive          Boolean           @default(true) @map("is_active")
-  expiryAlert3mSent Boolean           @default(false) @map("expiry_alert_3m_sent")
-  expiryAlert1mSent Boolean           @default(false) @map("expiry_alert_1m_sent")
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
-  medicine          Medicine          @relation(fields: [medicineId], references: [id], onDelete: Cascade)
   purchaseId        String?           @map("purchase_id")
+  expiryAlert1mSent Boolean           @default(false) @map("expiry_alert_1m_sent")
+  expiryAlert3mSent Boolean           @default(false) @map("expiry_alert_3m_sent")
+  ptr               Decimal?          @default(0) @map("ptr") @db.Decimal
+  pts               Decimal?          @default(0) @map("pts") @db.Decimal
+  freeQuantity      Int?              @default(0) @map("free_quantity")
+  taxableAmount     Decimal?          @default(0) @map("taxable_amount") @db.Decimal
+  gstAmount         Decimal?          @default(0) @map("gst_amount") @db.Decimal
+  totalAmount       Decimal?          @default(0) @map("total_amount") @db.Decimal
+  medicine          Medicine          @relation(fields: [medicineId], references: [id], onDelete: Cascade)
   purchase          PharmacyPurchase? @relation(fields: [purchaseId], references: [id])
 
   @@map("medicine_batches")
@@ -258,9 +259,6 @@ model MedicineBatch {
 model Bill {
   id           String               @id @default(uuid())
   patientId    String?              @map("patient_id")
-  customerName String?              @map("customer_name")
-  phone        String?
-  isWalkIn     Boolean              @default(false) @map("is_walk_in")
   billNumber   String               @unique @map("bill_number")
   subtotal     Decimal              @db.Decimal(10, 2)
   discount     Decimal              @default(0) @db.Decimal(10, 2)
@@ -268,12 +266,16 @@ model Bill {
   gstAmount    Decimal              @map("gst_amount") @db.Decimal(10, 2)
   grandTotal   Decimal              @map("grand_total") @db.Decimal(10, 2)
   status       BillStatus           @default(PENDING)
-  billType     String               @default("PHARMACY") @map("bill_type")
-  visitType    VisitType            @default(OP) @map("visit_type")
   paidAmount   Decimal              @default(0) @map("paid_amount") @db.Decimal(10, 2)
   notes        String?
   createdAt    DateTime             @default(now()) @map("created_at")
   updatedAt    DateTime             @updatedAt @map("updated_at")
+  customerName String?              @map("customer_name")
+  isWalkIn     Boolean              @default(false) @map("is_walk_in")
+  phone        String?
+  billType     String?              @default("PHARMACY") @map("bill_type")
+  visitType    String?              @default("OP") @map("visit_type") @db.VarChar(20)
+  walk_in_name String?              @db.VarChar(255)
   items        BillItem[]
   patient      Patient?             @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
   labOrders    LabTestOrder[]
@@ -284,60 +286,59 @@ model Bill {
   @@map("bills")
 }
 
-
 model BillItem {
-  id            String    @id @default(uuid())
-  billId        String    @map("bill_id")
-  medicineId    String?   @map("medicine_id")
-  description   String
-  batchNumber   String?   @map("batch_number")
-  expiryDate    DateTime? @map("expiry_date")
-  hsnCode       String?   @map("hsn_code")
-  quantity      Int
-  unitPrice     Decimal   @default(0) @map("unit_price") @db.Decimal(10, 2)
-  discount      Decimal   @default(0) @db.Decimal(5, 2)
-  gst           Decimal   @default(0) @db.Decimal(5, 2)
-  discountAmount Decimal   @default(0) @map("discount_amount") @db.Decimal(10, 2)
-  gstAmount      Decimal   @default(0) @map("gst_amount") @db.Decimal(10, 2)
-  totalAmount    Decimal   @default(0) @map("total_amount") @db.Decimal(10, 2)
-  total         Decimal   @default(0) @db.Decimal(10, 2)
-  purchasePrice Decimal   @default(0) @map("purchase_price") @db.Decimal(10, 2)
-  profit        Decimal   @default(0) @map("profit") @db.Decimal(10, 2)
-  bill          Bill      @relation(fields: [billId], references: [id], onDelete: Cascade)
-  medicine      Medicine? @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  id             String    @id @default(uuid())
+  billId         String    @map("bill_id")
+  medicineId     String?   @map("medicine_id")
+  description    String
+  quantity       Int
+  unitPrice      Decimal   @default(0) @map("unit_price") @db.Decimal(10, 2)
+  total          Decimal   @default(0) @db.Decimal(10, 2)
+  discount       Decimal   @default(0) @db.Decimal(5, 2)
+  gst            Decimal   @default(0) @db.Decimal(5, 2)
+  profit         Decimal   @default(0) @map("profit") @db.Decimal(10, 2)
+  purchasePrice  Decimal   @default(0) @map("purchase_price") @db.Decimal(10, 2)
+  batchNumber    String?   @map("batch_number")
+  expiryDate     DateTime? @map("expiry_date")
+  hsnCode        String?   @map("hsn_code")
+  discountAmount Float?    @default(0) @map("discount_amount")
+  gstAmount      Float?    @default(0) @map("gst_amount")
+  totalAmount    Float?    @default(0) @map("total_amount")
+  bill           Bill      @relation(fields: [billId], references: [id], onDelete: Cascade)
+  medicine       Medicine? @relation(fields: [medicineId], references: [id], onDelete: Cascade)
 
   @@map("bill_items")
 }
 
 model LabTestOrder {
   id                       String         @id @default(uuid())
-  orderNumber              String?        @unique @map("order_number")
   patientId                String?        @map("patient_id")
-  walkInName               String?        @map("walk_in_name")
-  walkInPhone              String?        @map("walk_in_phone")
   orderedById              String         @map("ordered_by_id")
-  orderedByRole            String?        @map("ordered_by_role")
-  doctorId                 String?        @map("doctor_id")
   testName                 String         @map("test_name")
   testCode                 String?        @map("test_code")
   priority                 String         @default("normal")
   status                   LabTestStatus  @default(ORDERED)
-  billingStatus            String         @default("PENDING") @map("billing_status") // PENDING or BILLED
   notes                    String?
   createdAt                DateTime       @default(now()) @map("created_at")
   updatedAt                DateTime       @updatedAt @map("updated_at")
-  testId                   String?        @map("test_id")
-  test                     LabTest?       @relation(fields: [testId], references: [id])
   billId                   String?        @map("bill_id")
-  bill                     Bill?          @relation(fields: [billId], references: [id])
-  orderedBy                Staff          @relation("OrderedBy", fields: [orderedById], references: [id], onDelete: Cascade)
-  doctor                   Staff?         @relation("DoctorOrdering", fields: [doctorId], references: [id])
-  patient                  Patient?       @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
-  result                   LabTestResult?
-  labResults               LabResult[]
   isReportVisibleToPatient Boolean        @default(true) @map("is_report_visible")
-  isWalkInLab              Boolean?       @default(false) @map("is_walk_in_lab")
-  visitType                VisitType      @default(OP) @map("visit_type")
+  testId                   String?        @map("test_id")
+  doctorId                 String?        @map("doctor_id")
+  isWalkInLab              Boolean        @default(false) @map("is_walk_in_lab")
+  orderedByRole            String?        @map("ordered_by_role")
+  billingStatus            String         @default("PENDING") @map("billing_status")
+  orderNumber              String?        @map("order_number")
+  visitType                String?        @default("OP") @map("visit_type") @db.VarChar(20)
+  walkInName               String?        @map("walk_in_name") @db.VarChar(255)
+  walkInPhone              String?        @map("walk_in_phone")
+  labResults               LabResult[]
+  bill                     Bill?          @relation(fields: [billId], references: [id])
+  doctor                   Staff?         @relation("DoctorOrdering", fields: [doctorId], references: [id])
+  orderedBy                Staff          @relation("OrderedBy", fields: [orderedById], references: [id], onDelete: Cascade)
+  patient                  Patient?       @relation(fields: [patientId], references: [uhid], onDelete: Cascade)
+  test                     LabTest?       @relation(fields: [testId], references: [id])
+  result                   LabTestResult?
 
   @@map("lab_test_orders")
 }
@@ -379,12 +380,256 @@ model Notification {
   type        String   @default("info")
   read        Boolean  @default(false)
   actionUrl   String?  @map("action_url")
-  referenceId String?  @map("reference_id")
   createdAt   DateTime @default(now()) @map("created_at")
+  referenceId String?  @map("reference_id")
   recipient   User     @relation(fields: [recipientId], references: [id], onDelete: Cascade)
 
   @@index([recipientId])
   @@map("notifications")
+}
+
+model LabTest {
+  id         String             @id @default(uuid())
+  code       String
+  name       String
+  department String
+  price      Decimal            @db.Decimal(10, 2)
+  turnaround String?
+  isActive   Boolean            @default(true) @map("is_active")
+  createdAt  DateTime           @default(now()) @map("created_at")
+  updatedAt  DateTime           @updatedAt @map("updated_at")
+  type       LabTestType        @default(PANEL)
+  categories LabTestCategory[]
+  orders     LabTestOrder[]
+  parameters LabTestParameter[]
+
+  @@map("lab_tests")
+}
+
+model LabTestCategory {
+  id           String             @id @default(uuid())
+  testId       String             @map("test_id")
+  name         String
+  displayOrder Int                @default(0) @map("display_order")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+  test         LabTest            @relation(fields: [testId], references: [id], onDelete: Cascade)
+  parameters   LabTestParameter[]
+
+  @@map("lab_test_categories")
+}
+
+model LabTestParameter {
+  id                   String           @id @default(uuid())
+  testId               String           @map("test_id")
+  parameterName        String           @map("parameter_name")
+  unit                 String?
+  normalMin            Float?           @map("normal_min")
+  normalMax            Float?           @map("normal_max")
+  normalRange          String?          @map("normal_range")
+  referenceRangeMale   String?          @map("reference_range_male")
+  referenceRangeFemale String?          @map("reference_range_female")
+  displayOrder         Int              @default(0) @map("display_order")
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+  categoryId           String?          @map("category_id")
+  inputType            String           @default("number") @map("input_type")
+  options              Json?
+  referenceRange       Json?            @map("reference_range")
+  results              LabResult[]
+  category             LabTestCategory? @relation(fields: [categoryId], references: [id])
+  test                 LabTest          @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@map("lab_test_parameters")
+}
+
+model LabResult {
+  id          String           @id @default(uuid())
+  orderId     String           @map("order_id")
+  parameterId String           @map("parameter_id")
+  resultValue String           @map("result_value")
+  flag        String?          @default("NORMAL")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  order       LabTestOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  parameter   LabTestParameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
+
+  @@map("lab_results")
+}
+
+model HospitalSettings {
+  id            String   @id @default(uuid())
+  hospitalName  String   @map("hospital_name")
+  address       String?
+  contactNumber String?  @map("contact_number")
+  email         String?
+  website       String?
+  logoUrl       String?  @map("logo_url")
+  bankName      String?  @map("bank_name")
+  accountName   String?  @map("account_name")
+  accountNumber String?  @map("account_number")
+  ifscCode      String?  @map("ifsc_code")
+  branchName    String?  @map("branch_name")
+  upiId         String?  @map("upi_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("hospital_settings")
+}
+
+model PharmacyPurchase {
+  id              String            @id @default(uuid())
+  distributorName String            @map("distributor_name")
+  invoiceNumber   String            @map("invoice_number")
+  purchaseDate    DateTime          @default(now()) @map("purchase_date")
+  totalAmount     Decimal           @map("total_amount") @db.Decimal(10, 2)
+  amountPaid      Decimal           @default(0) @map("amount_paid") @db.Decimal(10, 2)
+  balanceAmount   Decimal           @default(0) @map("balance_amount") @db.Decimal(10, 2)
+  paymentStatus   String            @default("PENDING") @map("payment_status")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  fileUrl         String?           @map("file_url")
+  isDeleted       Boolean           @default(false) @map("is_deleted")
+  visit_type      String?           @default("OP") @db.VarChar(20)
+  walk_in_name    String?           @db.VarChar(255)
+  batches         MedicineBatch[]
+  payments        PharmacyPayment[]
+
+  @@unique([distributorName, invoiceNumber])
+  @@map("pharmacy_purchases")
+}
+
+model PharmacyPayment {
+  id            String           @id @default(uuid())
+  purchaseId    String           @map("purchase_id")
+  amount        Decimal          @db.Decimal(10, 2)
+  paymentDate   DateTime         @default(now()) @map("payment_date")
+  paymentMethod String           @map("payment_method")
+  notes         String?
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  purchase      PharmacyPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  @@map("pharmacy_payments")
+}
+
+model PharmacyReturn {
+  id           String               @id @default(uuid())
+  billId       String               @map("bill_id")
+  patientId    String               @map("patient_id")
+  returnDate   DateTime             @default(now()) @map("return_date")
+  refundAmount Decimal              @map("refund_amount") @db.Decimal(10, 2)
+  refundMethod String               @map("refund_method")
+  pharmacistId String?              @map("pharmacist_id")
+  status       String               @default("COMPLETED")
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+  items        PharmacyReturnItem[]
+  bill         Bill                 @relation(fields: [billId], references: [id])
+  patient      Patient              @relation(fields: [patientId], references: [uhid])
+
+  @@map("pharmacy_returns")
+}
+
+model PharmacyReturnItem {
+  id          String         @id @default(uuid())
+  returnId    String         @map("return_id")
+  medicineId  String         @map("medicine_id")
+  batchNumber String?        @map("batch_number")
+  returnQty   Int            @map("return_qty")
+  sale_price  Decimal        @db.Decimal(10, 2)
+  reason      String
+  medicine    Medicine       @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  return      PharmacyReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@map("pharmacy_return_items")
+}
+
+model PharmacyStockReturn {
+  id           String                    @id @default(uuid())
+  distributor  String                    @map("distributor_name")
+  returnDate   DateTime                  @default(now()) @map("return_date")
+  totalAmount  Decimal                   @map("total_amount") @db.Decimal(10, 2)
+  returnType   String                    @map("return_type")
+  pharmacistId String?                   @map("pharmacist_id")
+  status       String                    @default("COMPLETED")
+  createdAt    DateTime                  @default(now()) @map("created_at")
+  updatedAt    DateTime                  @updatedAt @map("updated_at")
+  items        PharmacyStockReturnItem[]
+
+  @@map("pharmacy_stock_returns")
+}
+
+model PharmacyStockReturnItem {
+  id           String              @id @default(uuid())
+  returnId     String              @map("return_id")
+  medicineId   String              @map("medicine_id")
+  batchNumber  String?             @map("batch_number")
+  returnQty    Int                 @map("return_qty")
+  returnReason String              @map("return_reason")
+  unitPrice    Decimal             @map("unit_price") @db.Decimal(10, 2)
+  medicine     Medicine            @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  return       PharmacyStockReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@map("pharmacy_stock_return_items")
+}
+
+model InventoryLog {
+  id            String           @id @default(uuid())
+  medicineId    String           @map("medicine_id")
+  batchNumber   String?          @map("batch_number")
+  type          InventoryLogType
+  quantity      Int
+  previousStock Int              @map("previous_stock")
+  newStock      Int              @map("new_stock")
+  referenceId   String?          @map("reference_id")
+  remarks       String?
+  createdAt     DateTime         @default(now()) @map("created_at")
+  medicine      Medicine         @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+
+  @@map("inventory_logs")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model lab_test_orders_backup {
+  id                String?
+  patient_id        String?
+  ordered_by_id     String?
+  test_name         String?
+  test_code         String?
+  priority          String?
+  status            LabTestStatus?
+  notes             String?
+  created_at        DateTime?
+  updated_at        DateTime?
+  bill_id           String?
+  is_report_visible Boolean?
+  test_id           String?
+  doctor_id         String?
+  is_walk_in_lab    Boolean?
+  ordered_by_role   String?
+  billing_status    String?
+  order_number      String?
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model pharmacy_purchases_backup {
+  id               String?
+  distributor_name String?
+  invoice_number   String?
+  purchase_date    DateTime?
+  total_amount     Decimal?  @db.Decimal(10, 2)
+  amount_paid      Decimal?  @db.Decimal(10, 2)
+  balance_amount   Decimal?  @db.Decimal(10, 2)
+  payment_status   String?
+  created_at       DateTime?
+  updated_at       DateTime?
+  file_url         String?
+  is_deleted       Boolean?
+
+  @@ignore
 }
 
 enum UserRole {
@@ -464,206 +709,4 @@ enum InventoryLogType {
   DISTRIBUTOR_RETURN
   STOCK_ADD
   ADJUSTMENT
-}
-
-model LabTest {
-  id         String             @id @default(uuid())
-  code       String
-  name       String
-  department String
-  type       LabTestType        @default(PANEL)
-  price      Decimal            @db.Decimal(10, 2)
-  turnaround String?
-  isActive   Boolean            @default(true) @map("is_active")
-  createdAt  DateTime           @default(now()) @map("created_at")
-  updatedAt  DateTime           @updatedAt @map("updated_at")
-  categories LabTestCategory[]
-  parameters LabTestParameter[]
-  orders     LabTestOrder[]
-
-  @@map("lab_tests")
-}
-
-model LabTestCategory {
-  id           String             @id @default(uuid())
-  testId       String             @map("test_id")
-  name         String
-  displayOrder Int                @default(0) @map("display_order")
-  createdAt    DateTime           @default(now()) @map("created_at")
-  updatedAt    DateTime           @updatedAt @map("updated_at")
-  test         LabTest            @relation(fields: [testId], references: [id], onDelete: Cascade)
-  parameters   LabTestParameter[]
-
-  @@map("lab_test_categories")
-}
-
-model LabTestParameter {
-  id                   String           @id @default(uuid())
-  testId               String           @map("test_id")
-  categoryId           String?          @map("category_id")
-  parameterName        String           @map("parameter_name")
-  inputType            String           @default("number") @map("input_type") // number, text, select
-  unit                 String?
-  referenceRange       Json?            @map("reference_range")
-  options              Json? // For input_type select
-  normalMin            Float?           @map("normal_min")
-  normalMax            Float?           @map("normal_max")
-  normalRange          String?          @map("normal_range")
-  referenceRangeMale   String?          @map("reference_range_male")
-  referenceRangeFemale String?          @map("reference_range_female")
-  displayOrder         Int              @default(0) @map("display_order")
-  createdAt            DateTime         @default(now()) @map("created_at")
-  updatedAt            DateTime         @updatedAt @map("updated_at")
-  test                 LabTest          @relation(fields: [testId], references: [id], onDelete: Cascade)
-  category             LabTestCategory? @relation(fields: [categoryId], references: [id])
-  results              LabResult[]
-
-  @@map("lab_test_parameters")
-}
-
-model LabResult {
-  id          String           @id @default(uuid())
-  orderId     String           @map("order_id")
-  parameterId String           @map("parameter_id")
-  resultValue String           @map("result_value")
-  flag        String?          @default("NORMAL") // NORMAL, LOW, HIGH
-  createdAt   DateTime         @default(now()) @map("created_at")
-  updatedAt   DateTime         @updatedAt @map("updated_at")
-  order       LabTestOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  parameter   LabTestParameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
-
-  @@map("lab_results")
-}
-
-model HospitalSettings {
-  id            String   @id @default(uuid())
-  hospitalName  String   @map("hospital_name")
-  address       String?
-  contactNumber String?  @map("contact_number")
-  email         String?
-  website       String?
-  logoUrl       String?  @map("logo_url")
-  // Bank Details
-  bankName      String?  @map("bank_name")
-  accountName   String?  @map("account_name")
-  accountNumber String?  @map("account_number")
-  ifscCode      String?  @map("ifsc_code")
-  branchName    String?  @map("branch_name")
-  upiId         String?  @map("upi_id")
-  // Metadata
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  @@map("hospital_settings")
-}
-
-model PharmacyPurchase {
-  id              String            @id @default(uuid())
-  distributorName String            @map("distributor_name")
-  invoiceNumber   String            @map("invoice_number")
-  purchaseDate    DateTime          @default(now()) @map("purchase_date")
-  totalAmount     Decimal           @map("total_amount") @db.Decimal(10, 2)
-  amountPaid      Decimal           @default(0) @map("amount_paid") @db.Decimal(10, 2)
-  balanceAmount   Decimal           @default(0) @map("balance_amount") @db.Decimal(10, 2)
-  paymentStatus   String            @default("PENDING") @map("payment_status") // PENDING, PAID, PARTIALLY_PAID
-  fileUrl         String?           @map("file_url")
-  isDeleted       Boolean           @default(false) @map("is_deleted")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
-  batches         MedicineBatch[]
-  payments        PharmacyPayment[]
-
-  @@unique([distributorName, invoiceNumber])
-  @@map("pharmacy_purchases")
-}
-
-model PharmacyPayment {
-  id            String           @id @default(uuid())
-  purchaseId    String           @map("purchase_id")
-  amount        Decimal          @db.Decimal(10, 2)
-  paymentDate   DateTime         @default(now()) @map("payment_date")
-  paymentMethod String           @map("payment_method")
-  notes         String?
-  createdAt     DateTime         @default(now()) @map("created_at")
-  updatedAt     DateTime         @updatedAt @map("updated_at")
-  purchase      PharmacyPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
-
-  @@map("pharmacy_payments")
-}
-
-model PharmacyReturn {
-  id           String               @id @default(uuid())
-  billId       String               @map("bill_id")
-  patientId    String               @map("patient_id")
-  returnDate   DateTime             @default(now()) @map("return_date")
-  refundAmount Decimal              @map("refund_amount") @db.Decimal(10, 2)
-  refundMethod String               @map("refund_method")
-  pharmacistId String?              @map("pharmacist_id")
-  status       String               @default("COMPLETED")
-  createdAt    DateTime             @default(now()) @map("created_at")
-  updatedAt    DateTime             @updatedAt @map("updated_at")
-  bill         Bill                 @relation(fields: [billId], references: [id])
-  patient      Patient              @relation(fields: [patientId], references: [uhid])
-  items        PharmacyReturnItem[]
-
-  @@map("pharmacy_returns")
-}
-
-model PharmacyReturnItem {
-  id          String         @id @default(uuid())
-  returnId    String         @map("return_id")
-  medicineId  String         @map("medicine_id")
-  batchNumber String?        @map("batch_number")
-  returnQty   Int            @map("return_qty")
-  sellingPrice   Decimal        @map("selling_price") @db.Decimal(10, 2)
-  reason      String
-  return      PharmacyReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
-  medicine    Medicine       @relation(fields: [medicineId], references: [id], onDelete: Cascade)
-
-  @@map("pharmacy_return_items")
-}
-
-model PharmacyStockReturn {
-  id           String                    @id @default(uuid())
-  distributor  String                    @map("distributor_name")
-  returnDate   DateTime                  @default(now()) @map("return_date")
-  totalAmount  Decimal                   @map("total_amount") @db.Decimal(10, 2)
-  returnType   String                    @map("return_type") // CREDIT_NOTE, REPLACEMENT, REFUND
-  pharmacistId String?                   @map("pharmacist_id")
-  status       String                    @default("COMPLETED")
-  createdAt    DateTime                  @default(now()) @map("created_at")
-  updatedAt    DateTime                  @updatedAt @map("updated_at")
-  items        PharmacyStockReturnItem[]
-
-  @@map("pharmacy_stock_returns")
-}
-
-model PharmacyStockReturnItem {
-  id           String              @id @default(uuid())
-  returnId     String              @map("return_id")
-  medicineId   String              @map("medicine_id")
-  batchNumber  String?             @map("batch_number")
-  returnQty    Int                 @map("return_qty")
-  returnReason String              @map("return_reason")
-  unitPrice    Decimal             @map("unit_price") @db.Decimal(10, 2)
-  return       PharmacyStockReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
-  medicine     Medicine            @relation(fields: [medicineId], references: [id], onDelete: Cascade)
-
-  @@map("pharmacy_stock_return_items")
-}
-
-model InventoryLog {
-  id            String           @id @default(uuid())
-  medicineId    String           @map("medicine_id")
-  batchNumber   String?          @map("batch_number")
-  type          InventoryLogType
-  quantity      Int // Positive for add, negative for sub
-  previousStock Int              @map("previous_stock")
-  newStock      Int              @map("new_stock")
-  referenceId   String?          @map("reference_id")
-  remarks       String?
-  createdAt     DateTime         @default(now()) @map("created_at")
-  medicine      Medicine         @relation(fields: [medicineId], references: [id], onDelete: Cascade)
-
-  @@map("inventory_logs")
 }

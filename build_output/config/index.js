@@ -16,7 +16,7 @@ export const config = {
         refreshExpiry: process.env.JWT_REFRESH_EXPIRY || '7d',
     },
     // CORS
-    corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:3000')
+    corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:3000', 'http://localhost:5173/')
         .split(',')
         .map(origin => origin.trim().replace(/\/$/, '')),
     // Rate Limiting
