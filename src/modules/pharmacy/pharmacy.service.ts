@@ -22,6 +22,7 @@ import {
 } from './pharmacy.types.js';
 import { PaginatedResponse } from '../users/users.types.js';
 import { Decimal } from '@prisma/client/runtime/library';
+import { it } from 'node:test';
 
 export class PharmacyService {
     // Medicine CRUD
@@ -102,6 +103,7 @@ export class PharmacyService {
                     mrp: input.mrp,
                     gstPercent: input.gst_percent,
                     stockQuantity: input.stock_quantity,
+                    packQuantity: (input as any).pack_quantity ?? 1,
                     freeQuantity: input.free_quantity ?? 0,
                     ptr: input.ptr ?? 0,
                     pts: input.pts ?? 0,
@@ -220,7 +222,8 @@ export class PharmacyService {
                     distributor: b.distributorName,
                     stock: b.stockQuantity,
                     expiry: b.expiryDate,
-                    purchase_price: Number(b.purchasePrice)
+                    purchase_price: Number(b.purchasePrice),
+                    mrp: Number(b.mrp)
                 }));
 
                 return {
@@ -277,6 +280,7 @@ export class PharmacyService {
                     manufacturer: b.medicine.manufacturer,
                     category: b.medicine.categoryRel?.name || b.medicine.category || '-',
                     stock_quantity: b.stockQuantity,
+                    pack_quantity: b.packQuantity,
                     total_stock: b.medicine.stockQuantity,
                     min_stock_level: b.medicine.reorderLevel,
                     selling_price: Number(b.sellingPrice),
@@ -329,6 +333,8 @@ export class PharmacyService {
                         batch_number,
                         distributor_name,
                         expiry_date,
+                        pack_quantity,
+                        mrp,
                         ROW_NUMBER() OVER(PARTITION BY medicine_id ORDER BY expiry_date ASC) as rn
                     FROM medicine_batches
                     WHERE is_active = true AND stock_quantity > 0
@@ -340,8 +346,10 @@ export class PharmacyService {
                     m.manufacturer,
                     m.reorder_level as "min_level",
                     c.name AS category, 
-                    m.stock_quantity, 
+                    m.stock_quantity,
+                    COALESCE(rb.pack_quantity, 1) as pack_quantity, 
                     m.price_per_unit as unit_price,
+                    rb.mrp as mrp ,
                     rb.batch_number,
                     rb.expiry_date,
                     rb.distributor_name as distributor
@@ -371,8 +379,10 @@ export class PharmacyService {
                 manufacturer: m.manufacturer,
                 category: m.category,
                 stock_quantity: Number(m.stock_quantity) || 0,
+                pack_quantity: Number(m.pack_quantity) || 0,
                 min_stock_level: Number(m.min_level) || 0,
                 unit_price: Number(m.unit_price) || 0,
+                mrp: Number(m.mrp) || 0,
                 status: (Number(m.stock_quantity) || 0) <= (Number(m.min_level) || 10) ? ((Number(m.stock_quantity) || 0) <= 0 ? 'out_of_stock' : 'low_stock') : 'in_stock',
                 batch: m.batch_number ? {
                     batch_number: m.batch_number,
@@ -389,6 +399,7 @@ export class PharmacyService {
                         m.name, 
                         b.batch_number,
                         b.stock_quantity as stock,
+                        b.pack_quantity as pack_quantity,
                         b.distributor_name as distributor,
                         b.expiry_date as expiry,
                         b.purchase_price as "purchasePrice"
@@ -461,6 +472,7 @@ export class PharmacyService {
         if (input.stock_quantity !== undefined && input.stock_quantity < 0) {
             throw new ValidationError('Stock quantity cannot be negative');
         }
+        
         if (input.purchase_price !== undefined && input.purchase_price < 0) {
             throw new ValidationError('Purchase price cannot be negative');
         }
@@ -480,6 +492,7 @@ export class PharmacyService {
             if (input.selling_price) dataToUpdate.sellingPrice = input.selling_price;
             if (input.gst_percent) dataToUpdate.gstPercent = input.gst_percent;
             if (input.stock_quantity) dataToUpdate.stockQuantity = input.stock_quantity;
+            if (input.pack_quantity) dataToUpdate.packQuantity = input.pack_quantity;
             if (input.free_quantity) dataToUpdate.freeQuantity = input.free_quantity;
             if (input.is_active !== undefined) dataToUpdate.isActive = input.is_active;
             if (input.taxable_amount) dataToUpdate.taxableAmount = input.taxable_amount;
@@ -487,7 +500,7 @@ export class PharmacyService {
             if (input.total_amount) dataToUpdate.totalAmount = input.total_amount;
 
             // Remove snake_case fields that don't exist in Prisma model
-            const internalFields = ['batch_number', 'distributor_name', 'manufacturing_date', 'expiry_date', 'purchase_price', 'selling_price', 'gst_percent', 'stock_quantity', 'free_quantity', 'is_active', 'taxable_amount', 'gst_amount', 'total_amount'];
+            const internalFields = ['batch_number', 'distributor_name', 'manufacturing_date', 'expiry_date', 'purchase_price', 'selling_price', 'gst_percent', 'stock_quantity', 'pack_quantity', 'free_quantity', 'is_active', 'taxable_amount', 'gst_amount', 'total_amount'];
             internalFields.forEach(f => delete dataToUpdate[f]);
 
             const updatedBatch = await tx.medicineBatch.update({
@@ -880,7 +893,7 @@ export class PharmacyService {
                             medicineId: item.medicine_id,
                             batchNumber: item.batch_number,
                             returnQty: item.return_qty,
-                            sellingPrice: item.selling_price,
+                            sale_price: item.selling_price,
                             reason: item.reason
                         }))
                     }
@@ -1043,7 +1056,8 @@ export class PharmacyService {
                             batchNumber: item.batch_number,
                             returnQty: item.return_qty,
                             returnReason: item.return_reason,
-                            unitPrice: item.unit_price
+                            unitPrice: item.unit_price,
+                            
                         }))
                     }
                 },
@@ -1287,6 +1301,7 @@ export class PharmacyService {
                 SELECT 
                     name,
                     stock_quantity,
+                    pack_quantity,
                     reorder_level as "min_stock_level",
                     (SELECT expiry_date FROM medicine_batches mb WHERE mb.medicine_id::text = m.id::text AND mb.is_active = true ORDER BY expiry_date ASC LIMIT 1) as "expiry_date"
                 FROM medicines m
@@ -1296,6 +1311,7 @@ export class PharmacyService {
             const inventory = inventoryResult.map(row => ({
                 name: row.name,
                 stock_quantity: Number(row.stock_quantity) || 0,
+                pack_quantity: Number(row.pack_quantity) || 0,
                 min_stock_level: Number(row.min_stock_level) || 0,
                 expiry_date: row.expiry_date
             }));
@@ -1484,6 +1500,7 @@ export class PharmacyService {
             } : null,
             unit: medicine.unit,
             stock_quantity: medicine.stockQuantity,
+            pack_quantity: medicine.packQuantity,
             min_stock_level: medicine.reorderLevel,
             expiry_date: displayBatch?.expiryDate || null,
             batch_number: displayBatch?.batchNumber || '-',
@@ -1502,6 +1519,7 @@ export class PharmacyService {
                 mrp: Number(b.mrp),
                 gst_percent: Number(b.gstPercent),
                 stock_quantity: b.stockQuantity,
+                pack_quantity: b.packQuantity,
                 free_quantity: b.freeQuantity ?? 0,
                 ptr: Number(b.ptr ?? 0),
                 pts: Number(b.pts ?? 0),
@@ -1715,7 +1733,10 @@ export class PharmacyService {
             for (const item of input.items) {
                 totalAmount += item.stock_quantity * item.purchase_price;
             }
-
+            let stockqty=0;
+            for (const item of input.items) {
+                stockqty+=item.stock_quantity*item.pack_quantity;
+             }
             // 2. Create the Purchase tracking record
             const purchase = await (tx as any).pharmacyPurchase.create({
                 data: {
@@ -1753,6 +1774,7 @@ export class PharmacyService {
                         mrp: item.mrp ? new Decimal(item.mrp) : null,
                         gstPercent: new Decimal(item.gst_percent ?? 0),
                         stockQuantity: item.stock_quantity,
+                        packQuantity: item.pack_quantity,
                         freeQuantity: (item as any).free_quantity ?? 0,
                         ptr: new Decimal((item as any).ptr ?? 0),
                         pts: new Decimal((item as any).pts ?? 0),

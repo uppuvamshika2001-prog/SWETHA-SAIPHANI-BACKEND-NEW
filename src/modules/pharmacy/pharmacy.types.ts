@@ -18,6 +18,7 @@ export const createMedicineSchema = z.object({
     mrp: z.number().nonnegative().optional(),
     gst_percent: z.number().nonnegative().default(0),
     stock_quantity: z.number().int().nonnegative(),
+    pack_quantity: z.number().int().positive().default(1),
     free_quantity: z.number().int().nonnegative().default(0),
     ptr: z.number().nonnegative().default(0),
     pts: z.number().nonnegative().default(0),
@@ -56,6 +57,7 @@ export const createPurchaseSchema = z.object({
         gst_amount: z.number().nonnegative().default(0),
         total_amount: z.number().nonnegative().default(0),
         stock_quantity: z.number().int().positive(),
+        pack_quantity: z.number().int().positive().default(1),
     })).min(1, 'At least one item is required')
 });
 
@@ -81,6 +83,7 @@ export const updateBatchSchema = z.object({
     mrp: z.number().nonnegative().optional(),
     gst_percent: z.number().nonnegative().optional(),
     stock_quantity: z.number().int().nonnegative().optional(),
+    pack_quantity: z.number().int().positive().optional(),
     free_quantity: z.number().int().nonnegative().optional(),
     ptr: z.number().nonnegative().optional(),
     pts: z.number().nonnegative().optional(),
@@ -148,6 +151,7 @@ export interface MedicineResponse {
     category?: { id: number; name: string } | null;
     unit: string;
     stock_quantity: number;
+    pack_quantity: number;
     reorder_level: number;
     is_active: boolean;
     batches: Array<{
@@ -161,6 +165,7 @@ export interface MedicineResponse {
         mrp: number | null;
         gst_percent: number;
         stock_quantity: number;
+        pack_quantity: number;
         free_quantity: number;
         ptr: number;
         taxable_amount: number;
@@ -314,6 +319,7 @@ export interface PharmacyPurchaseResponse {
         batch_number: string;
         medicine_name: string;
         stock_quantity: number;
+        pack_quantity: number;
     }>;
 }
 
