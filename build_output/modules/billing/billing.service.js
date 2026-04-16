@@ -160,7 +160,7 @@ export class BillingService {
             where.billType = { in: ['CONSULTATION', 'PHARMACY', 'LAB'] };
         }
         else {
-            where.billType = 'CONSULTATION';
+            where.billType = { in: ['CONSULTATION', 'PHARMACY', 'LAB'] };
         }
         if (patientId && patientId.trim() !== '') {
             where.patientId = patientId;
@@ -170,23 +170,19 @@ export class BillingService {
             where.status = status.toUpperCase();
         }
         // Date Filter Final Fix: Use robust range boundary (start of day to start of next day)
+        // Date Filter Fix: Prevent local timezone drift
         if (startDate || endDate) {
             const dateFilter = {};
-            if (startDate) {
-                const s = new Date(startDate);
-                s.setHours(0, 0, 0, 0);
-                dateFilter.gte = s;
+            // Ensure we are working with the date string and not a shifted Date object
+            const start = startDate ? String(startDate).split('T')[0] : null;
+            const end = endDate ? String(endDate).split('T')[0] : start;
+            if (start) {
+                // Force the start of the day to 00:00:00 UTC
+                dateFilter.gte = new Date(`${start}T00:00:00.000Z`);
             }
-            if (endDate) {
-                const e = new Date(endDate);
-                e.setHours(23, 59, 59, 999);
-                dateFilter.lte = e;
-            }
-            else if (startDate) {
-                // If only startDate is provided, include the full day
-                const e = new Date(startDate);
-                e.setHours(23, 59, 59, 999);
-                dateFilter.lte = e;
+            if (end) {
+                // Force the end of the day to 23:59:59 UTC
+                dateFilter.lte = new Date(`${end}T23:59:59.999Z`);
             }
             where.createdAt = dateFilter;
         }
@@ -226,10 +222,14 @@ export class BillingService {
                 console.log(`[BillingService] findAll Result Count: ${items.length} records out of ${total} total matching.`);
             }
             const itemsWithMedicalRecords = await Promise.all(items.map(async (item) => {
-                const medicalRecord = await prisma.medicalRecord.findFirst({
-                    where: { patientId: item.patientId },
-                    orderBy: { createdAt: 'desc' }
-                });
+                let medicalRecord = null;
+                // FIX: Only query if patientId exists (prevents the crash)
+                if (item.patientId) {
+                    medicalRecord = await prisma.medicalRecord.findFirst({
+                        where: { patientId: item.patientId },
+                        orderBy: { createdAt: 'desc' }
+                    });
+                }
                 return this.formatBill({ ...item, medicalRecord });
             }));
             return {
@@ -485,7 +485,7 @@ export class BillingService {
                 unit_price: Number(item.unitPrice),
                 batch_number: item.batchNumber,
                 expiry_date: item.expiryDate,
-                hsnCode: item.hsnCode,
+                hsn_code: item.hsnCode,
                 discount_amount: Number(item.discountAmount || 0),
                 gst_percent: Number(item.gst || item.gstPercent || 0),
                 gst_amount: Number(item.gstAmount || 0),

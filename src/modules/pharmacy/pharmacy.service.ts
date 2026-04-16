@@ -1765,16 +1765,24 @@ const notes = input.notes;
 
     async createPurchase(input: CreatePurchaseInput): Promise<any> {
         return await prisma.$transaction(async (tx) => {
-            // 1. Calculate total purchase amount
+            // 1. Calculate total purchase amount (including GST)
+            console.log(`[createPurchase] Received input:`, JSON.stringify(input, null, 2));
+            
             let totalAmount = 0;
             for (const item of input.items) {
-                totalAmount += item.stock_quantity * item.purchase_price;
+                console.log(`[createPurchase] Processing item:`, JSON.stringify(item, null, 2));
+                const itemSubtotal = item.stock_quantity * item.purchase_price;
+                const gstAmount = Number((item as any).gst_amount || (item as any).gst || 0);
+                totalAmount += itemSubtotal + gstAmount;
+                console.log(`[createPurchase] Item: qty=${item.stock_quantity}, price=${item.purchase_price}, subtotal=${itemSubtotal}, gst=${gstAmount}, running total=${totalAmount}`);
             }
+            console.log(`[createPurchase] Final totalAmount with GST: ${totalAmount}`);
             let stockqty=0;
             for (const item of input.items) {
                 stockqty+=item.stock_quantity*item.pack_quantity;
              }
             // 2. Create the Purchase tracking record
+            console.log(`[createPurchase] Creating purchase with totalAmount=${totalAmount}`);
             const purchase = await (tx as any).pharmacyPurchase.create({
                 data: {
                     distributorName: input.distributor_name,
@@ -1816,7 +1824,7 @@ const notes = input.notes;
                         ptr: new Decimal((item as any).ptr ?? 0),
                         pts: new Decimal((item as any).pts ?? 0),
                         taxableAmount: new Decimal((item as any).taxable_amount ?? 0),
-                        gstAmount: new Decimal((item as any).gst_amount ?? 0),
+                        gstAmount: new Decimal((item as any).gst ?? (item as any).gst_amount ?? 0),
                         totalAmount: new Decimal((item as any).total_amount ?? 0),
                         isActive: true
                     }

@@ -1,5 +1,6 @@
+import dotenv from 'dotenv';
 if (process.env.NODE_ENV !== 'production') {
-    import('dotenv').then(d => d.config());
+    dotenv.config();
 }
 export const config = {
     // Server
@@ -16,7 +17,7 @@ export const config = {
         refreshExpiry: process.env.JWT_REFRESH_EXPIRY || '7d',
     },
     // CORS
-    corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:3000', 'http://localhost:5173/')
+    corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:3000' || 'https://localhost:5173')
         .split(',')
         .map(origin => origin.trim().replace(/\/$/, '')),
     // Rate Limiting
