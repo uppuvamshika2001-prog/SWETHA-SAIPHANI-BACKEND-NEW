@@ -485,7 +485,7 @@ export class BillingService {
                 unit_price: Number(item.unitPrice),
                 batch_number: item.batchNumber,
                 expiry_date: item.expiryDate,
-                hsn_code: item.hsnCode,
+                hsnCode: item.hsnCode,
                 discount_amount: Number(item.discountAmount || 0),
                 gst_percent: Number(item.gst || item.gstPercent || 0),
                 gst_amount: Number(item.gstAmount || 0),

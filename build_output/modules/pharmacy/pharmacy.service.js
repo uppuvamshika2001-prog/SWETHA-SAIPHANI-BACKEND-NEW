@@ -29,7 +29,7 @@ export class PharmacyService {
             // 2. Handle Pharmacy Purchase (Aggregated by Invoice)
             let purchaseId = null;
             if (input.invoice_number) {
-                const totalItemAmount = input.stock_quantity * input.purchase_price;
+                const totalItemAmount = input.stock_quantity * input.purchase_price * input.gst_percent / 100 + input.stock_quantity * input.purchase_price;
                 // Find existing purchase for this distributor + invoice
                 let purchase = await tx.pharmacyPurchase.findUnique({
                     where: {

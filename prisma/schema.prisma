@@ -254,6 +254,8 @@ model MedicineBatch {
   totalAmount       Decimal?          @default(0) @map("total_amount") @db.Decimal
   medicine          Medicine          @relation(fields: [medicineId], references: [id], onDelete: Cascade)
   purchase          PharmacyPurchase? @relation(fields: [purchaseId], references: [id])
+  hsnCode           String?           @map("hsn_code")
+  overalldiscount   Decimal?          @default(0) @map("overalldiscount") @db.Decimal  
 
   @@map("medicine_batches")
 }

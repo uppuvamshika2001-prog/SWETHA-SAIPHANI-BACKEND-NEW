@@ -110,7 +110,9 @@ export class PharmacyService {
                     taxableAmount: input.taxable_amount ?? 0,
                     gstAmount: input.gst_amount ?? 0,
                     totalAmount: input.total_amount ?? 0,
-                    purchaseId: purchaseId
+                    purchaseId: purchaseId,
+                    hsnCode: input.hsnCode || '-',
+                    overalldiscount:input.overalldiscount ?? 0,
                 }
             });
 
@@ -296,6 +298,8 @@ export class PharmacyService {
                     taxable_amount: Number(b.taxableAmount ?? 0),
                     gst_amount: Number(b.gstAmount ?? 0),
                     total_amount: Number(b.totalAmount ?? 0),
+                    hsn_code: b.medicine.hsn_code || '-',
+                    overalldiscount: Number(b.overalldiscount ?? 0),
                     status: b.stockQuantity <= b.medicine.reorderLevel ? (b.stockQuantity <= 0 ? 'out_of_stock' : 'low_stock') : 'in_stock',
                     isBatchDetail: true,
                     unit: b.medicine.unit
@@ -332,9 +336,18 @@ export class PharmacyService {
                         medicine_id,
                         batch_number,
                         distributor_name,
+                        manufacturing_date,
                         expiry_date,
                         pack_quantity,
                         mrp,
+                        ptr,
+                        pts,
+                        purchase_price,
+                        selling_price,
+                         gst_percent,
+                        gst_amount,
+                        hsn_code,
+                        overalldiscount,
                         ROW_NUMBER() OVER(PARTITION BY medicine_id ORDER BY expiry_date ASC) as rn
                     FROM medicine_batches
                     WHERE is_active = true AND stock_quantity > 0
@@ -351,8 +364,17 @@ export class PharmacyService {
                     m.price_per_unit as unit_price,
                     rb.mrp as mrp ,
                     rb.batch_number,
+                    rb.manufacturing_date,
                     rb.expiry_date,
-                    rb.distributor_name as distributor
+                    rb.distributor_name as distributor,
+                    rb.ptr,
+                    rb.pts,
+                    rb.purchase_price,
+                    rb.selling_price,
+                     rb.gst_percent,
+                        rb.gst_amount,
+                         rb.hsn_code,
+                        rb.overalldiscount
                 FROM medicines m
                 LEFT JOIN categories c ON m.category_id = c.id
                 LEFT JOIN RankedBatches rb ON m.id::text = rb.medicine_id::text AND rb.rn = 1
@@ -376,6 +398,7 @@ export class PharmacyService {
                 id: m.id,
                 name: m.name,
                 genericName: m.genericName,
+               
                 manufacturer: m.manufacturer,
                 category: m.category,
                 stock_quantity: Number(m.stock_quantity) || 0,
@@ -383,9 +406,18 @@ export class PharmacyService {
                 min_stock_level: Number(m.min_level) || 0,
                 unit_price: Number(m.unit_price) || 0,
                 mrp: Number(m.mrp) || 0,
+                ptr: Number(m.ptr) || 0,
+                pts: Number(m.pts) || 0,
+                purchase_price: Number(m.purchase_price) || 0,
+                selling_price:Number(m.selling_price) ||0,
+                gst_percent: Number(m.gst_percent) || 0,
+                gst_amount: Number(m.gst_amount) || 0,
+                hsn_code: m.hsn_code || '-', 
+                overalldiscount: Number(m.overalldiscount) || 0,
                 status: (Number(m.stock_quantity) || 0) <= (Number(m.min_level) || 10) ? ((Number(m.stock_quantity) || 0) <= 0 ? 'out_of_stock' : 'low_stock') : 'in_stock',
                 batch: m.batch_number ? {
                     batch_number: m.batch_number,
+                    manufacturing_date: m.manufacturing_date,
                     expiry_date: m.expiry_date,
                     distributor: m.distributor
                 } : null
@@ -676,7 +708,7 @@ export class PharmacyService {
                     billType: 'PHARMACY',
                     subtotal: subtotal, 
                     discount: totalDiscount, 
-                   gstPercent: input.gst_percent || 0,
+                    gstPercent: input.gst_percent || 0,
                     gstAmount: totalGstAmount,
                     grandTotal,
                     status: 'PAID', 
@@ -1355,7 +1387,12 @@ export class PharmacyService {
     }
     
     async recordPayment(input: any): Promise<any> {
-        const { purchaseId, amount, paymentMethod, paymentDate, notes } = input;
+       // const { purchaseId, amount, paymentMethod, paymentDate, notes } = input;
+       const purchaseId = input.purchase_id;
+const amount = input.amount;
+const paymentMethod = input.payment_method;
+const paymentDate = input.paymentDate;
+const notes = input.notes;
         
         return await prisma.$transaction(async (tx) => {
             const purchase = await (tx as any).pharmacyPurchase.findUnique({
