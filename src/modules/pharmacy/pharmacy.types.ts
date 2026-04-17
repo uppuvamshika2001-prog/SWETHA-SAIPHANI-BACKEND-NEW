@@ -43,6 +43,7 @@ export const createPurchaseSchema = z.object({
     distributor_name: z.string().min(1, 'Distributor name is required'),
     invoice_number: z.string().min(1, 'Invoice number is required'),
     purchase_date: z.string().transform((s) => new Date(s)).optional(),
+    overalldiscount: z.coerce.number(),
     items: z.array(z.object({
         medicine_id: z.string().min(1, 'Medicine is required'),
         batch_number: z.string().min(1, 'Batch number is required'),

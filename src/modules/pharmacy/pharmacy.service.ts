@@ -1765,18 +1765,33 @@ const notes = input.notes;
 
     async createPurchase(input: CreatePurchaseInput): Promise<any> {
         return await prisma.$transaction(async (tx) => {
-            // 1. Calculate total purchase amount (including GST)
+            // 1. Calculate total purchase amount with discount applied first, then GST
             console.log(`[createPurchase] Received input:`, JSON.stringify(input, null, 2));
             
-            let totalAmount = 0;
+            // Step 1: Calculate subtotal of all items (base prices without GST)
+            let subtotalAmount = 0;
+            let totalGSTAmount = 0;
             for (const item of input.items) {
                 console.log(`[createPurchase] Processing item:`, JSON.stringify(item, null, 2));
-                const itemSubtotal = item.stock_quantity * item.purchase_price;
+                const itemSubtotal = (item.stock_quantity * item.purchase_price);
                 const gstAmount = Number((item as any).gst_amount || (item as any).gst || 0);
-                totalAmount += itemSubtotal + gstAmount;
-                console.log(`[createPurchase] Item: qty=${item.stock_quantity}, price=${item.purchase_price}, subtotal=${itemSubtotal}, gst=${gstAmount}, running total=${totalAmount}`);
+                subtotalAmount += itemSubtotal;
+                totalGSTAmount += gstAmount;
             }
-            console.log(`[createPurchase] Final totalAmount with GST: ${totalAmount}`);
+            
+            // Step 2: Apply overall discount
+            const overallDiscount = input.overalldiscount || 0;
+            const discountedSubtotal = subtotalAmount - overallDiscount;
+            
+            // Step 3: Calculate GST on discounted amount (proportional to discount)
+            const discountRatio = discountedSubtotal / (subtotalAmount > 0 ? subtotalAmount : 1);
+            const adjustedGSTAmount = totalGSTAmount * discountRatio;
+            
+            // Step 4: Calculate final total amount (discounted subtotal + adjusted GST)
+            const totalAmount = discountedSubtotal + adjustedGSTAmount;
+            
+            console.log(`[createPurchase] Subtotal: ${subtotalAmount}, Discount: ${overallDiscount}, Discounted Subtotal: ${discountedSubtotal}, GST: ${adjustedGSTAmount}, Final Total: ${totalAmount}`);
+            
             let stockqty=0;
             for (const item of input.items) {
                 stockqty+=item.stock_quantity*item.pack_quantity;
@@ -1792,7 +1807,8 @@ const notes = input.notes;
                     amountPaid: new Decimal(0),
                     balanceAmount: new Decimal(totalAmount),
                     paymentStatus: 'PENDING',
-                    fileUrl: (input as any).file_url || null
+                    fileUrl: (input as any).file_url || null,
+                    overalldiscount: new Decimal(input.overalldiscount || 0)
                 }
             });
 
@@ -1826,7 +1842,8 @@ const notes = input.notes;
                         taxableAmount: new Decimal((item as any).taxable_amount ?? 0),
                         gstAmount: new Decimal((item as any).gst ?? (item as any).gst_amount ?? 0),
                         totalAmount: new Decimal((item as any).total_amount ?? 0),
-                        isActive: true
+                        isActive: true,
+                        overalldiscount: new Decimal(input.overalldiscount || 0)
                     }
                 });
 
