@@ -1701,13 +1701,14 @@ const notes = input.notes;
     async getDistributorReport(): Promise<any> {
         try {
             const pendingPurchases = await (prisma as any).pharmacyPurchase.findMany({
-                where: { paymentStatus: { in: ['PENDING', 'PARTIALLY_PAID'] } },
+                where: { paymentStatus: { in: ['PENDING', 'PARTIALLY_PAID'] }, isDeleted: false },
                 orderBy: { purchaseDate: 'asc' }
             });
 
             // Source of truth totals from aggregate across all records
             const [purchaseStats, paymentStats] = await Promise.all([
                 (prisma as any).pharmacyPurchase.aggregate({
+                    where: { isDeleted: false },
                     _sum: { totalAmount: true }
                 }),
                 (prisma as any).pharmacyPayment.aggregate({

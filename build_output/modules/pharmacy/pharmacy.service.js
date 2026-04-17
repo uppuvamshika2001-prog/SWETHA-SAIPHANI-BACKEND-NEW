@@ -1224,7 +1224,7 @@ export class PharmacyService {
                     distributor_name as "distributor_id",
                     SUM(total_amount) - SUM(amount_paid) as "due_amount"
                 FROM pharmacy_purchases
-                WHERE payment_status IN ('PENDING', 'PARTIALLY_PAID')
+                WHERE payment_status IN ('PENDING', 'PARTIALLY_PAID') and is_delete = false
                 GROUP BY distributor_name
             `;
             const duesResult = await prisma.$queryRaw(duesSql);
@@ -1513,12 +1513,13 @@ export class PharmacyService {
     async getDistributorReport() {
         try {
             const pendingPurchases = await prisma.pharmacyPurchase.findMany({
-                where: { paymentStatus: { in: ['PENDING', 'PARTIALLY_PAID'] } },
+                where: { paymentStatus: { in: ['PENDING', 'PARTIALLY_PAID'] }, isDeleted: false },
                 orderBy: { purchaseDate: 'asc' }
             });
             // Source of truth totals from aggregate across all records
             const [purchaseStats, paymentStats] = await Promise.all([
                 prisma.pharmacyPurchase.aggregate({
+                    where: { isDeleted: false },
                     _sum: { totalAmount: true }
                 }),
                 prisma.pharmacyPayment.aggregate({
