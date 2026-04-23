@@ -12,12 +12,18 @@ export class AppointmentsService {
         }
 
         // Validate doctor exists and is a doctor
-        const doctor = await prisma.staff.findUnique({
-            where: { userId: input.doctorId },
+        // Validate doctor exists and is a doctor (Robust check: handles both Staff.id or Staff.userId)
+        const doctor = await prisma.staff.findFirst({
+            where: {
+                OR: [
+                    { id: input.doctorId },
+                    { userId: input.doctorId }
+                ]
+            },
             include: { user: true },
         });
         if (!doctor || doctor.user.role !== 'DOCTOR') {
-            throw new NotFoundError('Doctor not found');
+            throw new NotFoundError('Doctor');
         }
 
         const staffId = doctor.id;
@@ -104,13 +110,19 @@ export class AppointmentsService {
         }
 
         // 2. Validate Doctor
-        const doctor = await prisma.staff.findUnique({
-            where: { userId: doctorId },
+        // Robust check: handles both Staff.id or Staff.userId
+        const doctor = await prisma.staff.findFirst({
+            where: {
+                OR: [
+                    { id: doctorId },
+                    { userId: doctorId }
+                ]
+            },
             include: { user: true },
         });
 
         if (!doctor || doctor.user.role !== 'DOCTOR') {
-            throw new NotFoundError('Doctor not found');
+            throw new NotFoundError('Doctor');
         }
 
         // 3. Create Appointment

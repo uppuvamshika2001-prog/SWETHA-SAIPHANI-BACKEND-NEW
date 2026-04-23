@@ -38,6 +38,8 @@ export const createLabResultSchema = z.object({
     isReportVisibleToPatient: z.boolean().optional().default(true),
 });
 
+export const updateLabResultSchema = createLabResultSchema.partial().omit({ orderId: true });
+
 export const labOrderQuerySchema = z.object({
     page: z.coerce.number().int().positive().default(1),
     limit: z.coerce.number().int().positive().max(100).default(10),
@@ -63,6 +65,7 @@ export const updateLabTestSchema = createLabTestSchema.partial();
 
 export type CreateLabOrderInput = z.infer<typeof createLabOrderSchema>;
 export type CreateLabResultInput = z.infer<typeof createLabResultSchema>;
+export type UpdateLabResultInput = z.infer<typeof updateLabResultSchema>;
 export type LabOrderQueryInput = z.infer<typeof labOrderQuerySchema>;
 export type CreateLabTestInput = z.infer<typeof createLabTestSchema>;
 export type UpdateLabTestInput = z.infer<typeof updateLabTestSchema>;

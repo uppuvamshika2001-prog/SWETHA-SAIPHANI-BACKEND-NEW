@@ -8,6 +8,7 @@ export const billItemSchema = z.object({
     medicineId: z.string().optional(),
     type: z.enum(['consultation', 'lab', 'other', 'CUSTOM']).optional(),
     lab_order_id: z.string().optional(),
+    discount: z.number().nonnegative().optional(),
 });
 
 export const createBillSchema = z.object({

@@ -27,6 +27,7 @@ export const createMedicineSchema = z.object({
     total_amount: z.number().nonnegative().default(0),
     // Purchase payment tracking
     invoice_number: z.string().optional(),
+    purchase_date: z.string().transform((s) => new Date(s)).optional(),
     hsnCode: z.string().optional(),
     overalldiscount: z.number().nonnegative().optional(),
 });

@@ -3,7 +3,7 @@ import { LabTestStatus } from '@prisma/client';
 import { logger } from '../../utils/logger.js';
 import { pdfGenerator } from '../../services/pdfGenerator.js';
 import { NotFoundError, ValidationError } from '../../middleware/errorHandler.js';
-import { CreateLabOrderInput, CreateLabResultInput, LabOrderQueryInput, LabOrderResponse, LabResultResponse, CreateLabTestInput, UpdateLabTestInput } from './lab.types.js';
+import { CreateLabOrderInput, CreateLabResultInput, UpdateLabResultInput, LabOrderQueryInput, LabOrderResponse, LabResultResponse, CreateLabTestInput, UpdateLabTestInput } from './lab.types.js';
 import { PaginatedResponse } from '../users/users.types.js';
 import { patientsService } from '../patients/patients.service.js';
 
@@ -622,6 +622,65 @@ export class LabService {
         return this.formatResult(result);
     }
 
+    async updateResult(id: string, technicianUserId: string, input: UpdateLabResultInput): Promise<LabResultResponse> {
+        // Validate result exists
+        const existingResult = await prisma.labTestResult.findUnique({
+            where: { id },
+        });
+        if (!existingResult) {
+            throw new NotFoundError('Lab result not found');
+        }
+
+        const result = await prisma.$transaction(async (tx: any) => {
+            // Update the main LabTestResult entry
+            const labResult = await tx.labTestResult.update({
+                where: { id },
+                data: {
+                    result: input.result !== undefined ? input.result : undefined,
+                    interpretation: input.interpretation !== undefined ? input.interpretation : undefined,
+                    attachments: input.attachments !== undefined ? input.attachments : undefined,
+                },
+            });
+
+            // Update individual structured results if provided
+            if (input.result && input.result.parameters) {
+                // Delete existing individual parameter results for this order
+                await tx.labResult.deleteMany({
+                    where: { orderId: existingResult.orderId }
+                });
+
+                const catalogResults = input.result.parameters
+                    .filter((p: any) => p.parameterId && !p.isManual)
+                    .map((p: any) => ({
+                        orderId: existingResult.orderId,
+                        parameterId: p.parameterId!,
+                        resultValue: p.value,
+                        flag: p.flag || 'NORMAL'
+                    }));
+
+                if (catalogResults.length > 0) {
+                    await tx.labResult.createMany({
+                        data: catalogResults
+                    });
+                }
+            }
+
+            // Update visibility
+            if (input.isReportVisibleToPatient !== undefined) {
+                await tx.labTestOrder.update({
+                    where: { id: existingResult.orderId },
+                    data: {
+                        isReportVisibleToPatient: input.isReportVisibleToPatient,
+                    } as any,
+                });
+            }
+
+            return labResult;
+        });
+
+        return this.formatResult(result);
+    }
+
     async getResult(id: string): Promise<LabResultResponse> {
         const result = await prisma.labTestResult.findUnique({ where: { id } });
         if (!result) {
@@ -980,7 +1039,6 @@ export class LabService {
 
         return await pdfGenerator.generateLabReportPDF(reportData, true);
     }
-
 
     private calculateAge(dob: Date): string {
         const today = new Date();

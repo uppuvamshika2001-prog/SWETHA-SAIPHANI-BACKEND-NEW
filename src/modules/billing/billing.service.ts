@@ -1,7 +1,7 @@
 import { prisma } from '../../config/database.js';
 import { NotFoundError } from '../../middleware/errorHandler.js';
 import { CreateBillInput, BillQueryInput, UpdateBillStatusInput } from './billing.types.js';
-import { Prisma } from '@prisma/client';
+import { Prisma, LabTestStatus } from '@prisma/client';
 import { logger } from '../../utils/logger.js';
 
 export class BillingService {
@@ -17,12 +17,8 @@ export class BillingService {
                 billType = 'LAB';
             }
         }
-
-        // ... existing logic to calculate totals ...
-
-        // Calculate totals and fetch purchase prices for profit tracking
         let subtotal = 0;
-        const medicineItems = (items as any[]).filter(item => item.medicineId && item.batchNumber);
+        const medicineItems = (items as any[]).filter(item => item && item.medicineId && item.batchNumber);
         
         // Fetch batches in bulk to get purchase prices
         const batches = medicineItems.length > 0 ? await prisma.medicineBatch.findMany({
@@ -139,7 +135,7 @@ export class BillingService {
             .filter((item: any) => item.type === 'lab' && item.lab_order_id)
             .map((item: any) => item.lab_order_id);
 
-        const allLabOrderIds = [...(labOrderIds || []), ...embeddedLabOrderIds];
+        const allLabOrderIds = [...(labOrderIds || []), ...embeddedLabOrderIds].filter(Boolean);
 
         // Link Lab Orders if provided — mark them as BILLED to prevent duplicate billing
         if (allLabOrderIds.length > 0) {
@@ -150,6 +146,58 @@ export class BillingService {
                     billingStatus: 'BILLED',
                 }
             });
+        }
+
+        // AUTO-CREATE NEW LAB ORDERS: If lab items were added directly in billing without an existing order ID
+        const newLabItems = (items as any[]).filter((item: any) => item.type === 'lab' && !item.lab_order_id);
+        
+        if (newLabItems.length > 0 && bill.patientId) {
+            const creatorStaff = await prisma.staff.findUnique({
+                where: { userId: creatorId }
+            });
+
+            if (creatorStaff) {
+                const todayOrder = new Date();
+                const dateStrOrder = todayOrder.toISOString().slice(0, 10).replace(/-/g, '');
+                
+                // Process each new lab item one by one to ensure unique order numbers if needed, 
+                // though usually we could bulk create if we don't care about the sequence within a second.
+                // For robustness, we'll do it sequentially or with a shared counter.
+                for (const item of newLabItems) {
+                    try {
+                        const countToday = await prisma.labTestOrder.count({
+                            where: {
+                                createdAt: {
+                                    gte: new Date(new Date().setHours(0, 0, 0, 0)),
+                                    lte: new Date(new Date().setHours(23, 59, 59, 999))
+                                }
+                            }
+                        });
+                        
+                        const sequence = countToday + 1;
+                        const orderNumber = `LAB-${dateStrOrder}-${sequence.toString().padStart(3, '0')}`;
+
+                        console.log(`[BillingService] Creating automated lab order ${orderNumber} for item ${item.description}`);
+                        
+                        await (prisma.labTestOrder as any).create({
+                            data: {
+                                orderNumber,
+                                patientId: bill.patientId || null,
+                                orderedById: creatorStaff.id,
+                                testName: (item.description || 'Lab Test').replace(/^Lab Test: /i, '').replace(/^Lab: /i, '').trim() || 'Lab Test',
+                                status: bill.status === 'PAID' ? 'READY_FOR_SAMPLE_COLLECTION' : 'PAYMENT_PENDING',
+                                billingStatus: 'BILLED',
+                                billId: bill.id,
+                                visitType: bill.visitType || 'OP'
+                            }
+                        });
+                    } catch (labErr: any) {
+                        console.error("[BillingService] FAILED to create automated lab order:", labErr);
+                        // We swallow this specific sub-error to prevent the entire bill from failing,
+                        // ensuring the customer gets their bill even if the lab sync has a momentary hiccup.
+                    }
+                }
+            }
         }
 
 
@@ -180,8 +228,12 @@ export class BillingService {
         else if (user?.role === 'PHARMACIST') {
             where.billType = 'PHARMACY';
         } 
-        else if (user?.role === 'RECEPTIONIST' || user?.role === 'ADMIN') {
-            // Receptionists and Admins should see all types in the main billing dashboard
+        else if (user?.role === 'RECEPTIONIST') {
+            // Receptionists should only see Consultation and Lab bills (exclude Pharmacy)
+            where.billType = { in: ['CONSULTATION', 'LAB'] };
+        }
+        else if (user?.role === 'ADMIN') {
+            // Admins should see all types in the main billing dashboard
             where.billType = { in: ['CONSULTATION', 'PHARMACY', 'LAB'] };
         }
         else {

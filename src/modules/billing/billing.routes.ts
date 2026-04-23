@@ -9,8 +9,14 @@ const router = Router();
 // Authentication required for all billing routes
 router.use(authGuard);
 
-// Role guard for ADMIN, RECEPTIONIST, and PHARMACIST
-const billingRoleGuard = roleGuard(UserRole.ADMIN, UserRole.RECEPTIONIST, UserRole.PHARMACIST);
+// Role guard for staff members who can access billing information
+const billingRoleGuard = roleGuard(
+    UserRole.ADMIN, 
+    UserRole.RECEPTIONIST, 
+    UserRole.PHARMACIST, 
+    UserRole.LAB_TECHNICIAN,
+    UserRole.DOCTOR
+);
 
 // All billing operations restricted to ADMIN and RECEPTIONIST only
 router.post('/', billingRoleGuard, createBill);

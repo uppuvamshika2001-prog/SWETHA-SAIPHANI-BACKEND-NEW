@@ -7,6 +7,7 @@ import {
     getOrderParameters,
     updateLabOrderStatus,
     submitLabResult,
+    updateLabResult,
     getLabResult,
     deleteLabResult,
     createLabTest,
@@ -41,6 +42,7 @@ router.delete('/orders/:id', roleGuard(UserRole.ADMIN), deleteLabOrder);
 // Results - Lab Techs submit, Doctors can view
 router.post('/results', roleGuard(UserRole.ADMIN, UserRole.LAB_TECHNICIAN), submitLabResult);
 router.get('/results/:id', roleGuard(UserRole.ADMIN, UserRole.DOCTOR, UserRole.LAB_TECHNICIAN), getLabResult);
+router.put('/results/:id', roleGuard(UserRole.ADMIN, UserRole.LAB_TECHNICIAN), updateLabResult);
 router.delete('/results/:id', roleGuard(UserRole.ADMIN), deleteLabResult);
 
 // Lab Test Catalog Management

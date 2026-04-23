@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { labService } from '@/modules/lab/lab.service.js';
-import { createLabOrderSchema, createLabResultSchema, labOrderQuerySchema, createLabTestSchema, updateLabTestSchema } from '@/modules/lab/lab.types.js';
+import { createLabOrderSchema, createLabResultSchema, updateLabResultSchema, labOrderQuerySchema, createLabTestSchema, updateLabTestSchema } from '@/modules/lab/lab.types.js';
 import { sendSuccess, sendCreated } from '@/utils/response.js';
 import { logger } from '@/utils/logger.js';
 import { z } from 'zod';
@@ -368,6 +368,21 @@ export async function getLabResult(
     }
 }
 
+export async function updateLabResult(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const input = updateLabResultSchema.parse(req.body);
+        const result = await labService.updateResult(req.params.id as string, req.user!.userId, input);
+        sendSuccess(res, result, 'Lab result updated successfully');
+    } catch (error) {
+        logger.error({ context: 'LabController.updateLabResult', error, resultId: req.params.id, body: req.body }, 'Failed to update lab result');
+        next(error);
+    }
+}
+
 /**
  * @swagger
  * /api/lab/results/{id}:
@@ -486,3 +501,4 @@ export async function downloadLabReport(req: Request, res: Response, next: NextF
         next(error);
     }
 }
+

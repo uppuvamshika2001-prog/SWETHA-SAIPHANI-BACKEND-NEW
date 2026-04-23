@@ -4,9 +4,9 @@
 
 | Property | Value |
 |----------|-------|
-| **Base URL** | `http://localhost:3001` |
+| **Base URL** | `http://localhost:3000` |
 | **API Prefix** | `/api` |
-| **Swagger Docs** | `http://localhost:3001/docs` |
+| **Swagger Docs** | `http://localhost:3000/docs` |
 | **Content-Type** | `application/json` |
 
 ---
@@ -438,13 +438,13 @@ All errors follow this structure:
 ### 1. Environment Setup
 Add to frontend `.env`:
 ```env
-VITE_API_BASE_URL=http://localhost:3001/api
+VITE_API_BASE_URL=http://localhost:3000/api
 ```
 
 ### 2. API Client Setup
 ```typescript
 // src/lib/api.ts
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 
 export async function apiRequest<T>(
   endpoint: string,
