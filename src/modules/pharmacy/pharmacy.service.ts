@@ -53,7 +53,7 @@ export class PharmacyService {
             // 2. Handle Pharmacy Purchase (Aggregated by Invoice)
             let purchaseId = null;
             if (input.invoice_number) {
-                const totalItemAmount = input.stock_quantity * input.purchase_price;
+                const totalItemAmount = input.total_amount || (input.stock_quantity * (input.mrp || input.purchase_price));
                 
                 // Find existing purchase for this distributor + invoice
                 let purchase = await (tx as any).pharmacyPurchase.findUnique({
@@ -120,13 +120,13 @@ export class PharmacyService {
             // 3. Update aggregated medicine stock and unit price
             const totalStock = await (tx as any).medicineBatch.aggregate({
                 where: { medicineId: medicine!.id as any, isActive: true },
-                _sum: { stockQuantity: true }
+                _sum: { stockQuantity: true, freeQuantity: true }
             });
 
             const updatedMedicine = await tx.medicine.update({
                 where: { id: medicine!.id },
                 data: { 
-                    stockQuantity: totalStock._sum.stockQuantity || 0,
+                    stockQuantity: (totalStock._sum.stockQuantity || 0) + (totalStock._sum.freeQuantity || 0),
                     pricePerUnit: new Decimal((input.selling_price || 0) / ((input as any).pack_quantity || 1))
                 },
                 include: { 
@@ -549,15 +549,15 @@ export class PharmacyService {
             });
 
             // Update aggregated medicine stock if quantity changed
-            if (input.stock_quantity !== undefined) {
+            if (input.stock_quantity !== undefined || input.free_quantity !== undefined) {
                 const totalStock = await tx.medicineBatch.aggregate({
                     where: { medicineId: existing.medicineId, isActive: true },
-                    _sum: { stockQuantity: true }
+                    _sum: { stockQuantity: true, freeQuantity: true }
                 });
 
                 await tx.medicine.update({
                     where: { id: existing.medicineId },
-                    data: { stockQuantity: totalStock._sum.stockQuantity || 0 }
+                    data: { stockQuantity: (totalStock._sum.stockQuantity || 0) + (totalStock._sum.freeQuantity || 0) }
                 });
             }
 
@@ -724,10 +724,18 @@ export class PharmacyService {
                     items: {
                         create: billItemsData,
                     },
+                    transactions: {
+                        create: {
+                            amount: grandTotal,
+                            paymentMode: input.payment_method || 'CASH',
+                            createdBy: 'Pharmacist'
+                        }
+                    }
                 },
                 include: {
                     items: { include: { medicine: true } },
                     patient: true,
+                    transactions: true
                 },
             });
 
@@ -1033,13 +1041,23 @@ export class PharmacyService {
             refund_method: pReturn.refundMethod,
             pharmacist_id: pReturn.pharmacistId,
             status: pReturn.status,
+            patient: pReturn.patient ? {
+                firstName: pReturn.patient.firstName,
+                lastName: pReturn.patient.lastName,
+                phone: pReturn.patient.phone,
+                uhid: pReturn.patient.uhid
+            } : null,
+            bill: pReturn.bill ? {
+                billNumber: pReturn.bill.billNumber,
+                grandTotal: Number(pReturn.bill.grandTotal)
+            } : null,
             items: pReturn.items.map((item: any) => ({
                 id: item.id,
                 medicine_id: item.medicineId,
                 medicine_name: item.medicine?.name,
                 batch_number: item.batchNumber,
-                return_qty: item.returnQty,
-                selling_price: Number(item.sellingPrice),
+                return_qty: item.returnQty || item.return_qty,
+                selling_price: Number(item.sale_price || item.sellingPrice || item.selling_price || 0),
                 reason: item.reason
             }))
         };
@@ -1668,12 +1686,18 @@ const notes = input.notes;
 
     async getPurchases(input: any): Promise<PaginatedResponse<PharmacyPurchaseResponse>> {
         try {
-            const { page = 1, limit = 10, distributor, status } = input || {};
+            const { page = 1, limit = 10, distributor, status, search } = input || {};
             const skip = (Number(page) - 1) * Number(limit);
 
             const where: any = { isDeleted: false };
             if (distributor) where.distributorName = { contains: distributor, mode: 'insensitive' };
             if (status) where.paymentStatus = status;
+            if (search) {
+                where.OR = [
+                    { invoiceNumber: { contains: search, mode: 'insensitive' } },
+                    { distributorName: { contains: search, mode: 'insensitive' } }
+                ];
+            }
 
             const [purchases, total] = await Promise.all([
                 (prisma as any).pharmacyPurchase.findMany({
@@ -1797,7 +1821,7 @@ const notes = input.notes;
             let totalGSTAmount = 0;
             for (const item of input.items) {
                 console.log(`[createPurchase] Processing item:`, JSON.stringify(item, null, 2));
-                const itemSubtotal = (item.stock_quantity * item.purchase_price);
+                const itemSubtotal = (item.stock_quantity * (item.mrp || 0));
                 const gstAmount = Number((item as any).gst_amount || (item as any).gst || 0);
                 subtotalAmount += itemSubtotal;
                 totalGSTAmount += gstAmount;
@@ -1907,13 +1931,13 @@ const notes = input.notes;
                 // 4. Correctly Aggregate/Sync parent medicine total stock
                 const totalStockAggregate = await (tx as any).medicineBatch.aggregate({
                     where: { medicineId: item.medicine_id, isActive: true },
-                    _sum: { stockQuantity: true }
+                    _sum: { stockQuantity: true, freeQuantity: true }
                 });
 
                 await (tx as any).medicine.update({
                     where: { id: item.medicine_id },
                     data: { 
-                        stockQuantity: totalStockAggregate._sum.stockQuantity || 0,
+                        stockQuantity: (totalStockAggregate._sum.stockQuantity || 0) + (totalStockAggregate._sum.freeQuantity || 0),
                         pricePerUnit: new Decimal(pricePerUnit)
                     }
                 });

@@ -231,10 +231,9 @@ export class PatientsService {
         }
 
         if (date) {
-            const startOfDay = new Date(date);
-            startOfDay.setHours(0, 0, 0, 0);
-            const endOfDay = new Date(date);
-            endOfDay.setHours(23, 59, 59, 999);
+            // Use UTC-safe date range to avoid timezone issues
+            const startOfDay = new Date(date + 'T00:00:00.000Z');
+            const endOfDay = new Date(date + 'T23:59:59.999Z');
 
             AND.push({
                 registrationDate: {
@@ -551,15 +550,6 @@ export class PatientsService {
      * They do not get login credentials or welcome emails.
      */
     private async createWalkInPatient(input: CreatePatientInput): Promise<PatientResponse> {
-        // Check for existing patient with same phone to avoid duplicates
-        const existingByPhone = await prisma.patient.findFirst({
-            where: { phone: input.phone }
-        });
-        if (existingByPhone) {
-            // Return existing patient instead of creating duplicate
-            return this.formatPatient(existingByPhone as any);
-        }
-
         const uhidToUse = input.uhid || `P-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
         const patient = await prisma.patient.create({

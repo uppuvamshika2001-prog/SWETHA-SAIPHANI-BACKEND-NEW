@@ -9,7 +9,7 @@ export async function createBill(req: Request, res: Response, next: NextFunction
         const input = createBillSchema.parse(req.body);
         const bill = await billingService.create({
             ...input,
-            creatorId: (req as any).user?.id
+            creatorId: (req as any).user?.userId
         });
         sendSuccess(res, bill, 'Bill created successfully', 201);
     } catch (error) {

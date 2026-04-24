@@ -268,6 +268,20 @@ export interface PharmacyReturnResponse {
         selling_price: number;
         reason: string;
     }>;
+    patient?: {
+        first_name?: string;
+        last_name?: string;
+        firstName?: string;
+        lastName?: string;
+        phone: string;
+        uhid: string;
+    } | null;
+    bill?: {
+        bill_number?: string;
+        billNumber?: string;
+        grand_total?: number;
+        grandTotal?: number;
+    } | null;
 }
 
 export const createStockReturnSchema = z.object({

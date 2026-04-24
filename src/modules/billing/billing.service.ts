@@ -91,7 +91,10 @@ export class BillingService {
         // Recalculate bill-level totals based on item sums for 100% accuracy
         const totalDiscountAmt = billItems.reduce((sum, item) => sum + item.discountAmount, 0);
         const totalGstAmt = billItems.reduce((sum, item) => sum + item.gstAmount, 0);
-        const totalGrandTotal = billItems.reduce((sum, item) => sum + Number(item.totalAmount), 0);
+        
+        // Account for top-level discount (from Dialog) in addition to item-level discounts
+        const topLevelDiscount = Number(discount || 0);
+        const totalGrandTotal = Math.max(0, billItems.reduce((sum, item) => sum + Number(item.totalAmount), 0) - topLevelDiscount);
         const totalSubtotal = billItems.reduce((sum, item) => sum + Number(item.total), 0);
 
         const gstRate = Number(gstPercent || 0);
@@ -101,34 +104,35 @@ export class BillingService {
         const count = await prisma.bill.count();
         const billNumber = `INV-${dateStr}-${(count + 1).toString().padStart(4, '0')}`;
 
-        console.log("[BillingService] DEBUG: Creating bill with type:", billType, "for patient:", patientId);
+        console.log("[BillingService] DEBUG: Creating bill with type:", billType, "for patient:", patientId, "Grand Total:", totalGrandTotal);
         
         // Only pass valid Bill model fields — NOT items/labOrderIds/isWalkInLab/creatorId
-        const bill = await (prisma.bill as any).create({
-            data: {
-                patientId: patientId || undefined,
-                customerName: customerName || undefined,
-                phone: phone || undefined,
-                isWalkIn: !!(customerName || phone || isWalkInLab),
-                billNumber,
-                billType,
-                subtotal: totalSubtotal,
-                discount: totalDiscountAmt,
-                gstPercent: gstRate,
-                gstAmount: totalGstAmt,
-                grandTotal: totalGrandTotal,
-                status: status || 'PENDING',
-                notes: notes || undefined,
-                visitType: input.visitType || 'OP',
-                items: {
-                    create: billItems
+        try {
+            const bill = await (prisma.bill as any).create({
+                data: {
+                    patientId: patientId || undefined,
+                    customerName: customerName || undefined,
+                    phone: phone || undefined,
+                    isWalkIn: !!(customerName || phone || isWalkInLab),
+                    billNumber,
+                    billType,
+                    subtotal: totalSubtotal,
+                    discount: totalDiscountAmt + topLevelDiscount,
+                    gstPercent: gstRate,
+                    gstAmount: totalGstAmt,
+                    grandTotal: totalGrandTotal,
+                    status: status || 'PENDING',
+                    notes: notes || undefined,
+                    visitType: input.visitType || 'OP',
+                    items: {
+                        create: billItems
+                    }
+                },
+                include: {
+                    items: { include: { medicine: true } },
+                    patient: true
                 }
-            },
-            include: {
-                items: { include: { medicine: true } },
-                patient: true
-            }
-        });
+            });
 
         // Collect all lab order IDs (both explicit top-level ones AND embedded in item tracking)
         const embeddedLabOrderIds = (items as any[])
@@ -137,6 +141,16 @@ export class BillingService {
 
         const allLabOrderIds = [...(labOrderIds || []), ...embeddedLabOrderIds].filter(Boolean);
 
+            return this.afterCreate(bill, allLabOrderIds, items, creatorId);
+        } catch (error: any) {
+            if (error.name === 'PrismaClientValidationError') {
+                console.error("[BillingService] Prisma Validation Error details:", error.message);
+            }
+            throw error;
+        }
+    }
+
+    private async afterCreate(bill: any, allLabOrderIds: string[], items: any[], creatorId: string) {
         // Link Lab Orders if provided — mark them as BILLED to prevent duplicate billing
         if (allLabOrderIds.length > 0) {
             await (prisma.labTestOrder as any).updateMany({
@@ -151,7 +165,7 @@ export class BillingService {
         // AUTO-CREATE NEW LAB ORDERS: If lab items were added directly in billing without an existing order ID
         const newLabItems = (items as any[]).filter((item: any) => item.type === 'lab' && !item.lab_order_id);
         
-        if (newLabItems.length > 0 && bill.patientId) {
+        if (newLabItems.length > 0 && bill.patientId && creatorId) {
             const creatorStaff = await prisma.staff.findUnique({
                 where: { userId: creatorId }
             });
@@ -160,21 +174,19 @@ export class BillingService {
                 const todayOrder = new Date();
                 const dateStrOrder = todayOrder.toISOString().slice(0, 10).replace(/-/g, '');
                 
-                // Process each new lab item one by one to ensure unique order numbers if needed, 
-                // though usually we could bulk create if we don't care about the sequence within a second.
-                // For robustness, we'll do it sequentially or with a shared counter.
+                // Pre-fetch today's count once and increment locally to avoid unique constraint violations
+                let countToday = await prisma.labTestOrder.count({
+                    where: {
+                        createdAt: {
+                            gte: new Date(new Date().setHours(0, 0, 0, 0)),
+                            lte: new Date(new Date().setHours(23, 59, 59, 999))
+                        }
+                    }
+                });
+
                 for (const item of newLabItems) {
                     try {
-                        const countToday = await prisma.labTestOrder.count({
-                            where: {
-                                createdAt: {
-                                    gte: new Date(new Date().setHours(0, 0, 0, 0)),
-                                    lte: new Date(new Date().setHours(23, 59, 59, 999))
-                                }
-                            }
-                        });
-                        
-                        const sequence = countToday + 1;
+                        const sequence = ++countToday;
                         const orderNumber = `LAB-${dateStrOrder}-${sequence.toString().padStart(3, '0')}`;
 
                         console.log(`[BillingService] Creating automated lab order ${orderNumber} for item ${item.description}`);

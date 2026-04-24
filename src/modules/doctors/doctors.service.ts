@@ -329,30 +329,33 @@ export class DoctorsService {
         }
 
         if (search) {
-            const searchTerms = search.trim().split(/\s+/);
+            const query = search.trim();
+            const searchTerms = query.split(/\s+/);
+
+            // Standard field-by-field filter
+            const getFieldFilter = (term: string) => ({
+                OR: [
+                    { patient: { firstName: { contains: term, mode: 'insensitive' } } },
+                    { patient: { lastName: { contains: term, mode: 'insensitive' } } },
+                    { patient: { uhid: { contains: term, mode: 'insensitive' } } },
+                    { patient: { phone: { contains: term, mode: 'insensitive' } } },
+                    { doctor: { firstName: { contains: term, mode: 'insensitive' } } },
+                    { doctor: { lastName: { contains: term, mode: 'insensitive' } } },
+                    { diagnosis: { contains: term, mode: 'insensitive' } },
+                    { treatment: { contains: term, mode: 'insensitive' } },
+                    { notes: { contains: term, mode: 'insensitive' } },
+                    { treatmentNotes: { contains: term, mode: 'insensitive' } },
+                    ...( /^[0-9a-fA-F-]+$/.test(term) ? [{ id: { contains: term, mode: 'insensitive' } }] : []),
+                ]
+            });
+
             if (searchTerms.length > 1) {
-                // Multi-word search
-                where.AND = searchTerms.map(term => ({
-                    OR: [
-                        { patient: { firstName: { contains: term, mode: 'insensitive' } } },
-                        { patient: { lastName: { contains: term, mode: 'insensitive' } } },
-                        { patient: { uhid: { contains: term, mode: 'insensitive' } } },
-                        { doctor: { firstName: { contains: term, mode: 'insensitive' } } },
-                        { doctor: { lastName: { contains: term, mode: 'insensitive' } } },
-                        { diagnosis: { contains: term, mode: 'insensitive' } },
-                        { id: term },
-                    ]
-                }));
+                // Multi-word: All terms must match at least one field (AND of ORs)
+                where.AND = searchTerms.map(term => getFieldFilter(term));
             } else {
-                where.OR = [
-                    { patient: { firstName: { contains: search, mode: 'insensitive' } } },
-                    { patient: { lastName: { contains: search, mode: 'insensitive' } } },
-                    { patient: { uhid: { contains: search, mode: 'insensitive' } } },
-                    { doctor: { firstName: { contains: search, mode: 'insensitive' } } },
-                    { doctor: { lastName: { contains: search, mode: 'insensitive' } } },
-                    { diagnosis: { contains: search, mode: 'insensitive' } },
-                    { id: search },
-                ];
+                // Single word: Match any field OR match concatenated name (for cases like "bhanuprakash" matching "Bhanu Prakash")
+                // Note: We'll stick to the OR filter for efficiency, but we'll ensure both fields are checked.
+                where.OR = getFieldFilter(query).OR;
             }
         }
 
