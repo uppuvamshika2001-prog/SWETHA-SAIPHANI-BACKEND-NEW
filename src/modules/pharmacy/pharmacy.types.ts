@@ -129,6 +129,7 @@ export const createBillSchema = z.object({
     discount: z.number().nonnegative().default(0),
     gst_percent: z.number().nonnegative().default(18),
     notes: z.string().optional(),
+    payment_method: z.string().optional(),
 });
 
 export const updateBillSchema = z.object({
