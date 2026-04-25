@@ -404,17 +404,25 @@ export class LabService {
             );
 
             if (needsFallback) {
+                const searchOr: any[] = [
+                    { name: { equals: order.testName, mode: 'insensitive' } },
+                    { code: { equals: order.testName, mode: 'insensitive' } }
+                ];
+                
+                if (order.testName && order.testName.trim() !== '') {
+                    searchOr.push({ name: { contains: order.testName, mode: 'insensitive' } });
+                }
+                
+                if (order.testCode && order.testCode.trim() !== '') {
+                    searchOr.push({ code: { equals: order.testCode, mode: 'insensitive' } });
+                    searchOr.push({ name: { contains: order.testCode, mode: 'insensitive' } });
+                }
+
                 const resolvedTest = await (prisma.labTest as any).findFirst({
                     where: {
                         isActive: true,
                         categories: { some: { parameters: { some: {} } } },
-                        OR: [
-                            { code: { equals: order.testCode || order.testName, mode: 'insensitive' } },
-                            { name: { equals: order.testName, mode: 'insensitive' } },
-                            { code: { equals: order.testName, mode: 'insensitive' } },
-                            { name: { contains: order.testName, mode: 'insensitive' } },
-                            { name: { contains: order.testCode || '', mode: 'insensitive' } }
-                        ]
+                        OR: searchOr
                     },
                     include: {
                         categories: {
