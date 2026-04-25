@@ -665,15 +665,18 @@ export class LabService {
                 }
             }
 
-            // Update visibility
+            // Update visibility and status
+            const orderDataToUpdate: any = {
+                status: 'COMPLETED'
+            };
             if (input.isReportVisibleToPatient !== undefined) {
-                await tx.labTestOrder.update({
-                    where: { id: existingResult.orderId },
-                    data: {
-                        isReportVisibleToPatient: input.isReportVisibleToPatient,
-                    } as any,
-                });
+                orderDataToUpdate.isReportVisibleToPatient = input.isReportVisibleToPatient;
             }
+
+            await tx.labTestOrder.update({
+                where: { id: existingResult.orderId },
+                data: orderDataToUpdate,
+            });
 
             return labResult;
         });

@@ -101,8 +101,31 @@ export class BillingService {
 
         // Generate Bill Number (Simple format: INV-YYYYMMDD-XXXX)
         const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-        const count = await prisma.bill.count();
-        const billNumber = `INV-${dateStr}-${(count + 1).toString().padStart(4, '0')}`;
+        
+        // Find the latest bill for today to avoid duplicate sequence numbers even if bills are deleted
+        const latestBill = await prisma.bill.findFirst({
+            where: {
+                billNumber: {
+                    startsWith: `INV-${dateStr}-`
+                }
+            },
+            orderBy: {
+                billNumber: 'desc'
+            }
+        });
+
+        let sequence = 1;
+        if (latestBill && latestBill.billNumber) {
+            const parts = latestBill.billNumber.split('-');
+            if (parts.length === 3) {
+                const lastSequence = parseInt(parts[2], 10);
+                if (!isNaN(lastSequence)) {
+                    sequence = lastSequence + 1;
+                }
+            }
+        }
+        
+        const billNumber = `INV-${dateStr}-${sequence.toString().padStart(4, '0')}`;
 
         console.log("[BillingService] DEBUG: Creating bill with type:", billType, "for patient:", patientId, "Grand Total:", totalGrandTotal);
         
@@ -174,19 +197,32 @@ export class BillingService {
                 const todayOrder = new Date();
                 const dateStrOrder = todayOrder.toISOString().slice(0, 10).replace(/-/g, '');
                 
-                // Pre-fetch today's count once and increment locally to avoid unique constraint violations
-                let countToday = await prisma.labTestOrder.count({
+                // Pre-fetch today's highest sequence to avoid unique constraint violations
+                const latestLabOrder = await prisma.labTestOrder.findFirst({
                     where: {
-                        createdAt: {
-                            gte: new Date(new Date().setHours(0, 0, 0, 0)),
-                            lte: new Date(new Date().setHours(23, 59, 59, 999))
+                        orderNumber: {
+                            startsWith: `LAB-${dateStrOrder}-`
                         }
+                    },
+                    orderBy: {
+                        orderNumber: 'desc'
                     }
                 });
 
+                let labSeq = 0;
+                if (latestLabOrder && latestLabOrder.orderNumber) {
+                    const parts = latestLabOrder.orderNumber.split('-');
+                    if (parts.length === 3) {
+                        const lastSequence = parseInt(parts[2], 10);
+                        if (!isNaN(lastSequence)) {
+                            labSeq = lastSequence;
+                        }
+                    }
+                }
+
                 for (const item of newLabItems) {
                     try {
-                        const sequence = ++countToday;
+                        const sequence = ++labSeq;
                         const orderNumber = `LAB-${dateStrOrder}-${sequence.toString().padStart(3, '0')}`;
 
                         console.log(`[BillingService] Creating automated lab order ${orderNumber} for item ${item.description}`);
