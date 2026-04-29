@@ -497,7 +497,7 @@ if (startDate || endDate) {
 
         console.log('[BillingService] Bill found, starting deletion transaction for id:', id);
         await prisma.$transaction(async (tx: any) => {
-            // Reset Lab Orders if they were linked to this bill
+            // 1. Reset Lab Orders if they were linked to this bill
             await tx.labTestOrder.updateMany({
                 where: { billId: id },
                 data: {
@@ -506,7 +506,26 @@ if (startDate || endDate) {
                 }
             });
 
-            // Delete the bill (Cascade handles items and transactions)
+            // 2. Delete Pharmacy Returns manually to bypass potential Cascade issues
+            // First get the return IDs
+            const returns = await tx.pharmacyReturn.findMany({
+                where: { billId: id },
+                select: { id: true }
+            });
+            
+            if (returns.length > 0) {
+                const returnIds = returns.map((r: any) => r.id);
+                // Delete return items first (though they should cascade from return)
+                await tx.pharmacyReturnItem.deleteMany({
+                    where: { returnId: { in: returnIds } }
+                });
+                // Delete returns
+                await tx.pharmacyReturn.deleteMany({
+                    where: { id: { in: returnIds } }
+                });
+            }
+
+            // 3. Delete the bill (Cascade handles items and transactions)
             await tx.bill.delete({
                 where: { id }
             });
