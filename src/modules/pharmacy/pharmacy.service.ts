@@ -1703,7 +1703,7 @@ const notes = input.notes;
             const { page = 1, limit = 10, distributor, status, search } = input || {};
             const skip = (Number(page) - 1) * Number(limit);
 
-            const where: any = { isDeleted: false };
+            const where: any = search ? {} : { isDeleted: false };
             if (distributor) where.distributorName = { contains: distributor, mode: 'insensitive' };
             if (status) where.paymentStatus = status;
             if (search) {
@@ -2039,6 +2039,7 @@ const notes = input.notes;
             payment_date: purchase.paymentDate || null,
             payment_method: purchase.paymentMethod || null,
             file_url: purchase.fileUrl || null,
+            is_deleted: purchase.isDeleted || false,
             created_at: purchase.createdAt,
             updated_at: purchase.updatedAt,
             batches: (purchase.batches || []).map((b: any) => ({
