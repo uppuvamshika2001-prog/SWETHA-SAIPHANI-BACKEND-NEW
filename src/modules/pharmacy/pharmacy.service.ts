@@ -1708,7 +1708,17 @@ const notes = input.notes;
             if (search) {
                 where.OR = [
                     { invoiceNumber: { contains: search, mode: 'insensitive' } },
-                    { distributorName: { contains: search, mode: 'insensitive' } }
+                    { distributorName: { contains: search, mode: 'insensitive' } },
+                    {
+                        batches: {
+                            some: {
+                                OR: [
+                                    { medicine: { name: { contains: search, mode: 'insensitive' } } },
+                                    { batchNumber: { contains: search, mode: 'insensitive' } }
+                                ]
+                            }
+                        }
+                    }
                 ];
             }
 
@@ -2045,9 +2055,9 @@ const notes = input.notes;
         }
 
         const data: any = {};
-        if (input.distributorName) data.distributorName = input.distributorName;
-        if (input.invoiceNumber) data.invoiceNumber = input.invoiceNumber;
-        if (input.purchaseDate) data.purchaseDate = input.purchaseDate;
+        if (input.distributor_name || input.distributorName) data.distributorName = input.distributor_name || input.distributorName;
+        if (input.invoice_number || input.invoiceNumber) data.invoiceNumber = input.invoice_number || input.invoiceNumber;
+        if (input.purchase_date || input.purchaseDate) data.purchaseDate = new Date(input.purchase_date || input.purchaseDate);
         if (fileUrl) data.fileUrl = fileUrl;
 
         return await (prisma as any).pharmacyPurchase.update({

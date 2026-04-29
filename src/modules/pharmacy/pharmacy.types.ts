@@ -99,7 +99,7 @@ export const updateBatchSchema = z.object({
 
 export const medicineQuerySchema = z.object({
     page: z.coerce.number().int().positive().default(1),
-    limit: z.coerce.number().int().positive().max(100, "Maximum limit allowed is 100 records per request").default(10),
+    limit: z.coerce.number().int().positive().max(1000, "Maximum limit allowed is 1000 records per request").default(10),
     search: z.string().optional(),
     category: z.string().optional(),
     low_stock: z.coerce.boolean().optional(),
@@ -352,7 +352,7 @@ export type UpdatePurchaseInput = z.infer<typeof updatePurchaseSchema>;
 
 export const purchaseQuerySchema = z.object({
     page: z.coerce.number().int().positive().default(1),
-    limit: z.coerce.number().int().positive().max(100).default(10),
+    limit: z.coerce.number().int().positive().max(1000).default(10),
     distributor: z.string().optional(),
     status: z.string().optional(),
 });
