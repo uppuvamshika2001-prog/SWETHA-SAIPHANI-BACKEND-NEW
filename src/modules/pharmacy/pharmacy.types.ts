@@ -331,6 +331,7 @@ export interface PharmacyPurchaseResponse {
     payment_date: Date | null;
     payment_method: string | null;
     file_url: string | null;
+    is_deleted: boolean;
     created_at: Date;
     updated_at: Date;
     batches?: Array<{

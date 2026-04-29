@@ -1703,7 +1703,7 @@ const notes = input.notes;
             const { page = 1, limit = 10, distributor, status, search } = input || {};
             const skip = (Number(page) - 1) * Number(limit);
 
-            const where: any = search ? {} : { isDeleted: false };
+            const where: any = { isDeleted: false };
             if (distributor) where.distributorName = { contains: distributor, mode: 'insensitive' };
             if (status) where.paymentStatus = status;
             if (search) {
