@@ -59,8 +59,8 @@ export class PharmacyService {
                 let purchase = await (tx as any).pharmacyPurchase.findUnique({
                     where: {
                         distributorName_invoiceNumber: {
-                            distributorName: input.distributor_name,
-                            invoiceNumber: input.invoice_number
+                            distributorName: input.distributor_name.trim(),
+                            invoiceNumber: input.invoice_number.trim()
                         }
                     }
                 });
@@ -79,8 +79,8 @@ export class PharmacyService {
                     // Create new purchase
                     purchase = await (tx as any).pharmacyPurchase.create({
                         data: {
-                            distributorName: input.distributor_name,
-                            invoiceNumber: input.invoice_number,
+                    distributorName: input.distributor_name.trim(),
+                    invoiceNumber: input.invoice_number.trim(),
                             purchaseDate: (input as any).purchase_date || new Date(),
                             totalAmount: new Decimal(totalItemAmount),
                             amountPaid: new Decimal(0),
@@ -1875,8 +1875,8 @@ const notes = input.notes;
             const existingPurchase = await (tx as any).pharmacyPurchase.findUnique({
                 where: {
                     distributorName_invoiceNumber: {
-                        distributorName: input.distributor_name,
-                        invoiceNumber: input.invoice_number
+                        distributorName: input.distributor_name.trim(),
+                        invoiceNumber: input.invoice_number.trim()
                     }
                 }
             });
@@ -1899,8 +1899,8 @@ const notes = input.notes;
                 console.log(`[createPurchase] Creating new purchase record`);
                 purchase = await (tx as any).pharmacyPurchase.create({
                     data: {
-                        distributorName: input.distributor_name,
-                        invoiceNumber: input.invoice_number,
+                        distributorName: input.distributor_name.trim(),
+                        invoiceNumber: input.invoice_number.trim(),
                         purchaseDate: input.purchase_date || new Date(),
                         totalAmount: new Decimal(totalAmount),
                         amountPaid: new Decimal(0),
