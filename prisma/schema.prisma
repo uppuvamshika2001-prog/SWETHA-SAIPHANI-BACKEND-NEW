@@ -530,7 +530,7 @@ model PharmacyReturn {
   createdAt    DateTime             @default(now()) @map("created_at")
   updatedAt    DateTime             @updatedAt @map("updated_at")
   items        PharmacyReturnItem[]
-  bill         Bill                 @relation(fields: [billId], references: [id])
+  bill         Bill                 @relation(fields: [billId], references: [id], onDelete: Cascade)
   patient      Patient              @relation(fields: [patientId], references: [uhid])
 
   @@map("pharmacy_returns")
