@@ -1226,10 +1226,12 @@ export class PharmacyService {
                 bi.quantity,
                 bi.unit_price,
                 bi.purchase_price,
-                bi.profit
+                bi.profit,
+                COALESCE(b.customer_name, p.first_name || ' ' || p.last_name) AS patient_name
             FROM bill_items bi
             JOIN bills b ON bi.bill_id::text = b.id::text
             JOIN medicines m ON bi.medicine_id::text = m.id::text
+            LEFT JOIN patients p ON b.patient_id::text = p.uhid::text
             WHERE b.status = 'PAID'
               AND b.bill_type = 'PHARMACY'
               AND bi.medicine_id IS NOT NULL
@@ -1275,7 +1277,7 @@ export class PharmacyService {
         // 4. Aggregate Range Data
         let totalMargin = 0;
         let totalSalesRange = 0;
-        const medMap = new Map<string, { name: string, quantity: number, profit: number, sales: number, purchase_price: number }>();
+        const medMap = new Map<string, { name: string, quantity: number, profit: number, sales: number, purchase_price: number, patient_purchases: Map<string, number> }>();
 
         rangeItems.forEach((item: any) => {
             const quantity = Number(item.quantity) || 0;
@@ -1289,16 +1291,27 @@ export class PharmacyService {
 
             const name = item.medicine_name;
             if (!medMap.has(name)) {
-                medMap.set(name, { name, quantity: 0, profit: 0, sales: 0, purchase_price: 0 });
+                medMap.set(name, { name, quantity: 0, profit: 0, sales: 0, purchase_price: 0, patient_purchases: new Map<string, number>() });
             }
             const med = medMap.get(name)!;
             med.quantity += quantity;
             med.profit += profitValue;
             med.sales += salesValue;
             med.purchase_price = purchasePrice;
+            if (item.patient_name) {
+                const currentQty = med.patient_purchases.get(item.patient_name) || 0;
+                med.patient_purchases.set(item.patient_name, currentQty + quantity);
+            }
         });
 
-        const medicineWiseProfit = Array.from(medMap.values());
+        const medicineWiseProfit = Array.from(medMap.values()).map(m => ({
+            name: m.name,
+            quantity: m.quantity,
+            profit: m.profit,
+            sales: m.sales,
+            purchase_price: m.purchase_price,
+            patientNames: Array.from(m.patient_purchases.entries()).map(([name, qty]) => `${name} (${qty})`).join(', ')
+        }));
         
         // Sort primarily by highest profit using standard array sort
         medicineWiseProfit.sort((a, b) => b.profit - a.profit);

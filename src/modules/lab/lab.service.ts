@@ -128,10 +128,10 @@ export class LabService {
         // Generate Human-Readable Order Number (LAB-YYYYMMDD-XXX)
         const today = new Date();
         const dateStr = today.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
-        
+
         const startOfDay = new Date(today.setHours(0, 0, 0, 0));
         const endOfDay = new Date(today.setHours(23, 59, 59, 999));
-        
+
         const countToday = await prisma.labTestOrder.count({
             where: {
                 createdAt: {
@@ -140,7 +140,7 @@ export class LabService {
                 }
             }
         });
-        
+
         const sequence = countToday + 1;
         const newOrderNumber = `LAB-${dateStr}-${sequence.toString().padStart(3, '0')}`;
 
@@ -181,7 +181,7 @@ export class LabService {
 
             const where: any = {};
             if (patientId) where.patientId = patientId;
-            
+
             if (statusQuery) {
                 const upperStatus = statusQuery.toString().toUpperCase();
                 // Map PENDING to PAYMENT_PENDING for backward compatibility
@@ -189,8 +189,8 @@ export class LabService {
                     where.status = LabTestStatus.PAYMENT_PENDING;
                 } else {
                     // Safety check against valid enum values
-                    where.status = Object.values(LabTestStatus).includes(upperStatus as any) 
-                        ? (upperStatus as LabTestStatus) 
+                    where.status = Object.values(LabTestStatus).includes(upperStatus as any)
+                        ? (upperStatus as LabTestStatus)
                         : { in: Object.values(LabTestStatus) };
                 }
             } else {
@@ -304,8 +304,8 @@ export class LabService {
                     where.status = LabTestStatus.PAYMENT_PENDING;
                 } else {
                     // Safety check against valid enum values
-                    where.status = Object.values(LabTestStatus).includes(upperStatus as any) 
-                        ? (upperStatus as LabTestStatus) 
+                    where.status = Object.values(LabTestStatus).includes(upperStatus as any)
+                        ? (upperStatus as LabTestStatus)
                         : { in: Object.values(LabTestStatus) };
                 }
             } else {
@@ -408,11 +408,11 @@ export class LabService {
                     { name: { equals: order.testName, mode: 'insensitive' } },
                     { code: { equals: order.testName, mode: 'insensitive' } }
                 ];
-                
+
                 if (order.testName && order.testName.trim() !== '') {
                     searchOr.push({ name: { contains: order.testName, mode: 'insensitive' } });
                 }
-                
+
                 if (order.testCode && order.testCode.trim() !== '') {
                     searchOr.push({ code: { equals: order.testCode, mode: 'insensitive' } });
                     searchOr.push({ name: { contains: order.testCode, mode: 'insensitive' } });
@@ -461,7 +461,7 @@ export class LabService {
                 throw new NotFoundError('Lab order not found');
             }
 
-            const patientName = order.patient 
+            const patientName = order.patient
                 ? `${order.patient.firstName} ${order.patient.lastName}`
                 : ((order as any).walkInName || 'Walk-in Patient');
             const patientGender = order.patient ? (order as any).patient.gender : null;
@@ -472,7 +472,7 @@ export class LabService {
             const getRange = (p: any) => {
                 let finalRange = '';
                 const range = p.referenceRange;
-                
+
                 if (!range || typeof range !== 'object') {
                     // Fallback to legacy fields
                     if (patientGender === 'MALE' && p.referenceRangeMale) finalRange = p.referenceRangeMale;
@@ -749,8 +749,8 @@ export class LabService {
 
     async updateOrderStatus(id: string, status: string): Promise<LabOrderResponse> {
         const upperStatus = status.toUpperCase();
-        const mappedStatus = (upperStatus === 'PENDING' || upperStatus === 'PAYMENT_PENDING') 
-            ? LabTestStatus.PAYMENT_PENDING 
+        const mappedStatus = (upperStatus === 'PENDING' || upperStatus === 'PAYMENT_PENDING')
+            ? LabTestStatus.PAYMENT_PENDING
             : upperStatus as any;
 
         const order = await prisma.labTestOrder.update({
@@ -1001,16 +1001,16 @@ export class LabService {
         const processedParameters = (resultBlob.parameters || []).map((p: any) => {
             // Find corresponding catalog parameter in results join
             const catalogMatch = order.labResults?.find((lr: any) => lr.parameterId === p.parameterId);
-            
+
             // Reconstruct the reference range from catalog if missing or '-' in blob
             let referenceRange = p.referenceRange || p.normalRange || '-';
-            
+
             if ((!referenceRange || referenceRange === '-') && catalogMatch?.parameter) {
                 const param = catalogMatch.parameter;
                 // Reuse logic from getOrderParameters if possible, but keep it simple here
                 // Most catalog items have normalRange or referenceRange (JSON)
                 referenceRange = param.normalRange || '';
-                
+
                 if (!referenceRange && param.referenceRange) {
                     const range = param.referenceRange as any;
                     const patientGender = order.patient.gender;
@@ -1022,7 +1022,7 @@ export class LabService {
                 if (referenceRange && param.unit) {
                     referenceRange = `${referenceRange} ${param.unit}`.trim();
                 }
-                
+
                 if (!referenceRange) referenceRange = '-';
             }
 

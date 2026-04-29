@@ -188,7 +188,14 @@ export class AppointmentsService {
 
         const where: Record<string, unknown> = {};
         if (patientId) where.patientId = patientId;
-        if (doctorId) where.doctorId = doctorId;
+        if (doctorId) {
+            where.doctor = {
+                OR: [
+                    { id: doctorId },
+                    { userId: doctorId }
+                ]
+            };
+        }
         if (status) where.status = (status as unknown as string).toUpperCase();
         if (dateFrom || dateTo) {
             where.scheduledAt = {};
