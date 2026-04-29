@@ -71,7 +71,8 @@ export class PharmacyService {
                         where: { id: purchase.id },
                         data: {
                             totalAmount: { increment: new Decimal(totalItemAmount) },
-                            balanceAmount: { increment: new Decimal(totalItemAmount) }
+                            balanceAmount: { increment: new Decimal(totalItemAmount) },
+                            isDeleted: false // Automatically restore if it was previously deleted
                         }
                     });
                 } else {
@@ -1714,6 +1715,7 @@ const notes = input.notes;
                             some: {
                                 OR: [
                                     { medicine: { name: { contains: search, mode: 'insensitive' } } },
+                                    { medicine: { genericName: { contains: search, mode: 'insensitive' } } },
                                     { batchNumber: { contains: search, mode: 'insensitive' } }
                                 ]
                             }

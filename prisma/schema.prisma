@@ -252,10 +252,10 @@ model MedicineBatch {
   taxableAmount     Decimal?          @default(0) @map("taxable_amount") @db.Decimal
   gstAmount         Decimal?          @default(0) @map("gst_amount") @db.Decimal
   totalAmount       Decimal?          @default(0) @map("total_amount") @db.Decimal
+  hsnCode           String?           @map("hsn_code")
+  overalldiscount   Decimal?          @default(0) @map("overalldiscount") @db.Decimal
   medicine          Medicine          @relation(fields: [medicineId], references: [id], onDelete: Cascade)
   purchase          PharmacyPurchase? @relation(fields: [purchaseId], references: [id])
-  hsnCode           String?           @map("hsn_code")
-  overalldiscount   Decimal?          @default(0) @map("overalldiscount") @db.Decimal  
 
   @@map("medicine_batches")
 }
@@ -489,7 +489,7 @@ model PharmacyPurchase {
   totalAmount     Decimal           @map("total_amount") @db.Decimal(10, 2)
   amountPaid      Decimal           @default(0) @map("amount_paid") @db.Decimal(10, 2)
   balanceAmount   Decimal           @default(0) @map("balance_amount") @db.Decimal(10, 2)
-  overalldiscount   Decimal           @default(0) @map("overalldiscount") @db.Decimal(10, 2)
+  overalldiscount Decimal           @default(0) @map("overalldiscount") @db.Decimal(10, 2)
   paymentStatus   String            @default("PENDING") @map("payment_status")
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @updatedAt @map("updated_at")
