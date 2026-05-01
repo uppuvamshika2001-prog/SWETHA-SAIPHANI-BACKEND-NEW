@@ -2070,21 +2070,72 @@ const notes = input.notes;
     }
 
     async deletePurchase(id: string): Promise<void> {
-        const existing = await (prisma as any).pharmacyPurchase.findUnique({
-            where: { id },
-            include: { payments: true }
-        });
-        if (!existing || existing.isDeleted) {
-            throw new NotFoundError('Purchase not found');
-        }
+        await prisma.$transaction(async (tx) => {
+            const existing = await (tx as any).pharmacyPurchase.findUnique({
+                where: { id },
+                include: { 
+                    payments: true,
+                    batches: { include: { medicine: true } }
+                }
+            });
 
-        if (existing.payments && existing.payments.length > 0) {
-            throw new ValidationError('Cannot delete purchase with existing payments. Clear payments first.');
-        }
+            if (!existing || existing.isDeleted) {
+                throw new NotFoundError('Purchase not found');
+            }
 
-        await (prisma as any).pharmacyPurchase.update({
-            where: { id },
-            data: { isDeleted: true }
+            // 1. Mark purchase as deleted (Soft delete)
+            await (tx as any).pharmacyPurchase.update({
+                where: { id },
+                data: { isDeleted: true }
+            });
+
+            // 2. Delete associated payments (Financial cleanup)
+            if (existing.payments && existing.payments.length > 0) {
+                await (tx as any).pharmacyPayment.deleteMany({
+                    where: { purchaseId: id }
+                });
+            }
+
+            // 3. Deactivate batches and reverse inventory
+            if (existing.batches && existing.batches.length > 0) {
+                // Mark all batches from this purchase as inactive
+                await (tx as any).medicineBatch.updateMany({
+                    where: { purchaseId: id },
+                    data: { isActive: false }
+                });
+
+                // Recalculate master stock for each affected medicine
+                const medicineIds = [...new Set(existing.batches.map((b: any) => b.medicineId))];
+                for (const medId of medicineIds as string[]) {
+                    const totalStockAggregate = await (tx as any).medicineBatch.aggregate({
+                        where: { medicineId: medId, isActive: true },
+                        _sum: { stockQuantity: true, freeQuantity: true }
+                    });
+
+                    const newStock = (totalStockAggregate._sum.stockQuantity || 0) + (totalStockAggregate._sum.freeQuantity || 0);
+
+                    // Fetch medicine details for logging from the pre-fetched batches
+                    const med = existing.batches.find((b: any) => b.medicineId === medId)?.medicine;
+
+                    await tx.medicine.update({
+                        where: { id: medId },
+                        data: { stockQuantity: newStock }
+                    });
+
+                    // Log the inventory adjustment
+                    await (tx as any).inventoryLog.create({
+                        data: {
+                            medicineId: medId,
+                            type: 'ADJUSTMENT',
+                            quantity: newStock - (med?.stockQuantity || 0),
+                            previousStock: med?.stockQuantity || 0,
+                            newStock: newStock,
+                            referenceId: id,
+                            remarks: `Reversed stock due to purchase deletion: ${existing.invoiceNumber}`
+                        }
+                    });
+                }
+            }
         });
     }
 
