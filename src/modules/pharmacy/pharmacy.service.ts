@@ -55,7 +55,7 @@ export class PharmacyService {
             if (input.invoice_number) {
                 const totalItemAmount = input.total_amount || (input.stock_quantity * (input.mrp || input.purchase_price));
                 
-                // Find existing purchase for this distributor + invoice
+                // Find existing purchase for this distributor + invoice (including soft-deleted ones for transition)
                 let purchase = await (tx as any).pharmacyPurchase.findUnique({
                     where: {
                         distributorName_invoiceNumber: {
@@ -66,21 +66,46 @@ export class PharmacyService {
                 });
 
                 if (purchase) {
-                    // Update existing purchase total
-                    purchase = await (tx as any).pharmacyPurchase.update({
-                        where: { id: purchase.id },
-                        data: {
-                            totalAmount: { increment: new Decimal(totalItemAmount) },
-                            balanceAmount: { increment: new Decimal(totalItemAmount) },
-                            isDeleted: false // Automatically restore if it was previously deleted
+                    // SENIOR FIX: If the record was soft-deleted, we RESET the total instead of incrementing.
+                    // This prevents doubling when re-uploading after a soft-delete.
+                    if (purchase.isDeleted) {
+                        purchase = await (tx as any).pharmacyPurchase.update({
+                            where: { id: purchase.id },
+                            data: {
+                                totalAmount: new Decimal(totalItemAmount),
+                                balanceAmount: new Decimal(totalItemAmount),
+                                amountPaid: new Decimal(0),
+                                paymentStatus: 'PENDING',
+                                isDeleted: false
+                            }
+                        });
+                    } else {
+                        // If it's active, check if this medicine already exists in this purchase to avoid double-counting
+                        const existingBatch = await (tx as any).medicineBatch.findFirst({
+                            where: { 
+                                purchaseId: purchase.id,
+                                medicineId: medicine!.id,
+                                batchNumber: input.batch_number
+                            }
+                        });
+
+                        if (!existingBatch) {
+                            // Only increment if it's a NEW medicine being added to an existing active invoice
+                            purchase = await (tx as any).pharmacyPurchase.update({
+                                where: { id: purchase.id },
+                                data: {
+                                    totalAmount: { increment: new Decimal(totalItemAmount) },
+                                    balanceAmount: { increment: new Decimal(totalItemAmount) }
+                                }
+                            });
                         }
-                    });
+                    }
                 } else {
                     // Create new purchase
                     purchase = await (tx as any).pharmacyPurchase.create({
                         data: {
-                    distributorName: input.distributor_name.trim(),
-                    invoiceNumber: input.invoice_number.trim(),
+                            distributorName: input.distributor_name.trim(),
+                            invoiceNumber: input.invoice_number.trim(),
                             purchaseDate: (input as any).purchase_date || new Date(),
                             totalAmount: new Decimal(totalItemAmount),
                             amountPaid: new Decimal(0),
@@ -2082,7 +2107,7 @@ const notes = input.notes;
     }
 
     async deletePurchase(id: string): Promise<void> {
-        console.log(`[PharmacyService] Senior-level delete requested for purchase ID: ${id}`);
+        console.log(`[PharmacyService] Senior-level HARD DELETE requested for purchase ID: ${id}`);
         
         await prisma.$transaction(async (tx) => {
             const existing = await (tx as any).pharmacyPurchase.findUnique({
@@ -2093,71 +2118,60 @@ const notes = input.notes;
                 }
             });
 
-            if (!existing || existing.isDeleted) {
-                throw new NotFoundError('Purchase not found');
+            if (!existing) {
+                console.warn(`[PharmacyService] Delete attempted on non-existent purchase: ${id}`);
+                return; // Idempotent delete
             }
 
-            // 1. Soft delete the purchase record
-            await (tx as any).pharmacyPurchase.update({
-                where: { id },
-                data: { 
-                    isDeleted: true,
-                    paymentStatus: 'CANCELLED', // Mark as cancelled for auditing
-                    balanceAmount: 0 // Reset balance for cancelled records
-                }
-            });
+            // 1. Reconcile master stock before deleting batches
+            if (existing.batches && existing.batches.length > 0) {
+                console.log(`[PharmacyService] Reversing stock for ${existing.batches.length} batches...`);
+                for (const batch of existing.batches) {
+                    const medId = batch.medicineId;
+                    const stockToRemove = (batch.stockQuantity || 0) + (batch.freeQuantity || 0);
+                    
+                    if (stockToRemove > 0) {
+                        // Decrease master stock
+                        await tx.medicine.update({
+                            where: { id: medId },
+                            data: { stockQuantity: { decrement: stockToRemove } }
+                        });
 
-            // 2. Explicitly clean up payments (Senior approach: Hard delete financial orphan records)
+                        // Log the adjustment
+                        await (tx as any).inventoryLog.create({
+                            data: {
+                                medicineId: medId,
+                                type: 'ADJUSTMENT',
+                                quantity: -stockToRemove,
+                                previousStock: batch.medicine.stockQuantity,
+                                newStock: batch.medicine.stockQuantity - stockToRemove,
+                                referenceId: existing.id,
+                                remarks: `HARD DELETE of Invoice ${existing.invoiceNumber} from ${existing.distributorName}`
+                            }
+                        });
+                    }
+                }
+
+                // 2. Hard Delete all associated batches
+                await (tx as any).medicineBatch.deleteMany({
+                    where: { purchaseId: id }
+                });
+            }
+
+            // 3. Hard Delete associated payments (Financial Cleanup)
             if (existing.payments && existing.payments.length > 0) {
-                console.log(`[PharmacyService] Deleting ${existing.payments.length} associated payments for purchase ${existing.invoiceNumber}`);
                 await (tx as any).pharmacyPayment.deleteMany({
                     where: { purchaseId: id }
                 });
             }
 
-            // 3. Deactivate batches and reconcile master inventory
-            if (existing.batches && existing.batches.length > 0) {
-                console.log(`[PharmacyService] Deactivating ${existing.batches.length} batches and reconciling stock...`);
-                
-                // Mark all batches from this purchase as inactive
-                await (tx as any).medicineBatch.updateMany({
-                    where: { purchaseId: id },
-                    data: { isActive: false }
-                });
+            // 4. Finally, Hard Delete the purchase record itself
+            await (tx as any).pharmacyPurchase.delete({
+                where: { id }
+            });
 
-                // Recalculate master stock for each affected medicine
-                const medicineIds = [...new Set(existing.batches.map((b: any) => b.medicineId))];
-                for (const medId of medicineIds as string[]) {
-                    const totalStockAggregate = await (tx as any).medicineBatch.aggregate({
-                        where: { medicineId: medId, isActive: true },
-                        _sum: { stockQuantity: true, freeQuantity: true }
-                    });
-
-                    const newStock = (totalStockAggregate._sum.stockQuantity || 0) + (totalStockAggregate._sum.freeQuantity || 0);
-                    const med = existing.batches.find((b: any) => b.medicineId === medId)?.medicine;
-
-                    await tx.medicine.update({
-                        where: { id: medId },
-                        data: { stockQuantity: newStock }
-                    });
-
-                    // Log the inventory adjustment with detailed remarks
-                    await (tx as any).inventoryLog.create({
-                        data: {
-                            medicineId: medId,
-                            type: 'ADJUSTMENT',
-                            quantity: newStock - (med?.stockQuantity || 0),
-                            previousStock: med?.stockQuantity || 0,
-                            newStock: newStock,
-                            referenceId: id,
-                            remarks: `Senior Fix: Stock reversed due to purchase deletion. Invoice: ${existing.invoiceNumber}, Distributor: ${existing.distributorName}`
-                        }
-                    });
-                }
-            }
+            console.log(`[PharmacyService] Purchase ${existing.invoiceNumber} completely purged from database.`);
         });
-        
-        console.log(`[PharmacyService] Purchase ${id} deleted and reconciled successfully.`);
     }
 
     /**
