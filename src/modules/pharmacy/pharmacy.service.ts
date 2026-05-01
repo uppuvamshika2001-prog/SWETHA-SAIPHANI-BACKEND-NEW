@@ -1874,8 +1874,8 @@ const notes = input.notes;
             for (const item of input.items) {
                 stockqty+=item.stock_quantity*item.pack_quantity;
              }
-            // 2. Create or Update the Purchase tracking record
-            console.log(`[createPurchase] Checking for existing purchase with invoiceNumber=${input.invoice_number} and distributorName=${input.distributor_name}`);
+            // 2. Create the Purchase tracking record (Prevent duplicates/doubling)
+            console.log(`[createPurchase] Checking for existing purchase: ${input.invoice_number} from ${input.distributor_name}`);
             
             const existingPurchase = await (tx as any).pharmacyPurchase.findUnique({
                 where: {
@@ -1886,18 +1886,25 @@ const notes = input.notes;
                 }
             });
 
+            if (existingPurchase && !existingPurchase.isDeleted) {
+                throw new ValidationError(`Invoice ${input.invoice_number} already exists for this distributor. If you need to re-upload, please delete the existing record first.`);
+            }
+
             let purchase;
-            if (existingPurchase) {
-                console.log(`[createPurchase] Found existing purchase, updating amount. Existing ID: ${existingPurchase.id}`);
+            if (existingPurchase && existingPurchase.isDeleted) {
+                // Reactivate and reset the soft-deleted record instead of creating a new one
+                console.log(`[createPurchase] Reactivating existing deleted purchase record: ${existingPurchase.id}`);
                 purchase = await (tx as any).pharmacyPurchase.update({
                     where: { id: existingPurchase.id },
                     data: {
-                        totalAmount: new Decimal(Number(existingPurchase.totalAmount) + totalAmount),
-                        balanceAmount: new Decimal(Number(existingPurchase.balanceAmount) + totalAmount),
-                        overalldiscount: new Decimal(Number(existingPurchase.overalldiscount) + (input.overalldiscount || 0)),
-                        fileUrl: (input as any).file_url || existingPurchase.fileUrl || null,
-                        // Update status if it was PAID but now has a balance
-                        paymentStatus: (Number(existingPurchase.balanceAmount) + totalAmount) > 0 ? (Number(existingPurchase.amountPaid) > 0 ? 'PARTIALLY_PAID' : 'PENDING') : 'PAID'
+                        purchaseDate: input.purchase_date || new Date(),
+                        totalAmount: new Decimal(totalAmount),
+                        amountPaid: new Decimal(0),
+                        balanceAmount: new Decimal(totalAmount),
+                        paymentStatus: 'PENDING',
+                        isDeleted: false,
+                        fileUrl: (input as any).file_url || null,
+                        overalldiscount: new Decimal(input.overalldiscount || 0)
                     }
                 });
             } else {
