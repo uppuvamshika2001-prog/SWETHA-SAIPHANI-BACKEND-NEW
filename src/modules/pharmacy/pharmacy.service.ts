@@ -1777,19 +1777,24 @@ const notes = input.notes;
                 orderBy: { purchaseDate: 'asc' }
             });
 
-            // Source of truth totals from aggregate across all records
+            // Source of truth totals from aggregate across all active records
             const [purchaseStats, paymentStats] = await Promise.all([
                 (prisma as any).pharmacyPurchase.aggregate({
                     where: { isDeleted: false },
                     _sum: { totalAmount: true }
                 }),
                 (prisma as any).pharmacyPayment.aggregate({
+                    where: {
+                        purchase: {
+                            isDeleted: false
+                        }
+                    },
                     _sum: { amount: true }
                 })
             ]);
 
-            const totalAmount = Number(purchaseStats?._sum?.totalAmount) || 0;
-            const totalPaid = Number(paymentStats?._sum?.amount) || 0;
+            const totalAmount = Number(purchaseStats?._sum?.totalAmount || 0);
+            const totalPaid = Number(paymentStats?._sum?.amount || 0);
             const totalBalance = totalAmount - totalPaid;
 
             // Group pending by distributor
@@ -2070,6 +2075,8 @@ const notes = input.notes;
     }
 
     async deletePurchase(id: string): Promise<void> {
+        console.log(`[PharmacyService] Senior-level delete requested for purchase ID: ${id}`);
+        
         await prisma.$transaction(async (tx) => {
             const existing = await (tx as any).pharmacyPurchase.findUnique({
                 where: { id },
@@ -2083,21 +2090,28 @@ const notes = input.notes;
                 throw new NotFoundError('Purchase not found');
             }
 
-            // 1. Mark purchase as deleted (Soft delete)
+            // 1. Soft delete the purchase record
             await (tx as any).pharmacyPurchase.update({
                 where: { id },
-                data: { isDeleted: true }
+                data: { 
+                    isDeleted: true,
+                    paymentStatus: 'CANCELLED', // Mark as cancelled for auditing
+                    balanceAmount: 0 // Reset balance for cancelled records
+                }
             });
 
-            // 2. Delete associated payments (Financial cleanup)
+            // 2. Explicitly clean up payments (Senior approach: Hard delete financial orphan records)
             if (existing.payments && existing.payments.length > 0) {
+                console.log(`[PharmacyService] Deleting ${existing.payments.length} associated payments for purchase ${existing.invoiceNumber}`);
                 await (tx as any).pharmacyPayment.deleteMany({
                     where: { purchaseId: id }
                 });
             }
 
-            // 3. Deactivate batches and reverse inventory
+            // 3. Deactivate batches and reconcile master inventory
             if (existing.batches && existing.batches.length > 0) {
+                console.log(`[PharmacyService] Deactivating ${existing.batches.length} batches and reconciling stock...`);
+                
                 // Mark all batches from this purchase as inactive
                 await (tx as any).medicineBatch.updateMany({
                     where: { purchaseId: id },
@@ -2113,8 +2127,6 @@ const notes = input.notes;
                     });
 
                     const newStock = (totalStockAggregate._sum.stockQuantity || 0) + (totalStockAggregate._sum.freeQuantity || 0);
-
-                    // Fetch medicine details for logging from the pre-fetched batches
                     const med = existing.batches.find((b: any) => b.medicineId === medId)?.medicine;
 
                     await tx.medicine.update({
@@ -2122,7 +2134,7 @@ const notes = input.notes;
                         data: { stockQuantity: newStock }
                     });
 
-                    // Log the inventory adjustment
+                    // Log the inventory adjustment with detailed remarks
                     await (tx as any).inventoryLog.create({
                         data: {
                             medicineId: medId,
@@ -2131,12 +2143,14 @@ const notes = input.notes;
                             previousStock: med?.stockQuantity || 0,
                             newStock: newStock,
                             referenceId: id,
-                            remarks: `Reversed stock due to purchase deletion: ${existing.invoiceNumber}`
+                            remarks: `Senior Fix: Stock reversed due to purchase deletion. Invoice: ${existing.invoiceNumber}, Distributor: ${existing.distributorName}`
                         }
                     });
                 }
             }
         });
+        
+        console.log(`[PharmacyService] Purchase ${id} deleted and reconciled successfully.`);
     }
 
     /**
