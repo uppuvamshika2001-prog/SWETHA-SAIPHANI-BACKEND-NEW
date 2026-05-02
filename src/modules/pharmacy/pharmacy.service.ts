@@ -942,7 +942,7 @@ export class PharmacyService {
             if (!bill) throw new NotFoundError('Bill');
 
             // 2. Calculate refund amount and validate return quantities
-            let refundAmount = 0;
+            let subtotal = 0;
             for (const item of input.items) {
                 const billItem = bill.items.find(bi => String(bi.medicineId) === String(item.medicine_id));
                 if (!billItem) {
@@ -951,8 +951,12 @@ export class PharmacyService {
                 if (item.return_qty > billItem.quantity) {
                     throw new ValidationError(`Return quantity for ${billItem.description} exceeds sold quantity`);
                 }
-                refundAmount += item.return_qty * item.selling_price;
+                subtotal += item.return_qty * item.selling_price;
             }
+
+            const gstPercent = input.gst_percent ?? 0;
+            const gstAmount = (subtotal * gstPercent) / 100;
+            const refundAmount = subtotal + gstAmount;
 
             // 1. Create return record
             const pharmacyReturn = await (tx as any).pharmacyReturn.create({
@@ -960,6 +964,8 @@ export class PharmacyService {
                     billId: input.bill_id,
                     patientId: input.patient_id,
                     refundAmount,
+                    gstPercent,
+                    gstAmount,
                     refundMethod: input.refund_method,
                     pharmacistId: input.pharmacist_id,
                     items: {
@@ -1066,6 +1072,8 @@ export class PharmacyService {
             refund_amount: Number(pReturn.refundAmount),
             refund_method: pReturn.refundMethod,
             pharmacist_id: pReturn.pharmacistId,
+            gst_percent: Number(pReturn.gstPercent || 0),
+            gst_amount: Number(pReturn.gstAmount || 0),
             status: pReturn.status,
             patient: pReturn.patient ? {
                 firstName: pReturn.patient.firstName,

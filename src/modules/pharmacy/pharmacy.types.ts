@@ -247,6 +247,7 @@ export const createReturnSchema = z.object({
         reason: z.string().min(1),
     })).min(1),
     pharmacist_id: z.string().optional(),
+    gst_percent: z.number().nonnegative().optional(),
 });
 
 export type CreateReturnInput = z.infer<typeof createReturnSchema>;
@@ -259,6 +260,8 @@ export interface PharmacyReturnResponse {
     refund_amount: number;
     refund_method: string;
     pharmacist_id: string | null;
+    gst_percent: number;
+    gst_amount: number;
     status: string;
     items: Array<{
         id: string;

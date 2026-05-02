@@ -526,6 +526,8 @@ model PharmacyReturn {
   refundAmount Decimal              @map("refund_amount") @db.Decimal(10, 2)
   refundMethod String               @map("refund_method")
   pharmacistId String?              @map("pharmacist_id")
+  gstPercent   Decimal              @default(0) @map("gst_percent") @db.Decimal(5, 2)
+  gstAmount    Decimal              @default(0) @map("gst_amount") @db.Decimal(10, 2)
   status       String               @default("COMPLETED")
   createdAt    DateTime             @default(now()) @map("created_at")
   updatedAt    DateTime             @updatedAt @map("updated_at")
