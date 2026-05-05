@@ -626,6 +626,16 @@ export async function getReturns(
  *     security:
  *       - bearerAuth: []
  */
+export async function deleteReturn(req: Request, res: Response, next: NextFunction) {
+    try {
+        await pharmacyService.deleteReturn(req.params.id);
+        res.status(204).send();
+    } catch (error) {
+        logger.error({ context: 'PharmacyController.deleteReturn', error }, 'Failed to delete return');
+        next(error);
+    }
+}
+
 export async function processStockReturn(
     req: Request,
     res: Response,

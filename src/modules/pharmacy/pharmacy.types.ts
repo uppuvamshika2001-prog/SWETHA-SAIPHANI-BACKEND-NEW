@@ -297,6 +297,7 @@ export const createStockReturnSchema = z.object({
         return_qty: z.number().int().positive(),
         return_reason: z.string().min(1),
         unit_price: z.number().nonnegative(),
+        gst_percent: z.number().nonnegative().optional()
     })).min(1),
     pharmacist_id: z.string().optional(),
 });

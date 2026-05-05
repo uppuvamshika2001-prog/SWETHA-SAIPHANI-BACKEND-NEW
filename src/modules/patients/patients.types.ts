@@ -77,6 +77,8 @@ export const updatePatientSchema = z.object({
     title: z.string().optional(),
     firstName: z.string().min(1).optional(),
     lastName: z.string().min(1).optional(),
+    dateOfBirth: z.string().optional().transform(v => v ? new Date(v) : undefined),
+    gender: z.nativeEnum(Gender).optional(),
     email: z.string().email().optional().or(z.literal('')),
     phone: z.string().min(10).optional(),
     altPhone: z.string().optional(),

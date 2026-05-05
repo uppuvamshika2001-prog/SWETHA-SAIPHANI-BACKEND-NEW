@@ -509,9 +509,21 @@ export class PharmacyService {
             throw new NotFoundError('Medicine');
         }
 
+        const data: any = { ...input };
+        if (input.generic_name !== undefined) data.genericName = input.generic_name;
+        if (input.category_id !== undefined) data.categoryId = input.category_id;
+        if (input.reorder_level !== undefined) data.reorderLevel = input.reorder_level;
+        if (input.is_active !== undefined) data.isActive = input.is_active;
+
+        // Remove snake_case keys that don't exist in Prisma model
+        delete data.generic_name;
+        delete data.category_id;
+        delete data.reorder_level;
+        delete data.is_active;
+
         const medicine = await (prisma as any).medicine.update({
             where: { id: id.toString() },
-            data: input,
+            data,
         });
         return this.formatMedicine(medicine);
     }
@@ -553,12 +565,17 @@ export class PharmacyService {
             const dataToUpdate: any = { ...input };
             
             // Map input fields to Prisma model fields
-            if (input.batch_number) dataToUpdate.batchNumber = input.batch_number;
-            if (input.distributor_name) dataToUpdate.distributorName = input.distributor_name;
-            if (input.manufacturing_date) dataToUpdate.manufacturingDate = input.manufacturing_date;
-            if (input.expiry_date) dataToUpdate.expiryDate = input.expiry_date;
-            if (input.purchase_price) dataToUpdate.purchasePrice = input.purchase_price;
-            if (input.selling_price) dataToUpdate.sellingPrice = input.selling_price;
+            if (input.batch_number !== undefined) dataToUpdate.batchNumber = input.batch_number;
+            if (input.distributor_name !== undefined) dataToUpdate.distributorName = input.distributor_name;
+            if (input.manufacturing_date !== undefined) dataToUpdate.manufacturingDate = input.manufacturing_date;
+            if (input.expiry_date !== undefined) dataToUpdate.expiryDate = input.expiry_date;
+            if (input.purchase_price !== undefined) dataToUpdate.purchasePrice = input.purchase_price;
+            if (input.selling_price !== undefined) dataToUpdate.sellingPrice = input.selling_price;
+            if (input.stock_quantity !== undefined) dataToUpdate.stockQuantity = input.stock_quantity;
+            if (input.free_quantity !== undefined) dataToUpdate.freeQuantity = input.free_quantity;
+            if (input.pack_quantity !== undefined) dataToUpdate.packQuantity = input.pack_quantity;
+            if (input.gst_percent !== undefined) dataToUpdate.gstPercent = input.gst_percent;
+            
             // Remove internal and non-existent fields that don't exist in Prisma model
             const internalFields = ['batch_number', 'distributor_name', 'manufacturing_date', 'expiry_date', 'purchase_price', 'selling_price', 'gst_percent', 'stock_quantity', 'pack_quantity', 'free_quantity', 'is_active', 'taxable_amount', 'gst_amount', 'total_amount', 'pricePerUnit'];
             internalFields.forEach(f => delete dataToUpdate[f]);
@@ -1063,6 +1080,47 @@ export class PharmacyService {
         };
     }
 
+    async deleteReturn(id: string): Promise<void> {
+        await prisma.$transaction(async (tx) => {
+            const pharmacyReturn = await (tx as any).pharmacyReturn.findUnique({
+                where: { id },
+                include: { items: true }
+            });
+
+            if (!pharmacyReturn) throw new Error('Return not found');
+
+            // Reverse stock
+            for (const item of pharmacyReturn.items) {
+                const batch = await ((tx as any).medicineBatch).findFirst({
+                    where: { 
+                        medicineId: item.medicineId, 
+                        batchNumber: item.batchNumber || undefined,
+                        isActive: true
+                    },
+                    orderBy: { expiryDate: 'asc' } 
+                });
+
+                if (batch) {
+                    await ((tx as any).medicineBatch).update({
+                        where: { id: batch.id },
+                        data: { stockQuantity: { decrement: item.returnQty } }
+                    });
+                }
+
+                await this.updateStockAndLog(tx, {
+                    medicineId: item.medicineId,
+                    batchNumber: item.batchNumber || undefined,
+                    type: 'ADJUSTMENT',
+                    quantity: -item.returnQty,
+                    referenceId: pharmacyReturn.id,
+                    remarks: `Reversed patient return record deleted`
+                });
+            }
+
+            await (tx as any).pharmacyReturn.delete({ where: { id } });
+        });
+    }
+
     private formatReturn(pReturn: any): PharmacyReturnResponse {
         return {
             id: pReturn.id,
@@ -1132,7 +1190,9 @@ export class PharmacyService {
                         throw new ValidationError(`Insufficient total stock for ${medicine.name}`);
                     }
                 }
-                totalAmount += item.return_qty * item.unit_price;
+                const baseAmount = item.return_qty * item.unit_price;
+                const gstAmount = baseAmount * ((item.gst_percent || 0) / 100);
+                totalAmount += baseAmount + gstAmount;
             }
 
             // Create return master record
@@ -1142,15 +1202,21 @@ export class PharmacyService {
                     totalAmount,
                     returnType: input.return_type,
                     pharmacistId: input.pharmacist_id,
+                    gstAmount: input.items.reduce((sum, item) => sum + ((item.return_qty * item.unit_price) * ((item.gst_percent || 0) / 100)), 0),
                     items: {
-                        create: input.items.map(item => ({
-                            medicineId: item.medicine_id,
-                            batchNumber: item.batch_number,
-                            returnQty: item.return_qty,
-                            returnReason: item.return_reason,
-                            unitPrice: item.unit_price,
-                            
-                        }))
+                        create: input.items.map(item => {
+                            const baseItemAmount = item.return_qty * item.unit_price;
+                            const itemGstAmount = baseItemAmount * ((item.gst_percent || 0) / 100);
+                            return {
+                                medicineId: item.medicine_id,
+                                batchNumber: item.batch_number,
+                                returnQty: item.return_qty,
+                                returnReason: item.return_reason,
+                                unitPrice: item.unit_price,
+                                gstPercent: item.gst_percent || 0,
+                                gstAmount: itemGstAmount
+                            };
+                        })
                     }
                 },
                 include: {
