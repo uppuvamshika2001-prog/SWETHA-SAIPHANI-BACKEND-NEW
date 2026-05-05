@@ -628,7 +628,7 @@ export async function getReturns(
  */
 export async function deleteReturn(req: Request, res: Response, next: NextFunction) {
     try {
-        await pharmacyService.deleteReturn(req.params.id);
+        await pharmacyService.deleteReturn(req.params.id as string);
         res.status(204).send();
     } catch (error) {
         logger.error({ context: 'PharmacyController.deleteReturn', error }, 'Failed to delete return');
