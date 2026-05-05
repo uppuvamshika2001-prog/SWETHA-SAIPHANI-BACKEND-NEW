@@ -526,8 +526,6 @@ model PharmacyReturn {
   refundAmount Decimal              @map("refund_amount") @db.Decimal(10, 2)
   refundMethod String               @map("refund_method")
   pharmacistId String?              @map("pharmacist_id")
-  gstPercent   Decimal              @default(0) @map("gst_percent") @db.Decimal(5, 2)
-  gstAmount    Decimal              @default(0) @map("gst_amount") @db.Decimal(10, 2)
   status       String               @default("COMPLETED")
   createdAt    DateTime             @default(now()) @map("created_at")
   updatedAt    DateTime             @updatedAt @map("updated_at")
@@ -560,8 +558,6 @@ model PharmacyStockReturn {
   returnType   String                    @map("return_type")
   pharmacistId String?                   @map("pharmacist_id")
   status       String                    @default("COMPLETED")
-  gstPercent   Decimal                   @default(0) @map("gst_percent") @db.Decimal(5, 2)
-  gstAmount    Decimal                   @default(0) @map("gst_amount") @db.Decimal(10, 2)
   createdAt    DateTime                  @default(now()) @map("created_at")
   updatedAt    DateTime                  @updatedAt @map("updated_at")
   items        PharmacyStockReturnItem[]
@@ -577,8 +573,6 @@ model PharmacyStockReturnItem {
   returnQty    Int                 @map("return_qty")
   returnReason String              @map("return_reason")
   unitPrice    Decimal             @map("unit_price") @db.Decimal(10, 2)
-  gstPercent   Decimal             @default(0) @map("gst_percent") @db.Decimal(5, 2)
-  gstAmount    Decimal             @default(0) @map("gst_amount") @db.Decimal(10, 2)
   medicine     Medicine            @relation(fields: [medicineId], references: [id], onDelete: Cascade)
   return       PharmacyStockReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
 
