@@ -78,8 +78,8 @@ export const updateMedicineSchema = z.object({
 });
 
 export const updateBatchSchema = z.object({
-    batch_number: z.string().min(1).optional(),
-    distributor_name: z.string().min(1).optional(),
+    batch_number: z.string().optional(),
+    distributor_name: z.string().optional(),
     manufacturing_date: z.string().transform((s) => new Date(s)).optional(),
     expiry_date: z.string().transform((s) => new Date(s)).optional(),
     purchase_price: z.number().nonnegative().optional(),
