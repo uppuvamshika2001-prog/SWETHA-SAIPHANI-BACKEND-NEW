@@ -995,8 +995,6 @@ export class PharmacyService {
                     billId: input.bill_id,
                     patientId: input.patient_id,
                     refundAmount,
-                    gstPercent,
-                    gstAmount,
                     refundMethod: input.refund_method,
                     pharmacistId: input.pharmacist_id,
                     items: {
@@ -1216,7 +1214,6 @@ export class PharmacyService {
                     totalAmount,
                     returnType: input.return_type,
                     pharmacistId: input.pharmacist_id,
-                    gstAmount: input.items.reduce((sum, item) => sum + ((item.return_qty * item.unit_price) * ((item.gst_percent || 0) / 100)), 0),
                     items: {
                         create: input.items.map(item => {
                             const baseItemAmount = item.return_qty * item.unit_price;
@@ -1226,9 +1223,7 @@ export class PharmacyService {
                                 batchNumber: item.batch_number,
                                 returnQty: item.return_qty,
                                 returnReason: item.return_reason,
-                                unitPrice: item.unit_price,
-                                gstPercent: item.gst_percent || 0,
-                                gstAmount: itemGstAmount
+                                unitPrice: item.unit_price
                             };
                         })
                     }
