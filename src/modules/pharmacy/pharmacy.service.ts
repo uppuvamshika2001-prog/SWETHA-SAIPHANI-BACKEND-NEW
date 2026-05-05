@@ -564,21 +564,35 @@ export class PharmacyService {
 
             const dataToUpdate: any = { ...input };
             
-            // Map input fields to Prisma model fields
+            // Map input fields (snake_case) to Prisma model fields (camelCase)
             if (input.batch_number !== undefined) dataToUpdate.batchNumber = input.batch_number;
             if (input.distributor_name !== undefined) dataToUpdate.distributorName = input.distributor_name;
             if (input.manufacturing_date !== undefined) dataToUpdate.manufacturingDate = input.manufacturing_date;
             if (input.expiry_date !== undefined) dataToUpdate.expiryDate = input.expiry_date;
-            if (input.purchase_price !== undefined) dataToUpdate.purchasePrice = input.purchase_price;
-            if (input.selling_price !== undefined) dataToUpdate.sellingPrice = input.selling_price;
+            if (input.purchase_price !== undefined) dataToUpdate.purchasePrice = new Decimal(input.purchase_price);
+            if (input.selling_price !== undefined) dataToUpdate.sellingPrice = new Decimal(input.selling_price);
             if (input.stock_quantity !== undefined) dataToUpdate.stockQuantity = input.stock_quantity;
             if (input.free_quantity !== undefined) dataToUpdate.freeQuantity = input.free_quantity;
             if (input.pack_quantity !== undefined) dataToUpdate.packQuantity = input.pack_quantity;
-            if (input.gst_percent !== undefined) dataToUpdate.gstPercent = input.gst_percent;
+            if (input.gst_percent !== undefined) dataToUpdate.gstPercent = new Decimal(input.gst_percent);
             
-            // Remove internal and non-existent fields that don't exist in Prisma model
-            const internalFields = ['batch_number', 'distributor_name', 'manufacturing_date', 'expiry_date', 'purchase_price', 'selling_price', 'gst_percent', 'stock_quantity', 'pack_quantity', 'free_quantity', 'is_active', 'taxable_amount', 'gst_amount', 'total_amount', 'pricePerUnit'];
-            internalFields.forEach(f => delete dataToUpdate[f]);
+            // Map additional fields that might be sent
+            if (input.is_active !== undefined) dataToUpdate.isActive = input.is_active;
+            if (input.taxable_amount !== undefined) dataToUpdate.taxableAmount = new Decimal(input.taxable_amount);
+            if (input.gst_amount !== undefined) dataToUpdate.gstAmount = new Decimal(input.gst_amount);
+            if (input.total_amount !== undefined) dataToUpdate.totalAmount = new Decimal(input.total_amount);
+            if (input.mrp !== undefined) dataToUpdate.mrp = new Decimal(input.mrp);
+            if (input.ptr !== undefined) dataToUpdate.ptr = new Decimal(input.ptr);
+            if (input.pts !== undefined) dataToUpdate.pts = new Decimal(input.pts);
+            
+            // Remove snake_case keys and non-Prisma fields
+            const keysToRemove = [
+                'batch_number', 'distributor_name', 'manufacturing_date', 'expiry_date', 
+                'purchase_price', 'selling_price', 'gst_percent', 'stock_quantity', 
+                'pack_quantity', 'free_quantity', 'is_active', 'taxable_amount', 
+                'gst_amount', 'total_amount', 'pricePerUnit'
+            ];
+            keysToRemove.forEach(k => delete dataToUpdate[k]);
 
             const updatedBatch = await tx.medicineBatch.update({
                 where: { id },
