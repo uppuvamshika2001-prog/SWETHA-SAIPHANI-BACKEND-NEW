@@ -636,6 +636,16 @@ export async function deleteReturn(req: Request, res: Response, next: NextFuncti
     }
 }
 
+export async function deleteStockReturn(req: Request, res: Response, next: NextFunction) {
+    try {
+        await pharmacyService.deleteStockReturn(req.params.id as string);
+        res.status(204).send();
+    } catch (error) {
+        logger.error({ context: 'PharmacyController.deleteStockReturn', error }, 'Failed to delete stock return');
+        next(error);
+    }
+}
+
 export async function processStockReturn(
     req: Request,
     res: Response,

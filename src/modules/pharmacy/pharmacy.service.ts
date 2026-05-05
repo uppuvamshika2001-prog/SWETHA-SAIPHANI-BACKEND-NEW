@@ -1299,6 +1299,55 @@ export class PharmacyService {
         };
     }
 
+    async deleteStockReturn(id: string): Promise<void> {
+        await prisma.$transaction(async (tx) => {
+            const stockReturn = await (tx as any).pharmacyStockReturn.findUnique({
+                where: { id },
+                include: { items: true }
+            });
+
+            if (!stockReturn) throw new Error('Stock return not found');
+
+            // Reverse stock: since it was returned to distributor, it was SUBTRACTED.
+            // So we need to ADD it back.
+            for (const item of stockReturn.items) {
+                if (item.batchNumber) {
+                    const batch = await ((tx as any).medicineBatch).findFirst({
+                        where: { 
+                            medicineId: item.medicineId, 
+                            batchNumber: item.batchNumber,
+                            isActive: true
+                        }
+                    });
+
+                    if (batch) {
+                        await ((tx as any).medicineBatch).update({
+                            where: { id: batch.id },
+                            data: { stockQuantity: { increment: item.returnQty } }
+                        });
+                    }
+                }
+
+                await this.updateStockAndLog(tx, {
+                    medicineId: item.medicineId,
+                    batchNumber: item.batchNumber || undefined,
+                    type: 'STOCK_ADD',
+                    quantity: item.returnQty,
+                    referenceId: stockReturn.id,
+                    remarks: `Reversed stock return record deleted (Distributor: ${stockReturn.distributor})`
+                });
+            }
+
+            // Delete item details first
+            await (tx as any).pharmacyStockReturnItem.deleteMany({
+                where: { returnId: id }
+            });
+
+            // Delete master record
+            await (tx as any).pharmacyStockReturn.delete({ where: { id } });
+        });
+    }
+
     async getMarginReport(query: { startDate?: string; endDate?: string }): Promise<any> {
         let start: Date;
         let end: Date;
