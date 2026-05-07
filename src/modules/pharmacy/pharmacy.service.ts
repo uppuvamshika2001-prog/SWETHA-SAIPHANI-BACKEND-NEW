@@ -322,13 +322,14 @@ export class PharmacyService {
                     distributor_name: b.distributorName,
                     batch_number: b.batchNumber,
                     expiry_date: b.expiryDate,
+                    manufacturing_date: b.manufacturingDate,
                     free_quantity: b.freeQuantity ?? 0,
                     ptr: Number(b.ptr ?? 0),
                     pts: Number(b.pts ?? 0),
                     taxable_amount: Number(b.taxableAmount ?? 0),
                     gst_amount: Number(b.gstAmount ?? 0),
                     total_amount: Number(b.totalAmount ?? 0),
-                    hsn_code: b.medicine.hsn_code || '-',
+                    hsn_code: b.hsnCode || b.medicine.hsnCode || '-',
                     overalldiscount: Number(b.overalldiscount ?? 0),
                     status: b.stockQuantity <= b.medicine.reorderLevel ? (b.stockQuantity <= 0 ? 'out_of_stock' : 'low_stock') : 'in_stock',
                     isBatchDetail: true,
@@ -442,7 +443,8 @@ export class PharmacyService {
                 selling_price:Number(m.selling_price) ||0,
                 gst_percent: Number(m.gst_percent) || 0,
                 gst_amount: Number(m.gst_amount) || 0,
-                hsn_code: m.hsn_code || '-', 
+                hsn_code: m.hsn_code || '-',
+                manufacturing_date: m.manufacturing_date,
                 overalldiscount: Number(m.overalldiscount) || 0,
                 status: (Number(m.stock_quantity) || 0) <= (Number(m.min_level) || 10) ? ((Number(m.stock_quantity) || 0) <= 0 ? 'out_of_stock' : 'low_stock') : 'in_stock',
                 batch: m.batch_number ? {
@@ -673,7 +675,7 @@ export class PharmacyService {
         const bill = await prisma.$transaction(async (tx) => {
             // Initialize totals
             let subtotal = 0;
-            let totalDiscount = input.discount || 0; // Overall bill discount
+            let totalDiscount = 0; // Sum of item-wise discounts
             let totalGstAmount = 0;
             const billItemsData = [];
 
@@ -753,7 +755,7 @@ export class PharmacyService {
                     discountAmount: itemDiscountAmt,
                     gstAmount: itemGstAmt,
                     totalAmount: itemTotalAmt,
-                    total: itemBase, // Keeping legacy 'total' as subtotal for safety
+                    total: itemTotalAmt, // Store the discounted total
                     purchasePrice: avgPurchasePrice,
                     profit: itemProfit,
                 });
