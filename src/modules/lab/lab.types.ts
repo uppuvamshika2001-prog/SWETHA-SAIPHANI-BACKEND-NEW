@@ -42,12 +42,12 @@ export const updateLabResultSchema = createLabResultSchema.partial().omit({ orde
 
 export const labOrderQuerySchema = z.object({
     page: z.coerce.number().int().positive().default(1),
-    limit: z.coerce.number().int().positive().max(100).default(10),
+    limit: z.coerce.number().int().positive().max(10000).default(10),
     patientId: z.string().optional(),
     status: z.nativeEnum(LabTestStatus).optional(),
     priority: z.enum(['normal', 'urgent', 'stat']).optional(),
-    startDate: z.coerce.date().optional(),
-    endDate: z.coerce.date().optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
 });
 
 // Lab Test Management Schemas

@@ -315,15 +315,14 @@ export class DoctorsService {
         // Date Range Filtering
         if (startDate || endDate) {
             const createdAtFilter: any = {};
-            if (startDate) {
-                const start = new Date(startDate);
-                start.setHours(0, 0, 0, 0);
-                createdAtFilter.gte = start;
+            const start = startDate ? String(startDate).split('T')[0] : null;
+            const end = endDate ? String(endDate).split('T')[0] : start;
+
+            if (start) {
+                createdAtFilter.gte = new Date(`${start}T00:00:00.000Z`);
             }
-            if (endDate) {
-                const end = new Date(endDate);
-                end.setHours(23, 59, 59, 999);
-                createdAtFilter.lte = end;
+            if (end) {
+                createdAtFilter.lte = new Date(`${end}T23:59:59.999Z`);
             }
             where.createdAt = createdAtFilter;
         }

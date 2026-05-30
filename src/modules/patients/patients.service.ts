@@ -245,15 +245,14 @@ export class PatientsService {
 
         if (startDate || endDate) {
             const registrationDateFilter: any = {};
-            if (startDate) {
-                const start = new Date(startDate);
-                start.setHours(0, 0, 0, 0);
-                registrationDateFilter.gte = start;
+            const start = startDate ? String(startDate).split('T')[0] : null;
+            const end = endDate ? String(endDate).split('T')[0] : start;
+
+            if (start) {
+                registrationDateFilter.gte = new Date(`${start}T00:00:00.000Z`);
             }
-            if (endDate) {
-                const end = new Date(endDate);
-                end.setHours(23, 59, 59, 999);
-                registrationDateFilter.lte = end;
+            if (end) {
+                registrationDateFilter.lte = new Date(`${end}T23:59:59.999Z`);
             }
             AND.push({ registrationDate: registrationDateFilter });
         }

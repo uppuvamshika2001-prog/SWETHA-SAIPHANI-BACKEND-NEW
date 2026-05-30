@@ -106,7 +106,7 @@ export const updatePatientSchema = z.object({
 
 export const patientQuerySchema = z.object({
     page: z.coerce.number().int().positive().default(1),
-    limit: z.coerce.number().int().positive().max(100).default(50),
+    limit: z.coerce.number().int().positive().max(10000).default(50),
     search: z.string().optional(),
     date: z.string().optional(), // YYYY-MM-DD
     startDate: z.string().optional(),

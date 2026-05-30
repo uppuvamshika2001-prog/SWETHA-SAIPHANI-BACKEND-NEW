@@ -204,21 +204,14 @@ export class LabService {
             // Date Range Filtering with robust validation
             if (startDate || endDate) {
                 const dateFilter: any = {};
+                const start = startDate ? String(startDate).split('T')[0] : null;
+                const end = endDate ? String(endDate).split('T')[0] : start;
 
-                if (startDate) {
-                    const start = new Date(startDate);
-                    if (!isNaN(start.getTime())) {
-                        start.setHours(0, 0, 0, 0);
-                        dateFilter.gte = start;
-                    }
+                if (start) {
+                    dateFilter.gte = new Date(`${start}T00:00:00.000Z`);
                 }
-
-                if (endDate) {
-                    const end = new Date(endDate);
-                    if (!isNaN(end.getTime())) {
-                        end.setHours(23, 59, 59, 999);
-                        dateFilter.lte = end;
-                    }
+                if (end) {
+                    dateFilter.lte = new Date(`${end}T23:59:59.999Z`);
                 }
 
                 if (Object.keys(dateFilter).length > 0) {
